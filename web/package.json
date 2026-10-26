@@ -1,0 +1,21 @@
+{
+  "name": "@override-studio/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@garmin/fitsdk": "^21.218.0",
+    "@override-studio/shared": "*",
+    "mediabunny": "^1.62.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vite": "^7.0.0"
+  }
+}

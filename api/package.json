@@ -1,0 +1,21 @@
+{
+  "name": "@override-studio/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:create": "wrangler d1 create override-studio-db",
+    "db:apply:local": "wrangler d1 migrations apply override-studio-db --local"
+  },
+  "dependencies": {
+    "@override-studio/shared": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.0.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
+  }
+}

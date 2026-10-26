@@ -1,0 +1,381 @@
+/* override.studio theme — implements docs/DESIGN.md (Cal.com reference system). */
+
+:root {
+  color-scheme: light;
+  --paper: #f4f4f4;
+  --surface: #ffffff;
+  --ink: #101010;
+  --graphite: #242424;
+  --muted: #6b7280;
+  --stone: #898989;
+  --border: #e5e7eb;
+  --accent: #0099ff;
+  --info-bg: #eff6fe;
+  --danger: #b42318;
+  --shadow-card: rgba(34, 42, 53, 0.05) 0px 4px 8px 0px;
+  --radius-card: 12px;
+  --radius-input: 8px;
+  --radius-pill: 9999px;
+  --font-display: "Cal Sans", Poppins, "Segoe UI", sans-serif;
+  --font-body: Inter, "Cal Sans UI Variable Light", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--graphite);
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px 96px;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.app-header h1 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.24px;
+  line-height: 1.3;
+  color: var(--ink);
+  margin: 0;
+}
+
+.phase-badge {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--graphite);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+
+.status {
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 24px;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.status-row:last-child {
+  border-bottom: none;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Buttons: secondary ghost default, ink primary. */
+.file-label,
+.btn {
+  display: inline-block;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--graphite);
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 400;
+  font-family: var(--font-body);
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.file-label:hover,
+.btn:hover {
+  border-color: var(--graphite);
+}
+
+.file-label input {
+  display: none;
+}
+
+.btn-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  border-color: var(--ink);
+  opacity: 0.88;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn-small {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stage {
+  margin: 32px 0;
+}
+
+.source-video {
+  display: none;
+}
+
+.live-preview {
+  width: 100%;
+  max-height: 62vh;
+  background: #000;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.timeline {
+  width: 100%;
+  margin: 12px 0 8px;
+  accent-color: var(--ink);
+}
+
+.clocks {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.clocks strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.out-of-range {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.offset-box h2,
+.editor-box h2,
+.render-box h2,
+.template-box h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  line-height: 1.3;
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+
+.offset-box,
+.editor-box,
+.render-box,
+.template-box {
+  margin-bottom: 32px;
+}
+
+.offset-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.editor-box h3 {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 16px 0 8px;
+  color: var(--muted);
+}
+
+.editor-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.trim-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.trim-input {
+  width: 88px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  color: var(--graphite);
+  padding: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.check input {
+  accent-color: var(--ink);
+}
+
+.units {
+  display: flex;
+  gap: 16px;
+}
+
+.widgets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.render-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.template-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.template-card {
+  background: var(--surface);
+  border: 2px solid transparent;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.template-card:hover {
+  border-color: var(--border);
+}
+
+.template-card.selected {
+  border-color: var(--ink);
+}
+
+.template-thumb {
+  display: block;
+  width: 192px;
+  height: 108px;
+  border-radius: var(--radius-input);
+  background: #0d0d0d;
+}
+
+.template-name {
+  display: block;
+  font-size: 14px;
+  color: var(--graphite);
+  padding: 8px 4px 4px;
+  text-align: left;
+}
+
+.render-progress {
+  width: 100%;
+  accent-color: var(--ink);
+}
+
+.render-preview {
+  width: 100%;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  background: #000;
+  margin-top: 8px;
+}
+
+/* Unsupported-browser gate uses the same card language. */
+.unsupported {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.unsupported-card {
+  max-width: 560px;
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 24px;
+}
+
+.unsupported-card h1 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.24px;
+  line-height: 1.3;
+  color: var(--ink);
+  margin: 0 0 16px;
+}
+
+.unsupported-card p,
+.unsupported-card ul {
+  font-size: 14px;
+}
+
+.unsupported-card ul {
+  margin: 4px 0 16px;
+  padding-left: 20px;
+  color: var(--muted);
+}

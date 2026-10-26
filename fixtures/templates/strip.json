@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "strip",
+  "name": "Cinta",
+  "description": "Banda superior con velocidad, FC, potencia y cadencia.",
+  "theme": {
+    "fontFamily": "system-ui, sans-serif",
+    "text": "#ffffff",
+    "accent": "#34d399",
+    "panel": "#101010",
+    "panelOpacity": 0.7
+  },
+  "widgets": [
+    {
+      "id": "speed",
+      "metric": "speed",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.02, "y": 0.04, "w": 0.23, "h": 0.13 },
+        "square": { "x": 0.03, "y": 0.03, "w": 0.46, "h": 0.12 },
+        "vertical": { "x": 0.04, "y": 0.03, "w": 0.45, "h": 0.08 }
+      }
+    },
+    {
+      "id": "heartRate",
+      "metric": "heartRate",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.26, "y": 0.04, "w": 0.23, "h": 0.13 },
+        "square": { "x": 0.51, "y": 0.03, "w": 0.46, "h": 0.12 },
+        "vertical": { "x": 0.51, "y": 0.03, "w": 0.45, "h": 0.08 }
+      }
+    },
+    {
+      "id": "power",
+      "metric": "power",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.5, "y": 0.04, "w": 0.23, "h": 0.13 },
+        "square": { "x": 0.03, "y": 0.17, "w": 0.46, "h": 0.12 },
+        "vertical": { "x": 0.04, "y": 0.13, "w": 0.45, "h": 0.08 }
+      }
+    },
+    {
+      "id": "cadence",
+      "metric": "cadence",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.74, "y": 0.04, "w": 0.23, "h": 0.13 },
+        "square": { "x": 0.51, "y": 0.17, "w": 0.46, "h": 0.12 },
+        "vertical": { "x": 0.51, "y": 0.13, "w": 0.45, "h": 0.08 }
+      }
+    }
+  ]
+}

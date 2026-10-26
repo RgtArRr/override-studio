@@ -1,0 +1,23 @@
+{
+  "name": "override-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "web",
+    "api",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api \"npm run dev --workspace=web\" \"npm run dev --workspace=api\"",
+    "dev:web": "npm run dev --workspace=web",
+    "dev:api": "npm run dev --workspace=api",
+    "build": "npm run build --workspace=web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "deploy": "npm run build --workspace=web && npm run deploy --workspace=api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.0"
+  }
+}

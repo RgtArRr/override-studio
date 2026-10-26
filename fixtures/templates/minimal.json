@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "minimal",
+  "name": "Minimal",
+  "description": "Dos datos pequeños arriba, sin estorbar la imagen.",
+  "theme": {
+    "fontFamily": "system-ui, sans-serif",
+    "text": "#ffffff",
+    "accent": "#7dd3fc",
+    "panel": "#0b0e11",
+    "panelOpacity": 0.45
+  },
+  "widgets": [
+    {
+      "id": "speed",
+      "metric": "speed",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.03, "y": 0.05, "w": 0.16, "h": 0.12 },
+        "square": { "x": 0.04, "y": 0.04, "w": 0.24, "h": 0.11 },
+        "vertical": { "x": 0.06, "y": 0.04, "w": 0.4, "h": 0.07 }
+      }
+    },
+    {
+      "id": "elapsed",
+      "metric": "elapsedTime",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.81, "y": 0.05, "w": 0.16, "h": 0.12 },
+        "square": { "x": 0.72, "y": 0.04, "w": 0.24, "h": 0.11 },
+        "vertical": { "x": 0.54, "y": 0.04, "w": 0.4, "h": 0.07 }
+      }
+    }
+  ]
+}

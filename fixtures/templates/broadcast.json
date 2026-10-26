@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "broadcast",
+  "name": "Broadcast",
+  "description": "Ejemplo del schema v1: panel inferior estilo transmisión.",
+  "theme": {
+    "fontFamily": "system-ui, sans-serif",
+    "text": "#ffffff",
+    "accent": "#ffb000",
+    "panel": "#000000",
+    "panelOpacity": 0.62
+  },
+  "widgets": [
+    {
+      "id": "speed",
+      "metric": "speed",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.04, "y": 0.78, "w": 0.2, "h": 0.16 },
+        "square": { "x": 0.05, "y": 0.8, "w": 0.28, "h": 0.14 },
+        "vertical": { "x": 0.06, "y": 0.82, "w": 0.4, "h": 0.12 }
+      }
+    },
+    {
+      "id": "heartRate",
+      "metric": "heartRate",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.26, "y": 0.78, "w": 0.2, "h": 0.16 },
+        "square": { "x": 0.36, "y": 0.8, "w": 0.28, "h": 0.14 },
+        "vertical": { "x": 0.54, "y": 0.82, "w": 0.4, "h": 0.12 }
+      }
+    }
+  ]
+}
