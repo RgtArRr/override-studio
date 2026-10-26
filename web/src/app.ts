@@ -2,17 +2,19 @@ import {
   TEMPLATE_SCHEMA_VERSION,
   classifyAspect,
   type AspectClass,
-  type TemplateV1,
+  type Template,
 } from '@override-studio/shared';
 import {
   parseFit,
   sampleAt,
   summarize,
   formatClock,
+  formatSpan,
   type Activity,
   type TelemetrySample,
 } from './telemetry.js';
 import { formatMetric, type Units } from './format.js';
+import { getCreationTime } from './video-meta.js';
 import { drawOverlay } from './overlay.js';
 import { renderVideo } from './render.js';
 import { BUILTIN_TEMPLATES } from './templates.js';
@@ -33,6 +35,9 @@ function formatOffset(sec: number): string {
   const sign = sec < 0 ? '−' : '+';
   return `${sign}${Math.abs(sec).toFixed(1)} s`;
 }
+
+/** A clip can sit anywhere inside a long activity, so the guard is generous. */
+const OFFSET_LIMIT = 86400;
 
 /** Representative sample so template thumbnails render before any FIT loads. */
 const DEMO_SAMPLE: TelemetrySample = {
@@ -57,16 +62,18 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   let offsetSec = 0;
   let videoURL: string | null = null;
   let videoFile: Blob | null = null;
+  let videoCreation: Date | null = null;
+  let offsetDirty = false;
   let rendering = false;
   let units: Units = 'metric';
   let selectedTemplateId = BUILTIN_TEMPLATES[0].id;
   const widgetOverrides = new Map<string, Map<string, boolean>>();
   const layoutOverrides = new Map<string, Map<string, LayoutOverride>>();
 
-  const selectedTemplate = (): TemplateV1 | undefined =>
+  const selectedTemplate = (): Template | undefined =>
     BUILTIN_TEMPLATES.find((t) => t.id === selectedTemplateId);
 
-  const effectiveTemplate = (template: TemplateV1): TemplateV1 => {
+  const effectiveTemplate = (template: Template): Template => {
     const vis = widgetOverrides.get(template.id);
     const lay = layoutOverrides.get(template.id);
     if (!vis && !lay) return template;
@@ -98,10 +105,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   // Sources
   const sources = el('section', 'sources');
-  const videoLabel = el('label', 'file-label', 'Video MP4');
+  const videoLabel = el('label', 'file-label', 'Video MP4 / MOV');
   const videoInput = el('input');
   videoInput.type = 'file';
-  videoInput.accept = 'video/mp4,.mp4';
+  videoInput.accept = 'video/mp4,.mp4,video/quicktime,.mov';
   videoLabel.appendChild(videoInput);
   const fitLabel = el('label', 'file-label', 'Archivo FIT');
   const fitInput = el('input');
@@ -119,6 +126,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   video.preload = 'auto';
   video.setAttribute('aria-hidden', 'true');
   const canvas = el('canvas', 'live-preview');
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Previsualización del video con la telemetría superpuesta');
   const liveCtx = canvas.getContext('2d');
   if (!liveCtx) throw new Error('No se pudo crear el lienzo de previsualización.');
   const timeline = el('input', 'timeline');
@@ -133,14 +142,15 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const playBtn = el('button', 'btn btn-small', 'Reproducir');
   playBtn.type = 'button';
   playBtn.disabled = true;
-  const videoClock = el('span', undefined, 'video 00:00');
+  const videoClock = el('span', undefined, 'video 00:00 / 00:00');
+  const recordedClock = el('span', undefined, 'grabado —');
   const teleClock = el('span', undefined, 'tele —');
   const offsetClock = el('strong', undefined, formatOffset(0));
-  clocks.append(playBtn, videoClock, teleClock, offsetClock);
+  clocks.append(playBtn, videoClock, recordedClock, teleClock, offsetClock);
   const stageHint = el(
     'p',
     'muted',
-    'Arrastra un widget para moverlo · doble clic restablece su posición · clic en el video reproduce/pausa.',
+    'Arrastra un widget para moverlo · clic derecho lo elimina · doble clic restablece su posición · clic en el video reproduce/pausa.',
   );
   stage.append(video, canvas, timeline, clocks, stageHint);
   wrap.appendChild(stage);
@@ -149,7 +159,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const templateBox = el('section', 'template-box');
   templateBox.append(el('h2', undefined, 'Plantilla'));
   interface Thumb {
-    template: TemplateV1;
+    template: Template;
     card: HTMLButtonElement;
     ctx: CanvasRenderingContext2D;
     sig: string;
@@ -177,7 +187,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     card.append(thumbCanvas, name);
     card.addEventListener('click', () => {
       selectedTemplateId = t.id;
-      rebuildWidgets();
       syncCards();
     });
     cardsBox.appendChild(card);
@@ -190,12 +199,59 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Offset controls
   const offsetBox = el('section', 'offset-box');
   offsetBox.append(el('h2', undefined, 'Sincronización'));
+  const activityCanvas = el('canvas', 'activity-overview');
+  activityCanvas.width = 1000;
+  activityCanvas.height = 96;
+  activityCanvas.setAttribute('role', 'img');
+  activityCanvas.setAttribute('aria-label', 'Vista general de la actividad con la posición del clip');
+  const activityCtx = activityCanvas.getContext('2d');
+  if (!activityCtx) throw new Error('No se pudo crear el lienzo de actividad.');
+  const activityLabel = el('p', 'muted', 'Carga un FIT para ver la actividad.');
+  offsetBox.append(activityCanvas, activityLabel);
   const offsetBtns = el('div', 'offset-btns');
+  const applyAutoOffset = (): boolean => {
+    if (!activity || !videoCreation) return false;
+    offsetSec = Math.min(
+      OFFSET_LIMIT,
+      Math.max(-OFFSET_LIMIT, (videoCreation.getTime() - activity.startTime.getTime()) / 1000),
+    );
+    offsetDirty = true;
+    const fmt = (d: Date): string => d.toLocaleTimeString('es', { hour12: false });
+    setStatus(
+      `Offset auto: ${formatOffset(offsetSec)} (video ${fmt(videoCreation)} − FIT ${fmt(activity.startTime)}). Ajusta fino con ← / →.`,
+    );
+    return true;
+  };
+
+  const tryAutoSync = (): void => {
+    if (offsetDirty) return;
+    if (applyAutoOffset()) return;
+    if (activity && videoFile && !videoCreation) {
+      setStatus('Video sin fecha de grabación: posiciona el clip en la vista de actividad.');
+    }
+  };
+
+  const autoBtn = el('button', 'btn', 'Auto');
+  autoBtn.type = 'button';
+  autoBtn.title = 'Calcula el offset desde la fecha del video y el inicio del FIT';
+  autoBtn.addEventListener('click', () => {
+    if (!activity) {
+      setStatus('Carga primero un FIT.');
+      return;
+    }
+    if (!videoCreation) {
+      setStatus('El video no trae fecha de grabación en sus metadatos.');
+      return;
+    }
+    applyAutoOffset();
+  });
+  offsetBtns.appendChild(autoBtn);
   for (const delta of [-0.5, -0.1, 0.1, 0.5]) {
     const btn = el('button', 'btn', `${delta > 0 ? '+' : ''}${delta.toFixed(1)} s`);
     btn.type = 'button';
     btn.addEventListener('click', () => {
-      offsetSec = Math.min(120, Math.max(-120, offsetSec + delta));
+      offsetSec = Math.min(OFFSET_LIMIT, Math.max(-OFFSET_LIMIT, offsetSec + delta));
+      offsetDirty = true;
     });
     offsetBtns.appendChild(btn);
   }
@@ -203,13 +259,140 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   zeroBtn.type = 'button';
   zeroBtn.addEventListener('click', () => {
     offsetSec = 0;
+    offsetDirty = true;
   });
   offsetBtns.appendChild(zeroBtn);
   offsetBox.append(offsetBtns);
   offsetBox.append(
-    el('p', 'muted', 'Atajo: ← / → ajustan ±0.1 s, con Mayús ±0.5 s. Espacio reproduce/pausa.'),
+    el(
+      'p',
+      'muted',
+      'Atajo: ← / → ajustan ±0.1 s, con Mayús ±0.5 s. Espacio reproduce/pausa. Arrastra sobre la actividad para posicionar el clip.',
+    ),
   );
-  wrap.appendChild(offsetBox);
+  // Sync lives right under the video timeline.
+  stage.after(offsetBox);
+
+  // Activity overview: coarse clip positioning for long activities.
+  type OverviewMetric = 'power' | 'speed' | 'heartRate';
+  const OVERVIEW_LABELS: Record<OverviewMetric, string> = {
+    power: 'Potencia',
+    speed: 'Velocidad',
+    heartRate: 'FC',
+  };
+  const OVERVIEW_PAD = 10;
+  let overviewCache: { metric: OverviewMetric; min: number; max: number } | null = null;
+
+  const pickOverviewMetric = (act: Activity): OverviewMetric | null => {
+    const keys: OverviewMetric[] = ['power', 'speed', 'heartRate'];
+    const stride = Math.max(1, Math.floor(act.samples.length / 200));
+    for (const key of keys) {
+      let present = 0;
+      let total = 0;
+      for (let i = 0; i < act.samples.length; i += stride) {
+        total += 1;
+        if (typeof act.samples[i][key] === 'number') present += 1;
+      }
+      if (total > 0 && present / total > 0.5) return key;
+    }
+    return null;
+  };
+
+  const paintOverview = (tt: number): void => {
+    const W = activityCanvas.width;
+    const H = activityCanvas.height;
+    activityCtx.fillStyle = '#ffffff';
+    activityCtx.fillRect(0, 0, W, H);
+    if (!activity || !overviewCache || activity.durationSec <= 0) {
+      activityCtx.fillStyle = '#898989';
+      activityCtx.font = '300 20px Inter, system-ui, sans-serif';
+      activityCtx.textAlign = 'center';
+      activityCtx.textBaseline = 'middle';
+      activityCtx.fillText(
+        activity ? 'Sin datos graficables' : 'Carga un FIT para ver la actividad',
+        W / 2,
+        H / 2,
+      );
+      activityLabel.textContent = activity ? '' : 'Carga un FIT para ver la actividad.';
+      return;
+    }
+    const { metric, min, max } = overviewCache;
+    const dur = activity.durationSec;
+    const X = (t: number): number =>
+      OVERVIEW_PAD + (Math.min(Math.max(t, 0), dur) / dur) * (W - OVERVIEW_PAD * 2);
+    const Y = (v: number): number =>
+      H - OVERVIEW_PAD - ((v - min) / (max - min)) * (H - OVERVIEW_PAD * 2);
+    activityCtx.beginPath();
+    activityCtx.moveTo(X(0), H - OVERVIEW_PAD);
+    const stride = Math.max(1, Math.floor(activity.samples.length / 400));
+    for (let i = 0; i < activity.samples.length; i += stride) {
+      const s = activity.samples[i];
+      const v = s[metric];
+      activityCtx.lineTo(X(s.t), Y(typeof v === 'number' ? v : min));
+    }
+    activityCtx.lineTo(X(dur), H - OVERVIEW_PAD);
+    activityCtx.closePath();
+    activityCtx.fillStyle = 'rgba(36, 36, 36, 0.14)';
+    activityCtx.fill();
+    const videoDur = Number.isFinite(video.duration) ? video.duration : 0;
+    const winStart = Math.min(Math.max(offsetSec, 0), Math.max(0, dur - videoDur));
+    const winEnd = Math.min(dur, winStart + videoDur);
+    activityCtx.fillStyle = 'rgba(0, 153, 255, 0.16)';
+    activityCtx.fillRect(X(winStart), 2, Math.max(2, X(winEnd) - X(winStart)), H - 4);
+    activityCtx.strokeStyle = '#101010';
+    activityCtx.lineWidth = 1;
+    activityCtx.strokeRect(X(winStart) + 0.5, 2.5, Math.max(2, X(winEnd) - X(winStart)), H - 5);
+    activityCtx.strokeStyle = '#0099ff';
+    activityCtx.lineWidth = 2;
+    activityCtx.beginPath();
+    activityCtx.moveTo(X(tt), 0);
+    activityCtx.lineTo(X(tt), H);
+    activityCtx.stroke();
+    activityLabel.textContent =
+      `${OVERVIEW_LABELS[metric]} · clip ${formatSpan(winStart)} – ${formatSpan(winEnd)}`;
+  };
+
+  const overviewSeek = (clientX: number, center: boolean): void => {
+    if (!activity || activity.durationSec <= 0) return;
+    const rect = activityCanvas.getBoundingClientRect();
+    const px = ((clientX - rect.left) / rect.width) * activityCanvas.width;
+    const t =
+      ((px - OVERVIEW_PAD) / (activityCanvas.width - OVERVIEW_PAD * 2)) * activity.durationSec;
+    const videoDur = Number.isFinite(video.duration) ? video.duration : 0;
+    const maxStart = Math.max(0, activity.durationSec - videoDur);
+    const target = center ? t - videoDur / 2 : t - (overviewDrag?.grabDelta ?? 0);
+    offsetSec = Math.min(
+      OFFSET_LIMIT,
+      Math.max(-OFFSET_LIMIT, Math.min(Math.max(target, 0), maxStart)),
+    );
+    offsetDirty = true;
+  };
+
+  let overviewDrag: { grabDelta: number; downX: number; downY: number; moved: boolean } | null =
+    null;
+  activityCanvas.addEventListener('pointerdown', (e) => {
+    if (!activity || activity.durationSec <= 0) return;
+    const rect = activityCanvas.getBoundingClientRect();
+    const px = ((e.clientX - rect.left) / rect.width) * activityCanvas.width;
+    const t =
+      ((px - OVERVIEW_PAD) / (activityCanvas.width - OVERVIEW_PAD * 2)) * activity.durationSec;
+    overviewDrag = { grabDelta: t - offsetSec, downX: e.clientX, downY: e.clientY, moved: false };
+    activityCanvas.setPointerCapture(e.pointerId);
+  });
+  activityCanvas.addEventListener('pointermove', (e) => {
+    if (!overviewDrag) return;
+    if (Math.hypot(e.clientX - overviewDrag.downX, e.clientY - overviewDrag.downY) > 4) {
+      overviewDrag.moved = true;
+    }
+    if (overviewDrag.moved) overviewSeek(e.clientX, false);
+  });
+  activityCanvas.addEventListener('pointerup', (e) => {
+    if (overviewDrag && !overviewDrag.moved) overviewSeek(e.clientX, true);
+    overviewDrag = null;
+  });
+  activityCanvas.addEventListener('pointercancel', () => {
+    overviewDrag = null;
+  });
 
   // Editor
   const editor = el('section', 'editor-box');
@@ -263,9 +446,16 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   optsRow.append(audioLabel, unitsGroup);
   editor.appendChild(optsRow);
 
-  const widgetsTitle = el('h3', undefined, 'Widgets');
-  const widgetsBox = el('div', 'widgets');
-  editor.append(widgetsTitle, widgetsBox);
+  const resetWidgetsBtn = el('button', 'btn btn-small', 'Restablecer widgets');
+  resetWidgetsBtn.type = 'button';
+  resetWidgetsBtn.title = 'Restaura los widgets eliminados y sus posiciones originales';
+  resetWidgetsBtn.addEventListener('click', () => {
+    const template = selectedTemplate();
+    if (!template) return;
+    widgetOverrides.delete(template.id);
+    layoutOverrides.delete(template.id);
+  });
+  editor.appendChild(resetWidgetsBtn);
   wrap.appendChild(editor);
 
   // Render
@@ -312,49 +502,55 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
   };
 
-  const rebuildWidgets = (): void => {
-    widgetsBox.innerHTML = '';
-    const template = selectedTemplate();
-    if (!template) return;
-    let overrides = widgetOverrides.get(template.id);
-    if (!overrides) {
-      overrides = new Map(template.widgets.map((w) => [w.id, w.visible]));
-      widgetOverrides.set(template.id, overrides);
-    }
-    for (const widget of template.widgets) {
-      const label = el('label', 'check', widget.id);
-      const check = el('input');
-      check.type = 'checkbox';
-      check.checked = overrides.get(widget.id) ?? widget.visible;
-      check.addEventListener('change', () => {
-        overrides.set(widget.id, check.checked);
-      });
-      label.prepend(check);
-      widgetsBox.appendChild(label);
-    }
-  };
-  rebuildWidgets();
-
   const setVideoSource = (url: string, file: Blob, name: string): void => {
     if (videoURL && videoURL.startsWith('blob:')) URL.revokeObjectURL(videoURL);
     videoURL = url;
     videoFile = file;
     video.src = url;
+    recordedClock.textContent = 'grabado —';
+    videoCreation = null;
+    offsetDirty = false;
+    void getCreationTime(file).then((date) => {
+      if (file !== videoFile) return;
+      videoCreation = date;
+      tryAutoSync();
+      if (!date) return;
+      const pad = (n: number): string => String(n).padStart(2, '0');
+      recordedClock.textContent =
+        `grabado ${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ` +
+        `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    });
     setStatus(`Video: ${name}.`);
   };
 
   const loadFitBuffer = (buffer: ArrayBuffer, name: string): void => {
     try {
       activity = parseFit(buffer);
+      offsetDirty = false;
+      overviewCache = null;
+      const metric = pickOverviewMetric(activity);
+      if (metric) {
+        let min = Infinity;
+        let max = -Infinity;
+        for (const s of activity.samples) {
+          const v = s[metric];
+          if (typeof v === 'number') {
+            if (v < min) min = v;
+            if (v > max) max = v;
+          }
+        }
+        if (max > min) overviewCache = { metric, min, max };
+      }
       const s = summarize(activity);
       const distUnit = formatMetric('distance', s.distanceM, units);
       const speedUnit = s.avgSpeed !== null ? formatMetric('speed', s.avgSpeed, units) : null;
       footer.textContent =
-        `FIT: ${name} — ${s.samples} muestras, ${formatClock(s.durationSec)}` +
+        `FIT: ${name} — ${s.samples} muestras, ${formatSpan(s.durationSec)}` +
         `, ${distUnit.value} ${distUnit.unit}` +
         (speedUnit ? `, media ${speedUnit.value} ${speedUnit.unit}` : '') +
         ` (schema v${TEMPLATE_SCHEMA_VERSION}).`;
       setStatus(`FIT cargado: ${s.samples} muestras. El overlay se previsualiza en vivo.`);
+      tryAutoSync();
     } catch (err) {
       activity = null;
       setStatus(err instanceof Error ? err.message : 'No se pudo leer el FIT.');
@@ -513,6 +709,21 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (hit) layoutOverrides.get(template.id)?.delete(hit);
   });
 
+  canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const template = selectedTemplate();
+    if (!template) return;
+    const { nx, ny } = toNorm(e);
+    const hit = hitWidget(nx, ny);
+    if (!hit) return;
+    let perTemplate = widgetOverrides.get(template.id);
+    if (!perTemplate) {
+      perTemplate = new Map(template.widgets.map((w) => [w.id, w.visible]));
+      widgetOverrides.set(template.id, perTemplate);
+    }
+    perTemplate.set(hit, false);
+  });
+
   renderBtn.addEventListener('click', () => {
     if (rendering) return;
     if (!videoFile) {
@@ -577,6 +788,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       });
   });
 
+  video.addEventListener('error', () => {
+    setStatus(
+      'No se pudo decodificar este video en Chrome (¿HEVC de iPhone?). Conviértelo a H.264 para usarlo.',
+    );
+  });
+
   video.addEventListener('loadedmetadata', () => {
     timeline.max = String(video.duration);
     timeline.disabled = false;
@@ -610,10 +827,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (event.target instanceof HTMLInputElement) return;
     const step = event.shiftKey ? 0.5 : 0.1;
     if (event.key === 'ArrowLeft') {
-      offsetSec = Math.min(120, Math.max(-120, offsetSec - step));
+      offsetSec = Math.min(OFFSET_LIMIT, Math.max(-OFFSET_LIMIT, offsetSec - step));
+      offsetDirty = true;
       event.preventDefault();
     } else if (event.key === 'ArrowRight') {
-      offsetSec = Math.min(120, Math.max(-120, offsetSec + step));
+      offsetSec = Math.min(OFFSET_LIMIT, Math.max(-OFFSET_LIMIT, offsetSec + step));
+      offsetDirty = true;
       event.preventDefault();
     }
   });
@@ -639,7 +858,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       timeline.max = String(video.duration);
       timeline.value = String(vt);
     }
-    videoClock.textContent = `video ${formatClock(vt)}`;
+    // Video time stays outside the canvas: it is UI chrome, never rendered output.
+    const dur = Number.isFinite(video.duration) ? video.duration : 0;
+    videoClock.textContent = `video ${formatClock(vt)} / ${formatClock(dur)}`;
     offsetClock.textContent = formatOffset(offsetSec);
 
     if (video.src && video.readyState >= 2 && video.videoWidth > 0) {
@@ -647,6 +868,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
       }
+      // ponytail: preview ignores rotation metadata (render.ts handles it); rotated
+      // videos preview unrotated — upgrade by mirroring drawSample's transform.
       liveCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
       if (activity) {
         const tt = vt + offsetSec;
@@ -663,7 +886,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
             units,
           );
         }
-        teleClock.textContent = `tele ${formatClock(sample.t)}${inRange ? '' : ' (fuera de rango)'}`;
+        teleClock.textContent = `tele ${formatSpan(sample.t)}${inRange ? '' : ' (fuera de rango)'}`;
         teleClock.classList.toggle('out-of-range', !inRange);
         repaintThumbs(sample);
       } else {
@@ -675,6 +898,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       repaintThumbs(DEMO_SAMPLE);
       if (video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) paintPlaceholder();
     }
+    paintOverview(activity ? vt + offsetSec : 0);
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);

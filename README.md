@@ -1,6 +1,6 @@
 # override.studio
 
-Editor web que incrusta telemetría deportiva en clips MP4. 100% client-side para el render (WebCodecs + Canvas + MediaBunny), backend full-JS en Cloudflare Workers + D1, plantillas generadas con Meta Model API (`muse-spark-1.3-contributor`).
+Editor web que incrusta telemetría deportiva en clips MP4/MOV (H.264). 100% client-side para el render (WebCodecs + Canvas + MediaBunny), backend full-JS en Cloudflare Workers + D1, plantillas generadas con Meta Model API (`muse-spark-1.3-contributor`).
 
 ## Comandos
 
@@ -10,6 +10,7 @@ npm run dev        # web (5173) + api (8787) juntos
 npm run dev:web    # solo frontend
 npm run dev:api    # solo worker (wrangler local + D1 local)
 npm run typecheck
+npm run check
 npm run build
 ```
 

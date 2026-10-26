@@ -1,5 +1,6 @@
 import { Decoder, Stream } from '@garmin/fitsdk';
 import type { RecordMesg } from '@garmin/fitsdk';
+import type { MetricId } from '@override-studio/shared';
 
 /** One normalized telemetry point. `t` is seconds since activity start. */
 export interface TelemetrySample {
@@ -143,9 +144,28 @@ export function summarize(activity: Activity): ActivitySummary {
   };
 }
 
+/** Raw value for an overlay widget from the FIT sample at the rendered moment.
+ * elapsedTime is the activity clock (FIT elapsed), not the video position. */
+export function widgetValue(
+  metric: MetricId,
+  sample: TelemetrySample,
+): number | undefined {
+  if (metric === 'elapsedTime') return sample.t;
+  return sample[metric];
+}
+
 export function formatClock(totalSec: number): string {
   const s = Math.max(0, Math.floor(totalSec));
   const mm = String(Math.floor(s / 60)).padStart(2, '0');
   const ss = String(s % 60).padStart(2, '0');
   return `${mm}:${ss}`;
+}
+
+/** h:mm:ss past the hour, mm:ss below it. For activity-scale spans. */
+export function formatSpan(totalSec: number): string {
+  const s = Math.max(0, Math.floor(totalSec));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }

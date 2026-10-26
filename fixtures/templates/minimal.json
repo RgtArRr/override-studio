@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "minimal",
   "name": "Minimal",
   "description": "Dos datos pequeños arriba, sin estorbar la imagen.",
@@ -14,21 +14,53 @@
     {
       "id": "speed",
       "metric": "speed",
+      "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.03, "y": 0.05, "w": 0.16, "h": 0.12 },
-        "square": { "x": 0.04, "y": 0.04, "w": 0.24, "h": 0.11 },
-        "vertical": { "x": 0.06, "y": 0.04, "w": 0.4, "h": 0.07 }
+        "horizontal": {
+          "x": 0.03,
+          "y": 0.05,
+          "w": 0.16,
+          "h": 0.12
+        },
+        "square": {
+          "x": 0.04,
+          "y": 0.04,
+          "w": 0.24,
+          "h": 0.11
+        },
+        "vertical": {
+          "x": 0.06,
+          "y": 0.04,
+          "w": 0.4,
+          "h": 0.07
+        }
       }
     },
     {
       "id": "elapsed",
       "metric": "elapsedTime",
+      "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.81, "y": 0.05, "w": 0.16, "h": 0.12 },
-        "square": { "x": 0.72, "y": 0.04, "w": 0.24, "h": 0.11 },
-        "vertical": { "x": 0.54, "y": 0.04, "w": 0.4, "h": 0.07 }
+        "horizontal": {
+          "x": 0.81,
+          "y": 0.05,
+          "w": 0.16,
+          "h": 0.12
+        },
+        "square": {
+          "x": 0.72,
+          "y": 0.04,
+          "w": 0.24,
+          "h": 0.11
+        },
+        "vertical": {
+          "x": 0.54,
+          "y": 0.04,
+          "w": 0.4,
+          "h": 0.07
+        }
       }
     }
   ]

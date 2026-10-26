@@ -1,5 +1,5 @@
 import type { MetricId } from '@override-studio/shared';
-import { formatClock } from './telemetry.js';
+import { formatSpan } from './telemetry.js';
 
 export type Units = 'metric' | 'imperial';
 
@@ -32,6 +32,6 @@ export function formatMetric(metric: MetricId, raw: number, units: Units): Forma
     case 'grade':
       return { value: raw.toFixed(1), unit: '%' };
     case 'elapsedTime':
-      return { value: formatClock(raw), unit: '' };
+      return { value: formatSpan(raw), unit: '' };
   }
 }

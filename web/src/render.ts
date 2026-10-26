@@ -13,7 +13,7 @@ import {
   VideoSampleSink,
   type VideoSample,
 } from 'mediabunny';
-import type { TemplateV1 } from '@override-studio/shared';
+import type { Template } from '@override-studio/shared';
 import { sampleAt, type Activity } from './telemetry.js';
 import { drawOverlay } from './overlay.js';
 import type { Units } from './format.js';
@@ -22,7 +22,7 @@ export interface RenderOptions {
   file: Blob;
   activity: Activity;
   offsetSec: number;
-  template: TemplateV1;
+  template: Template;
   units: Units;
   includeAudio: boolean;
   /** Trim range in seconds of the source timeline. Defaults to the full video. */
@@ -55,6 +55,8 @@ function drawSample(
   ctx.restore();
 }
 
+// ponytail: passthrough only for AAC/MP3; other input codecs lose their audio track
+// silently — upgrade by decoding/re-encoding via AudioBufferSource.
 const PASSTHROUGH_AUDIO = new Set(['aac', 'mp3']);
 
 /**
@@ -88,11 +90,14 @@ export async function renderVideo(options: RenderOptions): Promise<Blob> {
 
     const target = new BufferTarget();
     const output = new Output({
+      // ponytail: 'in-memory' fast-start holds the whole file in RAM (ceiling: long
+      // high-res clips); upgrade to StreamTarget + fastStart 'fragmented' if needed.
       format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
       target,
     });
     const canvasSource = new CanvasSource(canvas, {
       codec: 'avc',
+      // ponytail: fixed 'high' quality, no size/quality control; upgrade by exposing a quality option.
       quality: new Quality('high'),
     });
     output.addVideoTrack(canvasSource);

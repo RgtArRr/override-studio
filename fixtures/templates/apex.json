@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 2,
+  "id": "apex",
+  "name": "Apex",
+  "description": "Gauge de velocidad, potencia gigante y FC.",
+  "theme": {
+    "fontFamily": "system-ui, sans-serif",
+    "text": "#ffffff",
+    "accent": "#00e5ff",
+    "panel": "#0b0e11",
+    "panelOpacity": 0.6
+  },
+  "widgets": [
+    {
+      "id": "speed",
+      "metric": "speed",
+      "kind": "gauge",
+      "visible": true,
+      "range": [0, 12],
+      "layout": {
+        "horizontal": { "x": 0.03, "y": 0.4, "w": 0.32, "h": 0.55 },
+        "square": { "x": 0.06, "y": 0.36, "w": 0.56, "h": 0.4 },
+        "vertical": { "x": 0.08, "y": 0.32, "w": 0.84, "h": 0.3 }
+      }
+    },
+    {
+      "id": "power",
+      "metric": "power",
+      "kind": "number",
+      "visible": true,
+      "label": "WATTS",
+      "style": { "shape": "pill" },
+      "layout": {
+        "horizontal": { "x": 0.38, "y": 0.55, "w": 0.28, "h": 0.4 },
+        "square": { "x": 0.06, "y": 0.78, "w": 0.42, "h": 0.18 },
+        "vertical": { "x": 0.08, "y": 0.64, "w": 0.84, "h": 0.14 }
+      }
+    },
+    {
+      "id": "heartRate",
+      "metric": "heartRate",
+      "kind": "stat",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.69, "y": 0.62, "w": 0.27, "h": 0.32 },
+        "square": { "x": 0.52, "y": 0.78, "w": 0.42, "h": 0.18 },
+        "vertical": { "x": 0.08, "y": 0.8, "w": 0.84, "h": 0.14 }
+      }
+    }
+  ]
+}

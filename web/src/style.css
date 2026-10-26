@@ -164,7 +164,11 @@ a {
 }
 
 .live-preview {
-  width: 100%;
+  display: block;
+  margin: 0 auto;
+  width: auto;
+  height: auto;
+  max-width: 100%;
   max-height: 62vh;
   background: #000;
   border-radius: var(--radius-card);
@@ -181,8 +185,9 @@ a {
 
 .clocks {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 24px;
+  gap: 8px 24px;
   font-variant-numeric: tabular-nums;
   font-size: 14px;
   color: var(--muted);
@@ -216,6 +221,18 @@ a {
 .render-box,
 .template-box {
   margin-bottom: 32px;
+}
+
+.activity-overview {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #ffffff;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  cursor: ew-resize;
+  touch-action: none;
+  margin-bottom: 8px;
 }
 
 .offset-btns {
@@ -275,12 +292,6 @@ a {
   gap: 16px;
 }
 
-.widgets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-}
-
 .render-row {
   display: flex;
   flex-wrap: wrap;
@@ -336,11 +347,15 @@ a {
 }
 
 .render-preview {
-  width: 100%;
+  display: block;
+  margin: 8px auto 0;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 62vh;
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   background: #000;
-  margin-top: 8px;
 }
 
 /* Unsupported-browser gate uses the same card language. */

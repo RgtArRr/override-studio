@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "climb",
   "name": "Escalada",
   "description": "Altitud, pendiente, potencia y FC para puertos de montaña.",
@@ -14,41 +14,105 @@
     {
       "id": "elevation",
       "metric": "elevation",
+      "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.03, "y": 0.78, "w": 0.21, "h": 0.16 },
-        "square": { "x": 0.04, "y": 0.62, "w": 0.44, "h": 0.15 },
-        "vertical": { "x": 0.06, "y": 0.04, "w": 0.88, "h": 0.09 }
+        "horizontal": {
+          "x": 0.03,
+          "y": 0.78,
+          "w": 0.21,
+          "h": 0.16
+        },
+        "square": {
+          "x": 0.04,
+          "y": 0.62,
+          "w": 0.44,
+          "h": 0.15
+        },
+        "vertical": {
+          "x": 0.06,
+          "y": 0.04,
+          "w": 0.88,
+          "h": 0.09
+        }
       }
     },
     {
       "id": "grade",
       "metric": "grade",
+      "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.26, "y": 0.78, "w": 0.21, "h": 0.16 },
-        "square": { "x": 0.52, "y": 0.62, "w": 0.44, "h": 0.15 },
-        "vertical": { "x": 0.06, "y": 0.15, "w": 0.88, "h": 0.09 }
+        "horizontal": {
+          "x": 0.26,
+          "y": 0.78,
+          "w": 0.21,
+          "h": 0.16
+        },
+        "square": {
+          "x": 0.52,
+          "y": 0.62,
+          "w": 0.44,
+          "h": 0.15
+        },
+        "vertical": {
+          "x": 0.06,
+          "y": 0.15,
+          "w": 0.88,
+          "h": 0.09
+        }
       }
     },
     {
       "id": "power",
       "metric": "power",
+      "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.51, "y": 0.78, "w": 0.21, "h": 0.16 },
-        "square": { "x": 0.04, "y": 0.79, "w": 0.44, "h": 0.15 },
-        "vertical": { "x": 0.06, "y": 0.26, "w": 0.88, "h": 0.09 }
+        "horizontal": {
+          "x": 0.51,
+          "y": 0.78,
+          "w": 0.21,
+          "h": 0.16
+        },
+        "square": {
+          "x": 0.04,
+          "y": 0.79,
+          "w": 0.44,
+          "h": 0.15
+        },
+        "vertical": {
+          "x": 0.06,
+          "y": 0.26,
+          "w": 0.88,
+          "h": 0.09
+        }
       }
     },
     {
       "id": "heartRate",
       "metric": "heartRate",
+      "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.76, "y": 0.78, "w": 0.21, "h": 0.16 },
-        "square": { "x": 0.52, "y": 0.79, "w": 0.44, "h": 0.15 },
-        "vertical": { "x": 0.06, "y": 0.37, "w": 0.88, "h": 0.09 }
+        "horizontal": {
+          "x": 0.76,
+          "y": 0.78,
+          "w": 0.21,
+          "h": 0.16
+        },
+        "square": {
+          "x": 0.52,
+          "y": 0.79,
+          "w": 0.44,
+          "h": 0.15
+        },
+        "vertical": {
+          "x": 0.06,
+          "y": 0.37,
+          "w": 0.88,
+          "h": 0.09
+        }
       }
     }
   ]
