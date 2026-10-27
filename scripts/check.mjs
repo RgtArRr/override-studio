@@ -255,6 +255,35 @@ const cdZ = await getCreationDate(mkMdta('2026-10-22T11:24:15Z'));
 assert.equal(cdZ.offsetMin, 0);
 assert.equal(await getCreationDate(new Blob([new Uint8Array(64)])), null);
 assert.equal(await getCreationDate(mkMdta('not-a-date')), null);
+// iPhone layout: a decoy value first, real date ~600 bytes after the key.
+const mkGap = (payload, gap) => {
+  const enc = new TextEncoder();
+  const key = enc.encode('creationdate');
+  const decoy = enc.encode('3.466196');
+  const dbox = new Uint8Array(16 + decoy.length);
+  const dd = new DataView(dbox.buffer);
+  dd.setUint32(0, dbox.length);
+  dbox.set([0x64, 0x61, 0x74, 0x61], 4);
+  dd.setUint32(8, 1);
+  dd.setUint32(12, 0);
+  dbox.set(decoy, 16);
+  const data = enc.encode(payload);
+  const box = new Uint8Array(16 + data.length);
+  const dv = new DataView(box.buffer);
+  dv.setUint32(0, box.length);
+  box.set([0x64, 0x61, 0x74, 0x61], 4);
+  dv.setUint32(8, 1);
+  dv.setUint32(12, 0);
+  box.set(data, 16);
+  const out = new Uint8Array(key.length + dbox.length + gap + box.length);
+  out.set(key, 0);
+  out.set(dbox, key.length);
+  out.set(box, key.length + dbox.length + gap);
+  return new Blob([out]);
+};
+const cdGap = await getCreationDate(mkGap('2026-10-22T06:24:15-0500', 600));
+assert.equal(cdGap.wallMs, Date.UTC(2026, 9, 22, 6, 24, 15));
+assert.equal(cdGap.offsetMin, -300);
 
 // resolveVideoInstant: fixed offsets reinterpret the file wall reading.
 const WALL = Date.UTC(2026, 9, 22, 16, 0, 0);

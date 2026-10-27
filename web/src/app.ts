@@ -301,15 +301,41 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const leftCol = el('div', 'left-col');
   const fitBlock = el('section', 'fit-block');
   fitBlock.append(el('h2', undefined, 'FIT'));
-  const fitLabel = el('label', 'file-label', t('hdr.fit'));
+  const fitDrop = el('div', 'fit-drop', t('fit.drop'));
+  fitDrop.setAttribute('role', 'button');
+  fitDrop.setAttribute('tabindex', '0');
   const fitInput = el('input');
   fitInput.type = 'file';
   fitInput.accept = '.fit';
-  fitLabel.appendChild(fitInput);
-  const fitPill = el('span', 'phase-badge', t('hdr.nofit'));
+  fitDrop.appendChild(fitInput);
+  fitDrop.addEventListener('click', () => fitInput.click());
+  fitDrop.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fitInput.click();
+    }
+  });
+  for (const type of ['dragenter', 'dragover'] as const) {
+    fitDrop.addEventListener(type, (e) => {
+      e.preventDefault();
+      fitDrop.classList.add('over');
+    });
+  }
+  fitDrop.addEventListener('dragleave', () => fitDrop.classList.remove('over'));
+  fitDrop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    fitDrop.classList.remove('over');
+    const file = (e as DragEvent).dataTransfer?.files?.[0];
+    if (file) void file.arrayBuffer().then((buffer) => loadFitBuffer(buffer, file.name));
+  });
+  // A missed drop must not navigate the app away to the raw file.
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => e.preventDefault());
+  const fitPill = el('span', 'phase-badge', '');
+  fitPill.hidden = true;
   const fitStats = el('div', 'fit-stats');
   fitStats.hidden = true;
-  fitBlock.append(fitLabel, fitPill, fitStats);
+  fitBlock.append(fitDrop, fitPill, fitStats);
   leftCol.appendChild(fitBlock);
   /** Basic stats of the loaded FIT, re-rendered on load and on units change. */
   const renderFitStats = (): void => {
@@ -345,15 +371,49 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   binHead.append(el('h2', undefined, t('bin.title')));
   const binCount = el('span', 'muted', '0');
   binHead.appendChild(binCount);
-  const addLabel = el('label', 'file-label', t('bin.add'));
+  const addLabel = el('button', 'file-label', t('bin.add'));
+  addLabel.type = 'button';
+  addLabel.hidden = true;
   const videoInput = el('input');
   videoInput.type = 'file';
   videoInput.accept = 'video/mp4,.mp4,video/quicktime,.mov';
   videoInput.multiple = true;
-  addLabel.appendChild(videoInput);
+  const binDrop = el('div', 'bin-drop', t('bin.drop'));
+  binDrop.setAttribute('role', 'button');
+  binDrop.setAttribute('tabindex', '0');
+  binDrop.appendChild(videoInput);
+  addLabel.addEventListener('click', () => videoInput.click());
+  binDrop.addEventListener('click', () => videoInput.click());
+  binDrop.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      videoInput.click();
+    }
+  });
+  const addDropped = (files: FileList | null | undefined): void => {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      if (/\.(mp4|mov)$/i.test(file.name) || file.type.startsWith('video/')) {
+        addClip(file, file.name);
+      }
+    }
+  };
+  for (const type of ['dragenter', 'dragover'] as const) {
+    bin.addEventListener(type, (e) => {
+      e.preventDefault();
+      bin.classList.add('over');
+    });
+  }
+  bin.addEventListener('dragleave', (e) => {
+    if (e.target === bin) bin.classList.remove('over');
+  });
+  bin.addEventListener('drop', (e) => {
+    e.preventDefault();
+    bin.classList.remove('over');
+    addDropped((e as DragEvent).dataTransfer?.files);
+  });
   const binList = el('div', 'bin-list');
-  const binEmpty = el('p', 'muted', t('bin.empty'));
-  bin.append(binHead, addLabel, binList, binEmpty);
+  bin.append(binHead, addLabel, binDrop, binList);
   leftCol.appendChild(bin);
   grid.appendChild(leftCol);
 
@@ -382,10 +442,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   playBtn.type = 'button';
   playBtn.disabled = true;
   const videoClock = el('span', undefined, t('stage.video', { vt: '00:00', dur: '00:00' }));
-  const recordedClock = el('span', undefined, t('stage.recordedNone'));
   const teleClock = el('span', undefined, t('stage.teleNone'));
   const offsetClock = el('strong', undefined, formatOffset(0));
-  clocks.append(playBtn, videoClock, recordedClock, teleClock, offsetClock);
+  clocks.append(playBtn, videoClock, teleClock, offsetClock);
   const stageHint = el(
     'p',
     'muted',
@@ -719,6 +778,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   clipPanel.append(el('h2', undefined, t('clip.title')));
   const clipName = el('p', 'clip-name', t('clip.none'));
   clipPanel.appendChild(clipName);
+  // Recording-time callout: the parser proof the user checks before tweaking tz.
+  const recordedBanner = el('p', 'recorded-banner warn', t('clip.recordedNone'));
+  clipPanel.appendChild(recordedBanner);
   const trimRow = el('div', 'editor-row');
   const mkTrim = (labelText: string, btnText: string): [HTMLInputElement, HTMLButtonElement] => {
     const group = el('label', 'trim-group', labelText);
@@ -1143,6 +1205,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
 
   const syncInspector = (): void => {
+    const clip = activeClip();
+    inspector.hidden = clip === null;
+    grid.classList.toggle('no-inspector', clip === null);
+    if (!clip) return;
     const showWidget = selectedWidget() !== null;
     clipPanel.hidden = showWidget;
     widgetPanel.hidden = !showWidget;
@@ -1250,7 +1316,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   const syncBin = (): void => {
     binCount.textContent = String(clips.length);
-    binEmpty.hidden = clips.length > 0;
+    addLabel.hidden = clips.length === 0;
+    binDrop.hidden = clips.length > 0;
     binList.innerHTML = '';
     binRows.clear();
     for (const clip of clips) {
@@ -1282,7 +1349,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const sig = clips
       .map(
         (c) =>
-          `${c.id}:${c.status}:${c.duration.toFixed(1)}:${c.offsetSec.toFixed(1)}:${c.videoCreation?.getTime() ?? -1}`,
+          `${c.id}:${c.status}:${c.duration.toFixed(1)}`,
       )
       .join('|');
     if (sig === binMetaSig) return;
@@ -1290,20 +1357,20 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     for (const clip of clips) {
       const refs = binRows.get(clip.id);
       if (!refs) continue;
-      const parts = [
-        clip.duration > 0 ? formatClock(clip.duration) : '—',
-        clip.videoCreation ? `${fmtRecorded(clip.videoCreation)} (${tzName(clip.tz)})` : t('bin.nodate'),
-        formatOffset(clip.offsetSec),
-      ];
-      refs.meta.textContent = parts.join(' · ');
+      refs.meta.textContent = clip.duration > 0 ? formatClock(clip.duration) : '—';
       refs.row.classList.toggle('selected', clip.id === selectedClipId);
     }
   };
 
   const showRecorded = (clip: Clip | null): void => {
-    recordedClock.textContent = clip?.videoCreation
-      ? t('stage.recorded', { date: fmtRecorded(clip.videoCreation), tz: tzName(clip.tz) })
-      : t('stage.recordedNone');
+    if (clip?.videoCreation) {
+      recordedBanner.textContent = t('clip.recorded', {
+        date: fmtRecorded(clip.videoCreation),
+      });
+    } else {
+      recordedBanner.textContent = t('clip.recordedNone');
+    }
+    recordedBanner.classList.toggle('warn', !clip?.videoCreation);
   };
 
   const refreshClipInstant = (clip: Clip): void => {
@@ -1448,6 +1515,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     try {
       activity = parseFit(buffer);
       fitPill.textContent = name;
+      fitPill.hidden = false;
       overviewCache = null;
       const metric = pickOverviewMetric(activity);
       if (metric) {
@@ -1480,6 +1548,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       binMetaSig = '';
     } catch (err) {
       activity = null;
+      fitPill.hidden = true;
       renderFitStats();
       setStatus(err instanceof Error ? err.message : t('st.fitUnreadable'));
     }

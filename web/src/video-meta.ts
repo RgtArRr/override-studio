@@ -73,8 +73,12 @@ function findCreationDate(buf: Uint8Array): CreationDateInfo | null {
       }
     }
     if (at < 0) return null;
-    // 'data' box shortly after: size(4) 'data'(4) type(4) locale(4) payload.
-    for (let j = at; j + 8 < Math.min(at + 256, buf.length); j++) {
+    // 'data' box after the key: size(4) 'data'(4) type(4) locale(4) payload.
+    // The key lives in the 'keys' box but its value sits in a later 'ilst'
+    // item, so other keys' values come first (observed gap: ~500 bytes on
+    // iPhone files). Only a full datetime match returns, so a wide scan is
+    // safe against decoy payloads.
+    for (let j = at; j + 8 < Math.min(at + 4096, buf.length); j++) {
       if (
         buf[j] === 0x64 &&
         buf[j + 1] === 0x61 &&
