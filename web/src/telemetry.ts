@@ -83,11 +83,38 @@ export function parseFit(buffer: ArrayBuffer): Activity {
     return s;
   });
 
+  fillDerivedGrade(samples);
+
   return {
     startTime: records[0].timestamp as Date,
     durationSec: samples[samples.length - 1].t,
     samples,
   };
+}
+
+/**
+ * Grade fallback: many files record elevation + distance but no slope. When NO
+ * sample carries native grade, derive it as Δelevation/Δdistance over a
+ * ±10-sample window (0 when stopped). Native grade always wins; mixing both
+ * sources would read inconsistently.
+ */
+export function fillDerivedGrade(samples: TelemetrySample[]): void {
+  if (samples.some((s) => typeof s.grade === 'number')) return;
+  const K = 10;
+  for (let i = 0; i < samples.length; i++) {
+    const a = samples[Math.max(0, i - K)];
+    const b = samples[Math.min(samples.length - 1, i + K)];
+    if (
+      a.elevation === undefined ||
+      a.distance === undefined ||
+      b.elevation === undefined ||
+      b.distance === undefined
+    ) {
+      continue;
+    }
+    const run = b.distance - a.distance;
+    samples[i].grade = run >= 10 ? ((b.elevation - a.elevation) / run) * 100 : 0;
+  }
 }
 
 const NUMERIC_KEYS = [

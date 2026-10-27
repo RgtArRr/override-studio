@@ -6,6 +6,7 @@ import {
   type AspectClass,
   type MetricId,
   type Template,
+  type TimeFormat,
   type WidgetDef,
   type WidgetKind,
   type WidgetLayout,
@@ -144,10 +145,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const widgetOverrides = new Map<string, Map<string, boolean>>();
   const layoutOverrides = new Map<string, Map<string, LayoutOverride>>();
   const styleOverrides = new Map<string, Map<string, WidgetStyle>>();
-  const baseOverrides = new Map<string, Map<string, number>>();
   const widthOverrides = new Map<string, Map<string, number>>();
   const addedWidgets = new Map<string, WidgetDef[]>();
-  const defOverrides = new Map<string, Map<string, { metric?: MetricId; kind?: WidgetKind }>>();
+  const defOverrides = new Map<
+    string,
+    Map<string, { metric?: MetricId; kind?: WidgetKind; timeFormat?: TimeFormat }>
+  >();
   /** Bumped on any override change so thumbnails repaint (see repaintThumbs sig). */
   let overrideRev = 0;
   /** Selected widget shows outline + handle + the Widget inspector panel. */
@@ -158,6 +161,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const MIN_NORM = 0.04;
   const bumpRev = (): void => {
     overrideRev += 1;
+    syncExportBtns();
   };
 
   const activeClip = (): Clip | null =>
@@ -179,11 +183,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const vis = widgetOverrides.get(template.id);
     const lay = layoutOverrides.get(template.id);
     const sty = styleOverrides.get(template.id);
-    const bas = baseOverrides.get(template.id);
     const wid = widthOverrides.get(template.id);
     const def = defOverrides.get(template.id);
     const added = addedWidgets.get(template.id);
-    if (!vis && !lay && !sty && !bas && !wid && !def && !added) return template;
+    if (!vis && !lay && !sty && !wid && !def && !added) return template;
     const apply = (w: WidgetDef): WidgetDef => {
       const pos = lay?.get(w.id);
       const style = sty?.get(w.id);
@@ -192,8 +195,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         ...w,
         metric: patch?.metric ?? w.metric,
         kind: patch?.kind ?? w.kind,
+        timeFormat: patch?.timeFormat ?? w.timeFormat,
         visible: vis?.get(w.id) ?? w.visible,
-        zoneBase: bas?.get(w.id) ?? w.zoneBase,
         strokeWidth: wid?.get(w.id) ?? w.strokeWidth,
         style: style ? { ...w.style, ...style } : w.style,
         layout: pos
@@ -438,9 +441,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   timeline.disabled = true;
   timeline.setAttribute('aria-label', t('stage.ariaTimeline'));
   const clocks = el('div', 'clocks');
-  const playBtn = el('button', 'btn btn-small', t('stage.play'));
+  const playBtn = el('button', 'btn btn-small play-btn');
   playBtn.type = 'button';
   playBtn.disabled = true;
+  playBtn.setAttribute('aria-label', t('stage.play'));
+  const playIcon = el('span', 'icon icon-play');
+  playIcon.setAttribute('aria-hidden', 'true');
+  playBtn.appendChild(playIcon);
   const videoClock = el('span', undefined, t('stage.video', { vt: '00:00', dur: '00:00' }));
   const teleClock = el('span', undefined, t('stage.teleNone'));
   const offsetClock = el('strong', undefined, formatOffset(0));
@@ -480,7 +487,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     widgetOverrides.delete(template.id);
     layoutOverrides.delete(template.id);
     styleOverrides.delete(template.id);
-    baseOverrides.delete(template.id);
     widthOverrides.delete(template.id);
     addedWidgets.delete(template.id);
     defOverrides.delete(template.id);
@@ -576,6 +582,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     template: Template;
     card: HTMLElement;
     open: HTMLButtonElement;
+    exp: HTMLButtonElement;
+    custom: boolean;
     canvas: HTMLCanvasElement;
     ctx: CanvasRenderingContext2D;
     sig: string;
@@ -592,7 +600,18 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
   };
   const thumbErr = t('tpl.errThumb');
-  const addCard = (tpl: Template): HTMLElement => {
+  /** Any session edit (move, hide, add, restyle, kind/metric, width). */
+  const isEdited = (id: string): boolean =>
+    [widgetOverrides, layoutOverrides, styleOverrides, widthOverrides, defOverrides].some(
+      (m) => (m.get(id)?.size ?? 0) > 0,
+    ) || (addedWidgets.get(id)?.length ?? 0) > 0;
+  /** Builtins show export only once edited; customs always (export is their only save). */
+  const syncExportBtns = (): void => {
+    for (const th of thumbs) {
+      th.exp.hidden = !th.custom && !isEdited(th.template.id);
+    }
+  };
+  const addCard = (tpl: Template, custom = false): HTMLElement => {
     const card = el('div', 'template-card');
     const thumbCanvas = document.createElement('canvas');
     thumbCanvas.width = 512;
@@ -619,7 +638,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     exportBtn.addEventListener('click', () => downloadTemplate(tpl));
     card.append(openBtn, exportBtn);
     cardsBox.appendChild(card);
-    thumbs.push({ template: tpl, card, open: openBtn, canvas: thumbCanvas, ctx: thumbCtx, sig: '' });
+    thumbs.push({
+      template: tpl,
+      card,
+      open: openBtn,
+      exp: exportBtn,
+      custom,
+      canvas: thumbCanvas,
+      ctx: thumbCtx,
+      sig: '',
+    });
+    syncExportBtns();
     return card;
   };
   // "+" card first: same size as a template, white with a black border.
@@ -709,7 +738,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   /** Custom templates land right after the + card, selected and ready. */
   const insertCustom = (tpl: Template): void => {
     customTemplates.unshift(tpl);
-    const card = addCard(tpl);
+    const card = addCard(tpl, true);
     cardsBox.insertBefore(card, newCard.nextSibling);
     selectedTemplateId = tpl.id;
     selected = null;
@@ -895,6 +924,18 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     METRIC_IDS.map((value) => ({ value, label: metricLabel(value) })),
     'metric-select',
   );
+  const TIME_FORMATS: { value: TimeFormat; label: string }[] = [
+    { value: 'auto', label: t('w.auto') },
+    { value: 'hmm', label: 'H:MM' },
+    { value: 'hmmss', label: 'H:MM:SS' },
+    { value: 'h', label: 'Hh' },
+    { value: 'hm', label: 'Hh MMm' },
+  ];
+  const [fmtRow, fmtSel] = mkSelectRow(
+    t('w.format'),
+    TIME_FORMATS,
+    'format-select',
+  );
 
   const posRow = el('div', 'editor-row');
   const xInput = mkField(posRow, 'X ', 'number', 'trim-input');
@@ -920,35 +961,40 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   bgRow.appendChild(opGroup);
   const shapeRow = el('div', 'editor-row');
   shapeRow.append(el('span', 'muted', t('w.shape')));
-  const shapeRadios: HTMLInputElement[] = [];
+  const shapeSeg = el('div', 'seg-switch fill');
+  shapeSeg.setAttribute('role', 'group');
+  shapeSeg.setAttribute('aria-label', t('w.shape'));
+  const shapeBtns: HTMLButtonElement[] = [];
   for (const [value, text] of [
     ['rect', t('w.shapeRect')],
     ['pill', t('w.shapePill')],
     ['none', t('w.shapeNone')],
   ]) {
-    const label = el('label', 'check', text);
-    const radio = el('input');
-    radio.type = 'radio';
-    radio.name = 'wshape';
-    radio.value = value;
-    label.prepend(radio);
-    shapeRow.appendChild(label);
-    shapeRadios.push(radio);
+    const btn = el('button', 'seg-opt', text);
+    btn.type = 'button';
+    btn.dataset.shape = value;
+    shapeSeg.appendChild(btn);
+    shapeBtns.push(btn);
   }
+  shapeRow.appendChild(shapeSeg);
   const colorRow = el('div', 'editor-row');
   const accentInput = mkField(colorRow, t('w.accent'), 'color', 'color-input');
   const textInput = mkField(colorRow, t('w.text'), 'color', 'color-input');
-  const baseRow = el('div', 'editor-row');
-  const baseInput = mkField(baseRow, t('w.base'), 'number', 'trim-input');
-  baseInput.min = '1';
-  baseInput.step = '1';
-  baseInput.title = t('w.baseTitle');
   const widthRow = el('div', 'editor-row');
-  const widthInput = mkField(widthRow, t('w.width'), 'number', 'trim-input');
-  widthInput.min = '1';
+  const widthGroup = el('label', 'op-group', t('w.width'));
+  const widthInput = el('input', 'range-input');
+  widthInput.type = 'range';
+  widthInput.min = '0';
+  widthInput.max = '24';
   widthInput.step = '0.5';
-  widthInput.placeholder = 'auto';
   widthInput.title = t('w.widthTitle');
+  const widthPct = el('span', 'pct', '');
+  widthGroup.append(widthInput, widthPct);
+  widthRow.appendChild(widthGroup);
+  const syncWidthPct = (): void => {
+    widthPct.textContent =
+      Number(widthInput.value) <= 0 ? t('w.auto') : `${widthInput.value} px`;
+  };
   const FONT_OPTIONS: [string, string][] = [
     [t('w.themeFont'), ''],
     ['Inter', 'Inter, sans-serif'],
@@ -984,12 +1030,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   widgetPanel.append(
     kindRow,
     metricRow,
+    fmtRow,
     posRow,
     sizeRow,
     bgRow,
     shapeRow,
     colorRow,
-    baseRow,
     widthRow,
     labelFontRow,
     valueFontRow,
@@ -1052,7 +1098,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     bumpRev();
   };
 
-  const writeDefPatch = (patch: { metric?: MetricId; kind?: WidgetKind }): void => {
+  const writeDefPatch = (patch: {
+    metric?: MetricId;
+    kind?: WidgetKind;
+    timeFormat?: TimeFormat;
+  }): void => {
     const sw = selectedWidget();
     if (!sw) return;
     let per = defOverrides.get(sw.template.id);
@@ -1086,9 +1136,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   opInput.addEventListener('input', () =>
     writeStylePatch({ backgroundOpacity: Number(opInput.value) / 100 }),
   );
-  for (const radio of shapeRadios) {
-    radio.addEventListener('change', () => {
-      if (radio.checked) writeStylePatch({ shape: radio.value as WidgetStyle['shape'] });
+  for (const btn of shapeBtns) {
+    btn.addEventListener('click', () => {
+      writeStylePatch({ shape: btn.dataset.shape as WidgetStyle['shape'] });
     });
   }
   accentInput.addEventListener('input', () => writeStylePatch({ accent: accentInput.value }));
@@ -1110,6 +1160,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   kindSel.addEventListener('change', () =>
     writeDefPatch({ kind: kindSel.value as WidgetKind }),
   );
+  fmtSel.addEventListener('change', () =>
+    writeDefPatch({ timeFormat: fmtSel.value as TimeFormat }),
+  );
   metricSel.addEventListener('change', () =>
     writeDefPatch({ metric: metricSel.value as MetricId }),
   );
@@ -1117,19 +1170,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const sw = selectedWidget();
     if (sw) hideWidget(sw.template, sw.widget.id);
   });
-  baseInput.addEventListener('change', () => {
-    const sw = selectedWidget();
-    if (!sw) return;
-    const v = Math.max(1, Math.round(Number(baseInput.value) || 0));
-    let per = baseOverrides.get(sw.template.id);
-    if (!per) {
-      per = new Map();
-      baseOverrides.set(sw.template.id, per);
-    }
-    per.set(sw.widget.id, v);
-    bumpRev();
-  });
-  widthInput.addEventListener('change', () => {
+  widthInput.addEventListener('input', () => {
     const sw = selectedWidget();
     if (!sw) return;
     let per = widthOverrides.get(sw.template.id);
@@ -1137,9 +1178,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       per = new Map();
       widthOverrides.set(sw.template.id, per);
     }
-    const raw = widthInput.value.trim();
-    if (raw === '') per.delete(sw.widget.id);
-    else per.set(sw.widget.id, Math.max(1, Number(raw) || 0));
+    const v = Number(widthInput.value);
+    if (v <= 0) per.delete(sw.widget.id);
+    else per.set(sw.widget.id, v);
+    syncWidthPct();
     bumpRev();
   });
 
@@ -1160,6 +1202,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     widgetSub.textContent = `${sw.widget.kind} · ${sw.widget.metric} · ${aspect}`;
     setIfIdle(kindSel, sw.widget.kind);
     setIfIdle(metricSel, sw.widget.metric);
+    fmtRow.hidden = sw.widget.metric !== 'elapsedTime';
+    setIfIdle(fmtSel, sw.widget.timeFormat ?? 'auto');
     setIfIdle(xInput, box.x.toFixed(2));
     setIfIdle(yInput, box.y.toFixed(2));
     setIfIdle(wInput, box.w.toFixed(2));
@@ -1171,25 +1215,22 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     setIfIdle(opInput, String(op));
     opPct.textContent = `${op} %`;
     const shape = st.shape ?? 'rect';
-    for (const radio of shapeRadios) radio.checked = radio.value === shape;
+    for (const btn of shapeBtns) {
+      const active = btn.dataset.shape === shape;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    }
     if (document.activeElement !== accentInput) {
       accentInput.value = toHex(st.accent ?? sw.template.theme.accent, '#0099ff');
     }
     if (document.activeElement !== textInput) {
       textInput.value = toHex(st.text ?? sw.template.theme.text, '#ffffff');
     }
-    baseRow.hidden = sw.widget.kind !== 'zones' && sw.widget.kind !== 'hbar';
-    if (!baseRow.hidden) {
-      const fallback = sw.widget.kind === 'zones' ? 250 : 185;
-      setIfIdle(baseInput, String(sw.widget.zoneBase ?? fallback));
-    }
     const isMap = sw.widget.kind === 'map' || sw.widget.kind === 'navmap';
     widthRow.hidden = !isMap;
     if (isMap) {
-      setIfIdle(
-        widthInput,
-        sw.widget.strokeWidth !== undefined ? String(sw.widget.strokeWidth) : '',
-      );
+      setIfIdle(widthInput, String(sw.widget.strokeWidth ?? 0));
+      syncWidthPct();
     }
     // Map kinds render no label/value text: the font rows would be dead controls.
     labelFontRow.hidden = isMap;
@@ -1229,10 +1270,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   progress.hidden = true;
   progress.setAttribute('aria-label', t('r.progress'));
   const progressLabel = el('p', 'muted', '');
-  const previewCanvas = el('canvas', 'render-preview');
-  previewCanvas.hidden = true;
   const result = el('div', 'result');
-  renderPanel.append(progress, progressLabel, previewCanvas, result);
+  renderPanel.append(progress, progressLabel, result);
   inspector.appendChild(renderPanel);
   grid.appendChild(inspector);
 
@@ -1782,7 +1821,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   });
 
   const syncPlayBtn = (): void => {
-    playBtn.textContent = video.paused ? t('stage.play') : t('stage.pause');
+    const paused = video.paused;
+    playIcon.classList.toggle('icon-play', paused);
+    playIcon.classList.toggle('icon-pause', !paused);
+    playBtn.setAttribute('aria-label', paused ? t('stage.play') : t('stage.pause'));
   };
 
   const togglePlay = (): void => {
@@ -1917,20 +1959,20 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       bumpRev();
     } else if (e.pointerType === 'mouse' && downPos === null) {
       const { nx, ny } = toNorm(e);
-      canvas.style.cursor = onHandle(e) ? 'nwse-resize' : hitWidget(nx, ny) ? 'grab' : 'pointer';
+      canvas.style.cursor = onHandle(e) ? 'nwse-resize' : hitWidget(nx, ny) ? 'grab' : 'default';
     }
   });
 
   const endDrag = (e: PointerEvent): void => {
     if (drag) {
       drag = null;
-      canvas.style.cursor = 'pointer';
+      canvas.style.cursor = 'default';
     } else if (
       downPos &&
       Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) < 6
     ) {
+      // Empty click only deselects: play lives on the play button.
       selected = null;
-      togglePlay();
     }
     downPos = null;
   };
@@ -1983,7 +2025,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       includeAudio: clip.includeAudio,
       trimStart,
       trimEnd: clip.trimEnd,
-      canvas: previewCanvas,
       onProgress: (done, total) => {
         progress.value = total > 0 ? done / total : 0;
         progressLabel.textContent = t('r.progressLine', {
@@ -2011,7 +2052,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     renderBtn.disabled = on;
     renderAllBtn.disabled = on;
     progress.hidden = !on;
-    previewCanvas.hidden = !on;
     if (on) {
       progress.value = 0;
       result.innerHTML = '';
@@ -2108,13 +2148,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   });
 
   window.addEventListener('keydown', (event) => {
-    if (event.key === ' ') {
-      if (event.target === document.body || event.target === canvas) {
-        togglePlay();
-        event.preventDefault();
-      }
-      return;
-    }
+    if (event.key === ' ') return;
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)
       return;
     const step = event.shiftKey ? 0.5 : 0.1;
@@ -2189,8 +2223,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
           const sh = selBox.h * canvas.height;
           liveCtx.save();
           liveCtx.strokeStyle = '#0099ff';
-          liveCtx.lineWidth = 2;
-          liveCtx.setLineDash([8, 5]);
+          liveCtx.lineWidth = 4;
+          liveCtx.setLineDash([10, 6]);
           liveCtx.strokeRect(sx, sy, sw, sh);
           liveCtx.setLineDash([]);
           const hs = Math.max(14, canvas.width * 0.012);

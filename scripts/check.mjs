@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseFit, sampleAt, summarize, widgetValue } from '../web/src/telemetry.ts';
+import { fillDerivedGrade, parseFit, sampleAt, summarize, widgetValue } from '../web/src/telemetry.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
 import { classifyAspect, parseTemplateJson } from '../shared/src/template.ts';
+import { formatElapsed, formatMetric } from '../web/src/format.ts';
 import {
   getCreationDate,
   getCreationTime,
@@ -35,6 +36,30 @@ assert.equal(act.durationSec, 119);
 assert.equal(act.samples[0].t, 0);
 assert.ok(typeof act.samples[0].lat === 'number');
 assert.throws(() => parseFit(new ArrayBuffer(32)), /FIT/);
+
+// Derived grade fills only when native grade is fully absent.
+const gs = [
+  { t: 0, elevation: 100, distance: 0 },
+  { t: 10, elevation: 110, distance: 100 },
+  { t: 20, elevation: 120, distance: 200 },
+];
+fillDerivedGrade(gs);
+assert.equal(gs[1].grade, 10);
+const native = [
+  { t: 0, grade: 5, elevation: 100, distance: 0 },
+  { t: 10, elevation: 110, distance: 100 },
+];
+fillDerivedGrade(native);
+assert.equal(native[1].grade, undefined);
+const stopped = [
+  { t: 0, elevation: 100, distance: 0 },
+  { t: 10, elevation: 100, distance: 2 },
+];
+fillDerivedGrade(stopped);
+assert.equal(stopped[0].grade, 0);
+const noElev = [{ t: 0, distance: 0 }];
+fillDerivedGrade(noElev);
+assert.equal(noElev[0].grade, undefined);
 
 // Interpolation + clamp.
 const mid = sampleAt(act, 30.5);
@@ -78,10 +103,8 @@ const KINDS = new Set([
   'stat',
   'number',
   'gauge',
-  'zones',
   'speedo',
   'ring',
-  'hbar',
   'slope',
   'gears',
   'spark',
@@ -90,7 +113,6 @@ const KINDS = new Set([
   'map',
   'navmap',
   'compass',
-  'goal',
 ]);
 const SHAPES = new Set(['rect', 'pill', 'none']);
 for (const file of files) {
@@ -334,5 +356,26 @@ assert.throws(
 const slim = parseTemplateJson('{"name":"","widgets":[]}');
 assert.equal(slim.id, 'imported');
 assert.equal(slim.theme.accent, '#7dd3fc');
+
+// Elapsed-time formats (+ roundtrip through template JSON).
+assert.equal(formatElapsed(5025), '1:23:45');
+assert.equal(formatElapsed(90), '01:30');
+assert.equal(formatElapsed(5025, 'hmm'), '1:23');
+assert.equal(formatElapsed(5025, 'hmmss'), '1:23:45');
+assert.equal(formatElapsed(90, 'hmmss'), '0:01:30');
+assert.equal(formatElapsed(5025, 'h'), '1h');
+assert.equal(formatElapsed(5025, 'hm'), '1h 23m');
+assert.equal(formatMetric('elapsedTime', 5025, 'metric', 'h').value, '1h');
+assert.equal(formatMetric('elapsedTime', 90, 'metric').value, '01:30');
+const box = { x: 0, y: 0, w: 1, h: 1 };
+const withFmt = parseTemplateJson(
+  JSON.stringify({
+    name: 't',
+    widgets: [
+      { id: 'a', kind: 'stat', metric: 'elapsedTime', timeFormat: 'hm', layout: { vertical: box, square: box, horizontal: box } },
+    ],
+  }),
+);
+assert.equal(withFmt.widgets[0].timeFormat, 'hm');
 
 console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + i18n + tpljson`);

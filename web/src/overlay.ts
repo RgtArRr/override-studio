@@ -8,7 +8,6 @@ import {
 import {
   sampleAt,
   widgetValue,
-  formatSpan,
   type Activity,
   type TelemetrySample,
 } from './telemetry.js';
@@ -33,23 +32,11 @@ const GAUGE_DEFAULTS: Record<MetricId, [number, number]> = {
   none: [0, 1],
 };
 
-/** Coggan power zones (% FTP) and 5 HR zones (% max HR). */
-const POWER_ZONE_BOUNDS = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
-const HR_ZONE_BOUNDS = [0.6, 0.7, 0.8, 0.9];
-const ZONE_COLORS = ['#8e8e93', '#0099ff', '#34c759', '#ffd60a', '#ff9f0a', '#ff453a', '#bf5af2'];
-
 /** Full series access for history widgets (spark, profile, map, compass, vam). */
 export interface OverlayHistory {
   activity: Activity;
   t: number;
 }
-
-const zoneIndex = (frac: number, bounds: number[]): number => {
-  for (let i = 0; i < bounds.length; i++) {
-    if (frac < bounds[i]) return i;
-  }
-  return bounds.length;
-};
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -113,7 +100,9 @@ function widgetText(
 ): WidgetText {
   const raw = widgetValue(widget.metric, sample);
   const formatted =
-    raw === undefined ? { value: '—', unit: '' } : formatMetric(widget.metric, raw, units);
+    raw === undefined
+      ? { value: '—', unit: '' }
+      : formatMetric(widget.metric, raw, units, widget.timeFormat);
   return {
     label: widget.label ?? labelFor(widget.metric),
     value: formatted.value,
@@ -275,59 +264,6 @@ function drawLabelTop(
 }
 
 /** Power zone arc: 7 Coggan segments, active zone lit. */
-function drawZones(
-  ctx: Ctx,
-  widget: WidgetDef,
-  template: Template,
-  sample: TelemetrySample,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  units: Units,
-): void {
-  const style = resolveStyle(template, widget);
-  const text = widgetText(widget, sample, units);
-  paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
-  drawLabelTop(ctx, style, text.label, x, y, w, h);
-  const raw = widgetValue(widget.metric, sample);
-  if (raw === undefined) {
-    drawMissing(ctx, style, x, y, w, h);
-    return;
-  }
-  const zi = zoneIndex(raw / (widget.zoneBase ?? 250), POWER_ZONE_BOUNDS);
-  const cx = x + w / 2;
-  const cy = y + h * 0.62;
-  const r = Math.min(w / 2 - 8, h * 0.42);
-  const a0 = Math.PI * 0.75;
-  const a1 = Math.PI * 2.25;
-  const segs = POWER_ZONE_BOUNDS.length + 1;
-  ctx.save();
-  ctx.lineWidth = Math.max(5, Math.min(w, h) * 0.09);
-  ctx.lineCap = 'butt';
-  for (let i = 0; i < segs; i++) {
-    const s0 = a0 + ((a1 - a0) * i) / segs + 0.02;
-    const s1 = a0 + ((a1 - a0) * (i + 1)) / segs - 0.02;
-    ctx.globalAlpha = i === zi ? 1 : 0.28;
-    ctx.strokeStyle = ZONE_COLORS[i];
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, s0, s1);
-    ctx.stroke();
-  }
-  ctx.restore();
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = style.text;
-  ctx.font = `700 ${h * 0.2 * style.valueScale}px ${style.valueFont}`;
-  ctx.textBaseline = 'middle';
-  const line = text.unit ? `${text.value} ${text.unit}` : text.value;
-  ctx.fillText(line, cx, cy + h * 0.05, w * 0.9);
-  ctx.fillStyle = ZONE_COLORS[zi];
-  ctx.font = `700 ${h * 0.11 * style.labelScale}px ${style.labelFont}`;
-  ctx.fillText(`Z${zi + 1}`, cx, cy + h * 0.2, w * 0.9);
-  ctx.restore();
-}
-
 /** Classic semicircular speedometer with needle + digital readout. */
 function drawSpeedo(
   ctx: Ctx,
@@ -438,66 +374,6 @@ function drawRing(
 }
 
 /** Horizontal HR zone bar with position marker. */
-function drawHbar(
-  ctx: Ctx,
-  widget: WidgetDef,
-  template: Template,
-  sample: TelemetrySample,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  units: Units,
-): void {
-  const style = resolveStyle(template, widget);
-  const text = widgetText(widget, sample, units);
-  paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
-  drawLabelTop(ctx, style, text.label, x, y, w, h);
-  const raw = widgetValue(widget.metric, sample);
-  if (raw === undefined) {
-    drawMissing(ctx, style, x, y, w, h);
-    return;
-  }
-  const zi = zoneIndex(raw / (widget.zoneBase ?? 185), HR_ZONE_BOUNDS);
-  const pad = w * 0.06;
-  const bx = x + pad;
-  const bw = w - pad * 2;
-  const by = y + h * 0.62;
-  const bh = Math.max(6, h * 0.12);
-  // Domain 0.5..1.0 of max HR split by the zone bounds.
-  const edges = [0.5, ...HR_ZONE_BOUNDS, 1.0];
-  ctx.save();
-  for (let i = 0; i < edges.length - 1; i++) {
-    const sx = bx + ((edges[i] - 0.5) / 0.5) * bw;
-    const sw = ((edges[i + 1] - edges[i]) / 0.5) * bw;
-    ctx.globalAlpha = i === zi ? 1 : 0.3;
-    ctx.fillStyle = ZONE_COLORS[i + 1];
-    ctx.fillRect(sx + 1, by, sw - 2, bh);
-  }
-  ctx.restore();
-  const frac = Math.min(1, Math.max(0, (raw / (widget.zoneBase ?? 185) - 0.5) / 0.5));
-  const mx = bx + frac * bw;
-  ctx.save();
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(mx - 5, by - 2);
-  ctx.lineTo(mx + 5, by - 2);
-  ctx.lineTo(mx, by - 10);
-  ctx.closePath();
-  ctx.fill();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = style.text;
-  ctx.font = `700 ${h * 0.26 * style.valueScale}px ${style.valueFont}`;
-  ctx.textBaseline = 'middle';
-  const line = text.unit ? `${text.value} ${text.unit}` : text.value;
-  ctx.fillText(line, x + w / 2, y + h * 0.38, w * 0.9);
-  ctx.fillStyle = ZONE_COLORS[zi + 1];
-  ctx.font = `700 ${h * 0.11 * style.labelScale}px ${style.labelFont}`;
-  ctx.textAlign = 'right';
-  ctx.fillText(`Z${zi + 1}`, x + w - pad, by + bh + h * 0.04, w * 0.3);
-  ctx.restore();
-}
-
 /** Grade inclinometer: bubble on a centered track. */
 function drawSlope(
   ctx: Ctx,
@@ -1101,59 +977,6 @@ function drawCompass(
   ctx.restore();
 }
 
-/** Goal progress: % of target distance + live ETA. */
-function drawGoal(
-  ctx: Ctx,
-  widget: WidgetDef,
-  template: Template,
-  sample: TelemetrySample,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  units: Units,
-): void {
-  const style = resolveStyle(template, widget);
-  const text = widgetText(widget, sample, units);
-  paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
-  drawLabelTop(ctx, style, text.label, x, y, w, h);
-  const target = (widget.range ?? [0, 20000])[1];
-  const dist = sample.distance;
-  if (typeof dist !== 'number' || target <= 0) {
-    drawMissing(ctx, style, x, y, w, h);
-    return;
-  }
-  const frac = Math.min(1, Math.max(0, dist / target));
-  const pad = w * 0.06;
-  const by = y + h * 0.52;
-  const bh = Math.max(6, h * 0.1);
-  ctx.save();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-  ctx.fillRect(x + pad, by, w - pad * 2, bh);
-  ctx.fillStyle = style.accent;
-  ctx.fillRect(x + pad, by, (w - pad * 2) * frac, bh);
-  ctx.textAlign = 'center';
-  ctx.fillStyle = style.text;
-  ctx.font = `700 ${h * 0.24 * style.valueScale}px ${style.valueFont}`;
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`${Math.round(frac * 100)} %`, x + w / 2, y + h * 0.34, w * 0.9);
-  ctx.font = `600 ${Math.max(8, h * 0.11) * style.labelScale}px ${style.labelFont}`;
-  ctx.fillStyle = style.accent;
-  let sub: string;
-  if (frac >= 1) {
-    sub = t('ovl.goalDone');
-  } else if (typeof sample.speed === 'number' && sample.speed > 0.5) {
-    const eta = (target - dist) / sample.speed;
-    const fmt = formatMetric('distance', target - dist, units);
-    sub = t('ovl.goalEta', { v: fmt.value, u: fmt.unit, eta: formatSpan(eta) });
-  } else {
-    const fmt = formatMetric('distance', target - dist, units);
-    sub = t('ovl.goalLeft', { v: fmt.value, u: fmt.unit });
-  }
-  ctx.fillText(sub, x + w / 2, y + h * 0.82, w * 0.92);
-  ctx.restore();
-}
-
 /** Paints every visible widget of the template over the current frame. */
 export function drawOverlay(
   ctx: Ctx,
@@ -1180,17 +1003,11 @@ export function drawOverlay(
       case 'number':
         drawNumber(ctx, widget, template, sample, x, y, w, h, units);
         break;
-      case 'zones':
-        drawZones(ctx, widget, template, sample, x, y, w, h, units);
-        break;
       case 'speedo':
         drawSpeedo(ctx, widget, template, sample, x, y, w, h, units);
         break;
       case 'ring':
         drawRing(ctx, widget, template, sample, x, y, w, h, units);
-        break;
-      case 'hbar':
-        drawHbar(ctx, widget, template, sample, x, y, w, h, units);
         break;
       case 'slope':
         drawSlope(ctx, widget, template, sample, x, y, w, h, units);
@@ -1215,9 +1032,6 @@ export function drawOverlay(
         break;
       case 'compass':
         drawCompass(ctx, widget, template, sample, x, y, w, h, units, hist);
-        break;
-      case 'goal':
-        drawGoal(ctx, widget, template, sample, x, y, w, h, units);
         break;
       default:
         drawStat(ctx, widget, template, sample, x, y, w, h, units);

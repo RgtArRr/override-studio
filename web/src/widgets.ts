@@ -13,10 +13,8 @@ export const WIDGET_KINDS: WidgetKind[] = [
   'stat',
   'number',
   'gauge',
-  'zones',
   'speedo',
   'ring',
-  'hbar',
   'slope',
   'gears',
   'spark',
@@ -25,7 +23,6 @@ export const WIDGET_KINDS: WidgetKind[] = [
   'map',
   'navmap',
   'compass',
-  'goal',
 ];
 
 export const METRIC_IDS: MetricId[] = [
@@ -51,10 +48,8 @@ const DEFAULT_METRIC: Record<WidgetKind, MetricId> = {
   stat: 'speed',
   number: 'power',
   gauge: 'speed',
-  zones: 'power',
   speedo: 'speed',
   ring: 'cadence',
-  hbar: 'heartRate',
   slope: 'grade',
   gears: 'gears',
   spark: 'power',
@@ -63,7 +58,6 @@ const DEFAULT_METRIC: Record<WidgetKind, MetricId> = {
   map: 'none',
   navmap: 'none',
   compass: 'none',
-  goal: 'distance',
 };
 
 export function defaultMetricFor(kind: WidgetKind): MetricId {
@@ -75,10 +69,8 @@ const BASE_SIZE: Record<WidgetKind, { w: number; h: number }> = {
   stat: { w: 0.18, h: 0.13 },
   number: { w: 0.16, h: 0.18 },
   gauge: { w: 0.22, h: 0.3 },
-  zones: { w: 0.22, h: 0.3 },
   speedo: { w: 0.26, h: 0.26 },
   ring: { w: 0.2, h: 0.3 },
-  hbar: { w: 0.3, h: 0.16 },
   slope: { w: 0.26, h: 0.16 },
   gears: { w: 0.2, h: 0.18 },
   spark: { w: 0.32, h: 0.18 },
@@ -87,7 +79,6 @@ const BASE_SIZE: Record<WidgetKind, { w: number; h: number }> = {
   map: { w: 0.26, h: 0.34 },
   navmap: { w: 0.26, h: 0.34 },
   compass: { w: 0.16, h: 0.26 },
-  goal: { w: 0.3, h: 0.18 },
 };
 
 const clamp = (v: number, lo: number, hi: number): number =>
@@ -199,7 +190,7 @@ export function navProject(
   return { fwd: dx * Math.sin(c) + dy * Math.cos(c), right: dx * Math.cos(c) - dy * Math.sin(c) };
 }
 
-/** A visible widget with a default box per aspect. Range/zoneBase fall back to the renderer defaults. */
+/** A visible widget with a default box per aspect. Range falls back to the renderer default. */
 export function makeWidgetDef(
   kind: WidgetKind,
   metric: MetricId,

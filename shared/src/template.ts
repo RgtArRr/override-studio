@@ -21,10 +21,8 @@ export type WidgetKind =
   | 'stat'
   | 'number'
   | 'gauge'
-  | 'zones'
   | 'speedo'
   | 'ring'
-  | 'hbar'
   | 'slope'
   | 'gears'
   | 'spark'
@@ -32,10 +30,12 @@ export type WidgetKind =
   | 'vam'
   | 'map'
   | 'navmap'
-  | 'compass'
-  | 'goal';
+  | 'compass';
 
 export type PanelShape = 'rect' | 'pill' | 'none';
+
+/** Elapsed-time display: auto adapts (mm:ss under an hour, h:mm:ss above). */
+export type TimeFormat = 'auto' | 'hmm' | 'hmmss' | 'h' | 'hm';
 
 /** Normalized 0..1 box inside the video frame. */
 export interface WidgetLayout {
@@ -73,10 +73,10 @@ export interface WidgetDef {
   showUnit?: boolean;
   /** Gauge scale in raw SI units. Defaults per metric when absent. */
   range?: [number, number];
-  /** Zone base in raw units: FTP watts (zones) or max HR bpm (hbar). */
-  zoneBase?: number;
   /** Map ridden-trail stroke width in px. Auto-sized from the box when absent. */
   strokeWidth?: number;
+  /** Elapsed-time display format. Defaults to 'auto'. Only read for elapsedTime. */
+  timeFormat?: TimeFormat;
   style?: WidgetStyle;
   layout: Record<AspectClass, WidgetLayout>;
 }

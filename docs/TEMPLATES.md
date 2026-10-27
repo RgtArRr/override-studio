@@ -29,12 +29,12 @@ nothing more. AI-generated templates must conform to it.
 {
   "id": "speed",           // unique within the template
   "metric": "speed",       // speed|heartRate|power|cadence|elevation|distance|elapsedTime|grade|vam|gears|none
-  "kind": "gauge",         // stat|number|gauge|zones|speedo|ring|hbar|slope|gears|spark|profile|vam|map|navmap|compass|goal (required)
+  "kind": "gauge",         // stat|number|gauge|speedo|ring|slope|gears|spark|profile|vam|map|navmap|compass (required)
   "visible": true,
   "label": "VEL",          // optional custom label (stat + gauge; number ignores it)
   "showUnit": true,        // optional, default true
   "range": [0, 12],        // optional gauge scale in raw SI units (default per metric)
-  "zoneBase": 250,         // optional: FTP watts (zones) or max HR bpm (hbar)
+  "timeFormat": "hmmss",   // optional elapsed-time display: auto|hmm|hmmss|h|hm (default auto)
   "strokeWidth": 6,        // optional trail width in px (map; auto when absent)
   "style": {               // optional per-widget overrides
     "shape": "pill",       // rect|pill|none (default rect)
@@ -62,12 +62,8 @@ nothing more. AI-generated templates must conform to it.
   and `showUnit: false` for a pure floating number.
 - `gauge`: 270° arc with background track + accent value arc, value centered,
   label on top. Scale from `range`, else the built-in default.
-- `zones`: 7-segment Coggan power arc, active zone lit + `Z1..Z7` tag.
-  Base from `zoneBase` (FTP watts, default 250).
 - `speedo`: 180° speedometer with ticks, needle and digital readout.
 - `ring`: full progress ring for any metric + `range`, value centered.
-- `hbar`: 5-segment HR zone bar with position marker + `Z1..Z5` tag.
-  Base from `zoneBase` (max HR bpm, default 185).
 - `slope`: grade inclinometer, bubble on a centered track.
 - `gears`: front × rear teeth from shift events (`gears` metric). `—` without Di2/AXS.
 - `spark`: last-30 s area sparkline of any metric + current value. Needs history.
@@ -82,7 +78,6 @@ nothing more. AI-generated templates must conform to it.
   `strokeWidth` as `map`.
 - `compass`: GPS course dial, card rotated so course points up + degrees.
   Metric `none`. Needs history with motion.
-- `goal`: progress to `range[1]` meters (`distance` metric) with live ETA.
 
 History kinds (`spark`, `profile`, `vam`, `map`, `navmap`, `compass`) receive
 the full series at render time; without data they show `—`.
@@ -122,7 +117,9 @@ so they never collide with the built-ins.
 
 Each card carries its own small export icon button (right of the name), which
 downloads that template with its current widget setup (visibility, layout,
-style, added widgets) as `{name}.json`. The importer
+style, added widgets) as `{name}.json`. Built-ins show the button only after
+a session edit (move, hide, add, restyle…); custom templates always show it.
+The importer
 (`parseTemplateJson` in `shared/src/template.ts`) requires the shape above —
 name string, widgets array, one box per aspect per widget — fills a neutral
 theme when fields are missing, defaults `visible` to true, and rejects
@@ -131,8 +128,8 @@ unknown widget kinds/metrics. Covered by `npm run check` (+ tpljson).
 ## Built-ins
 
 broadcast · minimal · climb · chrono · strip · story · apex · pulse ·
-zones · speedo · ring · hbar · slope · gears · spark · profile · vam ·
-routemap · navmap · compass · goal.
+speedo · ring · slope · gears · spark · profile · vam ·
+routemap · navmap · compass.
 
 New metrics: `vam` (m/h, computed over 60 s), `gears` (shift teeth, never
 interpolated), `none` (map/compass placeholders).

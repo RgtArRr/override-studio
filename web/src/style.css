@@ -643,6 +643,7 @@ a {
 
 .kind-select,
 .metric-select,
+.format-select,
 .tz-select {
   max-width: none;
   flex: 1;
@@ -726,6 +727,22 @@ a {
   color: #fff;
 }
 
+/* Full-width variant: options share one line inside narrow panels. */
+.seg-switch.fill {
+  flex: 1;
+  min-width: 0;
+}
+
+.seg-switch.fill .seg-opt {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .header-sep {
   width: 1px;
   height: 24px;
@@ -792,6 +809,28 @@ a {
 .card-export:hover {
   border-color: var(--ink);
   color: var(--ink);
+}
+
+.play-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-btn .icon {
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+}
+
+.play-btn .icon-play {
+  -webkit-mask: url('/icons/play.svg') no-repeat center / contain;
+  mask: url('/icons/play.svg') no-repeat center / contain;
+}
+
+.play-btn .icon-pause {
+  -webkit-mask: url('/icons/pause.svg') no-repeat center / contain;
+  mask: url('/icons/pause.svg') no-repeat center / contain;
 }
 
 /* Masked asset icon: glyph takes the button's currentColor. */
@@ -872,20 +911,6 @@ a {
 .render-progress {
   width: 100%;
   accent-color: var(--ink);
-}
-
-/* .render-preview[hidden] is covered by the global [hidden] rule. */
-
-.render-preview {
-  display: block;
-  margin: 8px auto 0;
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 62vh;
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  background: #000;
 }
 
 /* Unsupported-browser gate uses the same card language. */
