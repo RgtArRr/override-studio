@@ -1,4 +1,5 @@
 import { Decoder, Stream } from '@garmin/fitsdk';
+import { t } from './i18n.js';
 import type { RecordMesg } from '@garmin/fitsdk';
 import type { MetricId } from '@override-studio/shared';
 
@@ -49,15 +50,15 @@ function pickRecords(messages: Record<string, unknown>): RecordMesg[] {
 
 export function parseFit(buffer: ArrayBuffer): Activity {
   const decoder = new Decoder(Stream.fromArrayBuffer(buffer));
-  if (!decoder.isFIT()) throw new Error('El archivo no es un FIT válido.');
+  if (!decoder.isFIT()) throw new Error(t('err.fitInvalid'));
   const { messages, errors } = decoder.read();
   if (errors.length > 0) {
-    throw new Error(`El FIT tiene errores de decodificación (${errors.length}).`);
+    throw new Error(t('err.fitDecode', { n: errors.length }));
   }
   const records = pickRecords(messages as Record<string, unknown>).filter(
     (r) => r.timestamp instanceof Date,
   );
-  if (records.length === 0) throw new Error('El FIT no contiene registros con timestamp.');
+  if (records.length === 0) throw new Error(t('err.fitNoRecords'));
 
   const t0 = (records[0].timestamp as Date).getTime();
   // Shift events are sparse: carry the last known combo forward like the bike does.

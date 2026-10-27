@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 export function renderUnsupported(root: HTMLElement, missing: string[]): void {
   root.innerHTML = '';
   const wrap = document.createElement('main');
@@ -7,18 +9,16 @@ export function renderUnsupported(root: HTMLElement, missing: string[]): void {
   card.className = 'unsupported-card';
 
   const title = document.createElement('h1');
-  title.textContent = 'Este navegador no puede procesar video aquí';
+  title.textContent = t('unsup.title');
   card.appendChild(title);
 
   const body = document.createElement('p');
-  body.textContent =
-    'override.studio renderiza la telemetría dentro de tu navegador con WebCodecs. ' +
-    'Tu navegador actual no lo soporta (esto incluye Safari y todos los navegadores en iPhone/iPad).';
+  body.textContent = t('unsup.body');
   card.appendChild(body);
 
   const listTitle = document.createElement('p');
   listTitle.className = 'muted';
-  listTitle.textContent = 'Falta en este navegador:';
+  listTitle.textContent = t('unsup.missing');
   card.appendChild(listTitle);
 
   const list = document.createElement('ul');
@@ -30,9 +30,13 @@ export function renderUnsupported(root: HTMLElement, missing: string[]): void {
   card.appendChild(list);
 
   const cta = document.createElement('p');
-  cta.innerHTML =
-    'Usa <a href="https://www.google.com/chrome/">Chrome</a> o ' +
-    '<a href="https://www.microsoft.com/edge">Edge</a> en computadora o Android para continuar.';
+  const chrome = document.createElement('a');
+  chrome.href = 'https://www.google.com/chrome/';
+  chrome.textContent = 'Chrome';
+  const edge = document.createElement('a');
+  edge.href = 'https://www.microsoft.com/edge';
+  edge.textContent = 'Edge';
+  cta.append(t('unsup.cta1'), chrome, t('unsup.cta2'), edge, t('unsup.cta3'));
   card.appendChild(cta);
 
   wrap.appendChild(card);

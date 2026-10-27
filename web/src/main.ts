@@ -1,7 +1,16 @@
 import './style.css';
 import { checkSupport } from './gate.js';
+import { getLocale, loadLocale, resolveLocale, setLocale, t } from './i18n.js';
 import { renderApp } from './app.js';
 import { renderUnsupported } from './unsupported.js';
+
+// Locale is fixed before anything paints: no language flicker is possible.
+setLocale(resolveLocale(loadLocale(), navigator.languages ?? [navigator.language]));
+document.documentElement.lang = getLocale();
+document.title = t('meta.title');
+document
+  .querySelector('meta[name="description"]')
+  ?.setAttribute('content', t('meta.description'));
 
 const root = document.getElementById('root');
 if (!root) throw new Error('missing #root');
@@ -12,3 +21,4 @@ if (!gate.ok) {
 } else {
   void renderApp(root);
 }
+document.getElementById('boot')?.remove();

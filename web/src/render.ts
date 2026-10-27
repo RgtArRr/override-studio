@@ -16,6 +16,7 @@ import {
 import type { Template } from '@override-studio/shared';
 import { sampleAt, type Activity } from './telemetry.js';
 import { drawOverlay } from './overlay.js';
+import { t } from './i18n.js';
 import type { Units } from './format.js';
 
 export interface RenderOptions {
@@ -59,17 +60,17 @@ export async function renderVideo(options: RenderOptions): Promise<Blob> {
   const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(options.file) });
   try {
     const videoTrack = await input.getPrimaryVideoTrack();
-    if (!videoTrack) throw new Error('El video no tiene pista de imagen legible.');
+    if (!videoTrack) throw new Error(t('err.noVideoTrack'));
     const duration = await input.computeDuration([videoTrack]);
     const start = Math.min(Math.max(options.trimStart ?? 0, 0), duration);
     const end = Math.min(Math.max(options.trimEnd ?? duration, 0), duration);
-    if (!(end > start)) throw new Error('Rango de recorte inválido.');
+    if (!(end > start)) throw new Error(t('err.badTrim'));
     const outDuration = end - start;
 
     const sink = new VideoSampleSink(videoTrack);
     const firstTimestamp = await input.getFirstTimestamp([videoTrack]);
     const probe = await sink.getSample(firstTimestamp);
-    if (!probe) throw new Error('No se pudo decodificar el primer frame.');
+    if (!probe) throw new Error(t('err.noFrame'));
     const frameW = probe.displayWidth;
     const frameH = probe.displayHeight;
     probe.close();
@@ -78,7 +79,7 @@ export async function renderVideo(options: RenderOptions): Promise<Blob> {
     canvas.width = frameW;
     canvas.height = frameH;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('No se pudo crear el lienzo de render.');
+    if (!ctx) throw new Error(t('err.noCanvas'));
 
     const target = new BufferTarget();
     const output = new Output({
@@ -141,10 +142,10 @@ export async function renderVideo(options: RenderOptions): Promise<Blob> {
         sample.close();
       }
     }
-    if (frames === 0) throw new Error('El video no produjo ningún frame.');
+    if (frames === 0) throw new Error(t('err.noFrames'));
 
     await output.finalize();
-    if (!target.buffer) throw new Error('El render no produjo salida.');
+    if (!target.buffer) throw new Error(t('err.noOutput'));
     return new Blob([target.buffer], { type: 'video/mp4' });
   } finally {
     input.dispose();

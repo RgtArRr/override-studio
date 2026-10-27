@@ -29,12 +29,15 @@ import { drawOverlay } from './overlay.js';
 import { renderVideo } from './render.js';
 import { BUILTIN_TEMPLATES } from './templates.js';
 import {
-  METRIC_OPTIONS,
-  WIDGET_KIND_OPTIONS,
+  METRIC_IDS,
+  WIDGET_KINDS,
   defaultMetricFor,
+  kindLabel,
   makeWidgetDef,
+  metricLabel,
   nextWidgetId,
 } from './widgets.js';
+import { getLocale, saveLocale, t, type Locale } from './i18n.js';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -211,15 +214,15 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   logo.src = '/icon.svg';
   logo.alt = '';
   header.append(logo, el('h1', undefined, 'override.studio'));
-  header.append(el('span', 'local-badge', 'render 100% local'));
+  header.append(el('span', 'local-badge', t('hdr.badge')));
   const headerSpacer = el('span', 'header-spacer');
   const headerActions = el('div', 'header-actions');
-  const fitLabel = el('label', 'file-label', 'Archivo FIT');
+  const fitLabel = el('label', 'file-label', t('hdr.fit'));
   const fitInput = el('input');
   fitInput.type = 'file';
   fitInput.accept = '.fit';
   fitLabel.appendChild(fitInput);
-  const fitPill = el('span', 'phase-badge', 'sin FIT');
+  const fitPill = el('span', 'phase-badge', t('hdr.nofit'));
   const unitsGroup = el('div', 'units');
   const mkUnit = (value: Units, text: string): void => {
     const label = el('label', 'check', text);
@@ -236,11 +239,30 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
   mkUnit('metric', 'km / m');
   mkUnit('imperial', 'mi / ft');
-  const fixtureBtn = el('button', 'btn', 'Fixtures');
+  const localeGroup = el('div', 'units');
+  const mkLocale = (value: Locale, text: string): void => {
+    const label = el('label', 'check', text);
+    const radio = el('input');
+    radio.type = 'radio';
+    radio.name = 'locale';
+    radio.value = value;
+    radio.checked = getLocale() === value;
+    radio.addEventListener('change', () => {
+      if (radio.checked && getLocale() !== value) {
+        saveLocale(value);
+        location.reload();
+      }
+    });
+    label.prepend(radio);
+    localeGroup.appendChild(label);
+  };
+  mkLocale('es', 'ES');
+  mkLocale('en', 'EN');
+  const fixtureBtn = el('button', 'btn', t('hdr.fixtures'));
   fixtureBtn.type = 'button';
-  const renderAllBtn = el('button', 'btn btn-primary', 'Renderizar todo');
+  const renderAllBtn = el('button', 'btn btn-primary', t('hdr.renderAll'));
   renderAllBtn.type = 'button';
-  headerActions.append(fitLabel, fitPill, unitsGroup);
+  headerActions.append(fitLabel, fitPill, unitsGroup, localeGroup);
   // Fixtures are a dev-only helper: excluded from production builds.
   if (import.meta.env.DEV) headerActions.appendChild(fixtureBtn);
   headerActions.appendChild(renderAllBtn);
@@ -258,17 +280,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Media bin (left): the ride's clips.
   const bin = el('aside', 'bin');
   const binHead = el('div', 'bin-head');
-  binHead.append(el('h2', undefined, 'Clips'));
+  binHead.append(el('h2', undefined, t('bin.title')));
   const binCount = el('span', 'muted', '0');
   binHead.appendChild(binCount);
-  const addLabel = el('label', 'file-label', '+ Agregar videos');
+  const addLabel = el('label', 'file-label', t('bin.add'));
   const videoInput = el('input');
   videoInput.type = 'file';
   videoInput.accept = 'video/mp4,.mp4,video/quicktime,.mov';
   videoInput.multiple = true;
   addLabel.appendChild(videoInput);
   const binList = el('div', 'bin-list');
-  const binEmpty = el('p', 'muted', 'Sin clips. Los videos de una misma salida comparten el FIT.');
+  const binEmpty = el('p', 'muted', t('bin.empty'));
   bin.append(binHead, addLabel, binList, binEmpty);
   grid.appendChild(bin);
 
@@ -281,9 +303,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   video.setAttribute('aria-hidden', 'true');
   const canvas = el('canvas', 'live-preview');
   canvas.setAttribute('role', 'img');
-  canvas.setAttribute('aria-label', 'Previsualización del video con la telemetría superpuesta');
+  canvas.setAttribute('aria-label', t('stage.ariaPreview'));
   const liveCtx = canvas.getContext('2d');
-  if (!liveCtx) throw new Error('No se pudo crear el lienzo de previsualización.');
+  if (!liveCtx) throw new Error(t('stage.errCanvas'));
   const timeline = el('input', 'timeline');
   timeline.type = 'range';
   timeline.min = '0';
@@ -291,34 +313,34 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   timeline.step = '0.05';
   timeline.value = '0';
   timeline.disabled = true;
-  timeline.setAttribute('aria-label', 'Posición del video');
+  timeline.setAttribute('aria-label', t('stage.ariaTimeline'));
   const clocks = el('div', 'clocks');
-  const playBtn = el('button', 'btn btn-small', 'Reproducir');
+  const playBtn = el('button', 'btn btn-small', t('stage.play'));
   playBtn.type = 'button';
   playBtn.disabled = true;
-  const videoClock = el('span', undefined, 'video 00:00 / 00:00');
-  const recordedClock = el('span', undefined, 'grabado —');
-  const teleClock = el('span', undefined, 'tele —');
+  const videoClock = el('span', undefined, t('stage.video', { vt: '00:00', dur: '00:00' }));
+  const recordedClock = el('span', undefined, t('stage.recordedNone'));
+  const teleClock = el('span', undefined, t('stage.teleNone'));
   const offsetClock = el('strong', undefined, formatOffset(0));
   clocks.append(playBtn, videoClock, recordedClock, teleClock, offsetClock);
   const stageHint = el(
     'p',
     'muted',
-    'Arrastra un widget para moverlo · arrastra su esquina azul para redimensionarlo · clic derecho lo elimina · doble clic restablece su posición y tamaño · clic en el video reproduce/pausa.',
+    t('stage.hint'),
   );
   stage.append(video, canvas, timeline, clocks, stageHint);
   center.appendChild(stage);
 
   // Sync lives right under the video timeline.
   const syncBox = el('section', 'offset-box');
-  syncBox.append(el('h2', undefined, 'Sincronización'));
+  syncBox.append(el('h2', undefined, t('sync.title')));
   const offsetBtns = el('div', 'offset-btns');
   syncBox.append(offsetBtns);
   syncBox.append(
     el(
       'p',
       'muted',
-      'Atajo: ← / → ajustan ±0.1 s, con Mayús ±0.5 s. Espacio reproduce/pausa. Arrastra sobre la actividad para posicionar el clip.',
+      t('sync.hint'),
     ),
   );
   center.appendChild(syncBox);
@@ -326,10 +348,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Template selector, right under the live preview.
   const templateBox = el('section', 'template-box');
   const templateHead = el('div', 'template-head');
-  templateHead.append(el('h2', undefined, 'Plantilla'));
-  const resetWidgetsBtn = el('button', 'btn btn-small', 'Restablecer widgets');
+  templateHead.append(el('h2', undefined, t('tpl.title')));
+  const resetWidgetsBtn = el('button', 'btn btn-small', t('tpl.reset'));
   resetWidgetsBtn.type = 'button';
-  resetWidgetsBtn.title = 'Restaura los widgets eliminados y sus posiciones originales';
+  resetWidgetsBtn.title = t('tpl.resetTitle');
   resetWidgetsBtn.addEventListener('click', () => {
     const template = selectedTemplate();
     if (!template) return;
@@ -343,16 +365,20 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     selected = null;
     bumpRev();
   });
-  const addOpenBtn = el('button', 'btn btn-small btn-primary', '+ Agregar widget');
+  const addOpenBtn = el('button', 'btn btn-small btn-primary', t('tpl.add'));
   addOpenBtn.type = 'button';
-  addOpenBtn.title = 'Agrega un widget a la plantilla seleccionada';
+  addOpenBtn.title = t('tpl.addTitle');
   // Add lives in a modal: the inspector keeps swapping clip/widget/render only.
   const addDialog = el('dialog', 'add-dialog');
-  addDialog.append(el('h2', undefined, 'Agregar widget'));
-  const [addKindRow, addKindSel] = mkSelectRow('Tipo ', WIDGET_KIND_OPTIONS, 'kind-select');
+  addDialog.append(el('h2', undefined, t('tpl.addH')));
+  const [addKindRow, addKindSel] = mkSelectRow(
+    t('tpl.type'),
+    WIDGET_KINDS.map((value) => ({ value, label: kindLabel(value) })),
+    'kind-select',
+  );
   const [addMetricRow, addMetricSel] = mkSelectRow(
-    'Métrica ',
-    METRIC_OPTIONS,
+    t('tpl.metric'),
+    METRIC_IDS.map((value) => ({ value, label: metricLabel(value) })),
     'metric-select',
   );
   addKindSel.setAttribute('autofocus', '');
@@ -361,9 +387,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     addMetricSel.value = defaultMetricFor(addKindSel.value as WidgetKind);
   });
   const addActions = el('div', 'add-actions');
-  const addConfirmBtn = el('button', 'btn btn-primary', 'Agregar');
+  const addConfirmBtn = el('button', 'btn btn-primary', t('tpl.confirm'));
   addConfirmBtn.type = 'button';
-  const addCancelBtn = el('button', 'btn', 'Cancelar');
+  const addCancelBtn = el('button', 'btn', t('tpl.cancel'));
   addCancelBtn.type = 'button';
   addActions.append(addConfirmBtn, addCancelBtn);
   addDialog.append(addKindRow, addMetricRow, addActions);
@@ -422,6 +448,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       th.card.setAttribute('aria-pressed', String(active));
     }
   };
+  const thumbErr = t('tpl.errThumb');
   for (const t of BUILTIN_TEMPLATES) {
     const card = el('button', 'template-card');
     card.type = 'button';
@@ -431,7 +458,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     thumbCanvas.className = 'template-thumb';
     thumbCanvas.setAttribute('aria-hidden', 'true');
     const thumbCtx = thumbCanvas.getContext('2d');
-    if (!thumbCtx) throw new Error('No se pudo crear miniatura de plantilla.');
+    if (!thumbCtx) throw new Error(thumbErr);
     const name = el('span', 'template-name', t.name);
     card.append(thumbCanvas, name);
     card.addEventListener('click', () => {
@@ -478,8 +505,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Inspector (right): Clip panel swaps for the Widget panel on selection.
   const inspector = el('aside', 'inspector');
   const clipPanel = el('div', 'clip-panel');
-  clipPanel.append(el('h2', undefined, 'Clip'));
-  const clipName = el('p', 'clip-name', 'Sin clip seleccionado');
+  clipPanel.append(el('h2', undefined, t('clip.title')));
+  const clipName = el('p', 'clip-name', t('clip.none'));
   clipPanel.appendChild(clipName);
   const trimRow = el('div', 'editor-row');
   const mkTrim = (labelText: string, btnText: string): [HTMLInputElement, HTMLButtonElement] => {
@@ -495,8 +522,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     trimRow.appendChild(group);
     return [input, btn];
   };
-  const [trimStartInput, trimStartBtn] = mkTrim('Inicio ', '⦉ cursor');
-  const [trimEndInput, trimEndBtn] = mkTrim('Fin ', 'cursor ⦊');
+  const [trimStartInput, trimStartBtn] = mkTrim(t('clip.start'), '⦉ cursor');
+  const [trimEndInput, trimEndBtn] = mkTrim(t('clip.end'), 'cursor ⦊');
   trimStartBtn.addEventListener('click', () => {
     trimStartInput.value = video.currentTime.toFixed(1);
     trimStartInput.dispatchEvent(new Event('change'));
@@ -516,7 +543,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     clip.trimEnd = raw === '' ? null : Math.max(0, Number(raw) || 0);
   });
   clipPanel.appendChild(trimRow);
-  const audioLabel = el('label', 'check', 'Incluir audio');
+  const audioLabel = el('label', 'check', t('clip.audio'));
   const audioCheck = el('input');
   audioCheck.type = 'checkbox';
   audioCheck.checked = true;
@@ -527,9 +554,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   });
   clipPanel.appendChild(audioLabel);
   const tzRow = el('div', 'editor-row');
-  tzRow.append(el('span', 'muted', 'Zona horaria '));
+  tzRow.append(el('span', 'muted', t('clip.tz')));
   const tzSelect = el('select', 'font-select tz-select');
-  tzSelect.title = 'Zona con que se interpreta la fecha grabada en el video';
+  tzSelect.title = t('clip.tzTitle');
   const tzOption = (label: string, value: string): void => {
     const opt = el('option', undefined, label);
     opt.value = value;
@@ -545,14 +572,18 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     refreshClipInstant(clip);
     if (clip.id === selectedClipId) showRecorded(clip);
     if (!clip.videoCreation) {
-      setStatus('El clip no trae fecha de grabación: la zona no tiene efecto.');
+      setStatus(t('clip.tzNoDate'));
     } else if (applyAutoOffset(clip)) {
       clip.offsetDirty = true;
       setStatus(
-        `Zona ${tzName(clip.tz)} aplicada a “${clip.name}”: offset ${formatOffset(clip.offsetSec)}.`,
+        t('clip.tzApplied', {
+          tz: tzName(clip.tz),
+          name: clip.name,
+          off: formatOffset(clip.offsetSec),
+        }),
       );
     } else {
-      setStatus('Zona aplicada. Carga un FIT para sincronizar.');
+      setStatus(t('clip.tzNeedFit'));
     }
     binMetaSig = '';
   });
@@ -562,7 +593,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Widget panel: every option of the selected widget.
   const widgetPanel = el('div', 'widget-panel');
   widgetPanel.hidden = true;
-  widgetPanel.append(el('h2', undefined, 'Widget'));
+  widgetPanel.append(el('h2', undefined, t('w.title')));
   const widgetTitle = el('p', 'clip-name', '');
   const widgetSub = el('p', 'muted', '');
   widgetPanel.append(widgetTitle, widgetSub);
@@ -581,8 +612,16 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     return input;
   };
 
-  const [kindRow, kindSel] = mkSelectRow('Tipo ', WIDGET_KIND_OPTIONS, 'kind-select');
-  const [metricRow, metricSel] = mkSelectRow('Métrica ', METRIC_OPTIONS, 'metric-select');
+  const [kindRow, kindSel] = mkSelectRow(
+    t('tpl.type'),
+    WIDGET_KINDS.map((value) => ({ value, label: kindLabel(value) })),
+    'kind-select',
+  );
+  const [metricRow, metricSel] = mkSelectRow(
+    t('tpl.metric'),
+    METRIC_IDS.map((value) => ({ value, label: metricLabel(value) })),
+    'metric-select',
+  );
 
   const posRow = el('div', 'editor-row');
   const xInput = mkField(posRow, 'X ', 'number', 'trim-input');
@@ -596,8 +635,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     input.step = '0.01';
   }
   const bgRow = el('div', 'editor-row');
-  const bgInput = mkField(bgRow, 'Fondo ', 'color', 'color-input');
-  const opGroup = el('label', 'op-group', 'Opac. ');
+  const bgInput = mkField(bgRow, t('w.bg'), 'color', 'color-input');
+  const opGroup = el('label', 'op-group', t('w.opacity'));
   const opInput = el('input', 'range-input');
   opInput.type = 'range';
   opInput.min = '0';
@@ -607,12 +646,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   opGroup.append(opInput, opPct);
   bgRow.appendChild(opGroup);
   const shapeRow = el('div', 'editor-row');
-  shapeRow.append(el('span', 'muted', 'Forma '));
+  shapeRow.append(el('span', 'muted', t('w.shape')));
   const shapeRadios: HTMLInputElement[] = [];
   for (const [value, text] of [
-    ['rect', 'Rect'],
-    ['pill', 'Píldora'],
-    ['none', 'Nada'],
+    ['rect', t('w.shapeRect')],
+    ['pill', t('w.shapePill')],
+    ['none', t('w.shapeNone')],
   ]) {
     const label = el('label', 'check', text);
     const radio = el('input');
@@ -624,21 +663,21 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     shapeRadios.push(radio);
   }
   const colorRow = el('div', 'editor-row');
-  const accentInput = mkField(colorRow, 'Acento ', 'color', 'color-input');
-  const textInput = mkField(colorRow, 'Texto ', 'color', 'color-input');
+  const accentInput = mkField(colorRow, t('w.accent'), 'color', 'color-input');
+  const textInput = mkField(colorRow, t('w.text'), 'color', 'color-input');
   const baseRow = el('div', 'editor-row');
-  const baseInput = mkField(baseRow, 'Base ', 'number', 'trim-input');
+  const baseInput = mkField(baseRow, t('w.base'), 'number', 'trim-input');
   baseInput.min = '1';
   baseInput.step = '1';
-  baseInput.title = 'FTP en vatios (zonas) o FC máxima en ppm (barra FC)';
+  baseInput.title = t('w.baseTitle');
   const widthRow = el('div', 'editor-row');
-  const widthInput = mkField(widthRow, 'Grosor ', 'number', 'trim-input');
+  const widthInput = mkField(widthRow, t('w.width'), 'number', 'trim-input');
   widthInput.min = '1';
   widthInput.step = '0.5';
   widthInput.placeholder = 'auto';
-  widthInput.title = 'Grosor de la línea del mapa en px (vacío = automático)';
+  widthInput.title = t('w.widthTitle');
   const FONT_OPTIONS: [string, string][] = [
-    ['Tema', ''],
+    [t('w.themeFont'), ''],
     ['Inter', 'Inter, sans-serif'],
     ['Poppins', 'Poppins, sans-serif'],
     ['Mono', 'ui-monospace, monospace'],
@@ -665,9 +704,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     row.append(select, scaleGroup);
     return [row, select, scale, pct];
   };
-  const [labelFontRow, labelFontSel, labelScaleInput, labelPct] = mkFontRow('Etiqueta ');
-  const [valueFontRow, valueFontSel, valueScaleInput, valuePct] = mkFontRow('Número ');
-  const widgetDeleteBtn = el('button', 'btn btn-danger', 'Eliminar widget');
+  const [labelFontRow, labelFontSel, labelScaleInput, labelPct] = mkFontRow(t('w.labelFont'));
+  const [valueFontRow, valueFontSel, valueScaleInput, valuePct] = mkFontRow(t('w.valueFont'));
+  const widgetDeleteBtn = el('button', 'btn btn-danger', t('w.delete'));
   widgetDeleteBtn.type = 'button';
   widgetPanel.append(
     kindRow,
@@ -901,9 +940,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
   // Render lives in its own panel so the Widget panel can hide it.
   const renderPanel = el('div', 'render-panel');
-  renderPanel.append(el('h2', undefined, 'Render'));
+  renderPanel.append(el('h2', undefined, t('r.title')));
   const renderRow = el('div', 'render-row');
-  const renderBtn = el('button', 'btn btn-primary', 'Renderizar clip');
+  const renderBtn = el('button', 'btn btn-primary', t('r.clip'));
   renderBtn.type = 'button';
   renderRow.appendChild(renderBtn);
   renderPanel.appendChild(renderRow);
@@ -911,7 +950,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   progress.max = 1;
   progress.value = 0;
   progress.hidden = true;
-  progress.setAttribute('aria-label', 'Progreso del render');
+  progress.setAttribute('aria-label', t('r.progress'));
   const progressLabel = el('p', 'muted', '');
   const previewCanvas = el('canvas', 'render-preview');
   previewCanvas.hidden = true;
@@ -936,15 +975,15 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   // Bottom timeline: the whole activity with every clip window.
   const timelineBox = el('section', 'timeline-box');
-  timelineBox.append(el('h2', undefined, 'Actividad'));
+  timelineBox.append(el('h2', undefined, t('act.title')));
   const activityCanvas = el('canvas', 'activity-overview');
   activityCanvas.width = 1400;
   activityCanvas.height = 110;
   activityCanvas.setAttribute('role', 'img');
-  activityCanvas.setAttribute('aria-label', 'Vista general de la actividad con la posición de los clips');
+  activityCanvas.setAttribute('aria-label', t('act.aria'));
   const activityCtx = activityCanvas.getContext('2d');
-  if (!activityCtx) throw new Error('No se pudo crear el lienzo de actividad.');
-  const activityLabel = el('p', 'muted', 'Carga un FIT para ver la actividad.');
+  if (!activityCtx) throw new Error(t('act.errCanvas'));
+  const activityLabel = el('p', 'muted', t('act.empty'));
   timelineBox.append(activityCanvas, activityLabel);
   wrap.appendChild(timelineBox);
 
@@ -1012,7 +1051,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       name.title = clip.name;
       const meta = el('span', 'clip-meta');
       const remove = el('span', 'clip-remove', '×');
-      remove.title = 'Quitar clip';
+      remove.title = t('bin.remove');
       remove.setAttribute('role', 'button');
       remove.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1042,7 +1081,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       if (!refs) continue;
       const parts = [
         clip.duration > 0 ? formatClock(clip.duration) : '—',
-        clip.videoCreation ? `${fmtRecorded(clip.videoCreation)} (${tzName(clip.tz)})` : 'sin fecha',
+        clip.videoCreation ? `${fmtRecorded(clip.videoCreation)} (${tzName(clip.tz)})` : t('bin.nodate'),
         formatOffset(clip.offsetSec),
       ];
       refs.meta.textContent = parts.join(' · ');
@@ -1051,10 +1090,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
 
   const showRecorded = (clip: Clip | null): void => {
-    recordedClock.textContent =
-      clip?.videoCreation
-        ? `grabado ${fmtRecorded(clip.videoCreation)} (${tzName(clip.tz)})`
-        : 'grabado —';
+    recordedClock.textContent = clip?.videoCreation
+      ? t('stage.recorded', { date: fmtRecorded(clip.videoCreation), tz: tzName(clip.tz) })
+      : t('stage.recordedNone');
   };
 
   const refreshClipInstant = (clip: Clip): void => {
@@ -1087,7 +1125,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   const removeClip = (id: number): void => {
     if (rendering) {
-      setStatus('Espera a que termine el render para quitar clips.');
+      setStatus(t('st.removeBlocked'));
       return;
     }
     const idx = clips.findIndex((c) => c.id === id);
@@ -1106,7 +1144,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         timeline.value = '0';
         timeline.max = '0';
         playBtn.disabled = true;
-        clipName.textContent = 'Sin clip seleccionado';
+        clipName.textContent = t('clip.none');
         showRecorded(null);
         syncTzSelect();
       }
@@ -1133,16 +1171,20 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (!activity || !clip.videoCreation) {
       if (activity && !clip.videoCreation) {
         setStatus(
-          `“${clip.name}” sin fecha de grabación: posiciónalo en la vista de actividad.`,
+          t('st.noDate', { name: clip.name }),
         );
       }
       return;
     }
-    const fmt = (d: Date): string => d.toLocaleTimeString('es', { hour12: false });
+    const fmt = (d: Date): string => d.toLocaleTimeString(getLocale(), { hour12: false });
     applyAutoOffset(clip);
     setStatus(
-      `Offset auto “${clip.name}”: ${formatOffset(clip.offsetSec)} ` +
-        `(video ${fmt(clip.videoCreation)} − FIT ${fmt(activity.startTime)}). Ajusta fino con ← / →.`,
+      t('st.autoOffset', {
+        name: clip.name,
+        off: formatOffset(clip.offsetSec),
+        a: fmt(clip.videoCreation),
+        b: fmt(activity.startTime),
+      }),
     );
   };
 
@@ -1187,7 +1229,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       tryAutoSync(clip);
       binMetaSig = '';
     });
-    setStatus(`Clip agregado: ${name}.`);
+    setStatus(t('st.clipAdded', { name }));
     return clip.id;
   };
 
@@ -1213,25 +1255,27 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       const distUnit = formatMetric('distance', s.distanceM, units);
       const speedUnit = s.avgSpeed !== null ? formatMetric('speed', s.avgSpeed, units) : null;
       footer.textContent =
-        `FIT: ${name} — ${s.samples} muestras, ${formatSpan(s.durationSec)}` +
+        t('fit.footer1', { name, n: s.samples, dur: formatSpan(s.durationSec) }) +
         `, ${distUnit.value} ${distUnit.unit}` +
-        (speedUnit ? `, media ${speedUnit.value} ${speedUnit.unit}` : '') +
-        ` (schema v${TEMPLATE_SCHEMA_VERSION}).`;
+        (speedUnit ? t('fit.footerAvg', { v: speedUnit.value, u: speedUnit.unit }) : '') +
+        t('fit.footerSchema', { v: TEMPLATE_SCHEMA_VERSION });
       // One ride, many videos: every undated clip gets its auto offset now.
       let synced = 0;
       for (const clip of clips) {
         if (!clip.offsetDirty && applyAutoOffset(clip)) synced += 1;
       }
       setStatus(
-        `FIT cargado: ${s.samples} muestras` +
-          (synced > 0 ? `, ${synced} clip(s) sincronizados.` : '. El overlay se previsualiza en vivo.'),
+        t('st.fitLoaded', { n: s.samples }) +
+          (synced > 0
+            ? t('st.fitLoadedSync', { k: synced })
+            : t('st.fitLoadedLive')),
       );
       const clip = activeClip();
       if (clip && activity && !clip.videoCreation) tryAutoSync(clip);
       binMetaSig = '';
     } catch (err) {
       activity = null;
-      setStatus(err instanceof Error ? err.message : 'No se pudo leer el FIT.');
+      setStatus(err instanceof Error ? err.message : t('st.fitUnreadable'));
     }
   };
 
@@ -1250,12 +1294,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   if (import.meta.env.DEV) {
     fixtureBtn.addEventListener('click', () => {
-      setStatus('Cargando fixtures…');
+      setStatus(t('st.loadingFixtures'));
       let fixtureId = -1;
       void import('./fixtures.js')
         .then(({ FIXTURE_VIDEO_URL, FIXTURE_FIT_URL }) => fetch(FIXTURE_VIDEO_URL)
           .then((res) => {
-            if (!res.ok) throw new Error('No se pudo cargar el fixture de video.');
+            if (!res.ok) throw new Error(t('st.errFixtureVideo'));
             return res.blob();
           })
           .then((blob) => {
@@ -1263,7 +1307,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
           })
           .then(() => fetch(FIXTURE_FIT_URL))
           .then((res) => {
-            if (!res.ok) throw new Error('No se pudo cargar el fixture FIT.');
+            if (!res.ok) throw new Error(t('st.errFixtureFit'));
             return res.arrayBuffer();
           })
           .then((buffer) => {
@@ -1277,7 +1321,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
             }
           }))
         .catch((err: unknown) => {
-          setStatus(err instanceof Error ? err.message : 'Error cargando fixtures.');
+          setStatus(err instanceof Error ? err.message : t('st.errFixtures'));
         });
     });
   }
@@ -1285,21 +1329,21 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Sync buttons act on the selected clip.
   const needClip = (): Clip | null => {
     const clip = activeClip();
-    if (!clip) setStatus('Agrega primero un video.');
+    if (!clip) setStatus(t('st.needVideo'));
     return clip;
   };
-  const autoBtn = el('button', 'btn', 'Auto');
+  const autoBtn = el('button', 'btn', t('sync.auto'));
   autoBtn.type = 'button';
-  autoBtn.title = 'Calcula el offset desde la fecha del video y el inicio del FIT';
+  autoBtn.title = t('sync.autoTitle');
   autoBtn.addEventListener('click', () => {
     const clip = needClip();
     if (!clip) return;
     if (!activity) {
-      setStatus('Carga primero un FIT.');
+      setStatus(t('sync.noFit'));
       return;
     }
     if (!clip.videoCreation) {
-      setStatus('El video no trae fecha de grabación en sus metadatos.');
+      setStatus(t('sync.noDate'));
       return;
     }
     applyAutoOffset(clip);
@@ -1329,9 +1373,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Activity overview: coarse clip positioning for long activities.
   type OverviewMetric = 'power' | 'speed' | 'heartRate';
   const OVERVIEW_LABELS: Record<OverviewMetric, string> = {
-    power: 'Potencia',
-    speed: 'Velocidad',
-    heartRate: 'FC',
+    power: t('act.power'),
+    speed: t('act.speed'),
+    heartRate: t('act.hr'),
   };
   const OVERVIEW_PAD = 10;
   let overviewCache: { metric: OverviewMetric; min: number; max: number } | null = null;
@@ -1362,11 +1406,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       activityCtx.textAlign = 'center';
       activityCtx.textBaseline = 'middle';
       activityCtx.fillText(
-        activity ? 'Sin datos graficables' : 'Carga un FIT para ver la actividad',
+        activity ? t('act.noData') : t('act.emptyCanvas'),
         W / 2,
         H / 2,
       );
-      activityLabel.textContent = activity ? '' : 'Carga un FIT para ver la actividad.';
+      activityLabel.textContent = activity ? '' : t('act.empty');
       return;
     }
     const { metric, min, max } = overviewCache;
@@ -1404,8 +1448,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     activityCtx.stroke();
     const clip = activeClip();
     activityLabel.textContent = clip
-      ? `${OVERVIEW_LABELS[metric]} · “${clip.name}” ${formatSpan(clipWindow(clip)[0])} – ${formatSpan(clipWindow(clip)[1])}`
-      : `${OVERVIEW_LABELS[metric]} · ${clips.length} clip(s)`;
+      ? t('act.labelClip', {
+          metric: OVERVIEW_LABELS[metric],
+          clip: clip.name,
+          a: formatSpan(clipWindow(clip)[0]),
+          b: formatSpan(clipWindow(clip)[1]),
+        })
+      : t('act.labelN', { metric: OVERVIEW_LABELS[metric], n: clips.length });
   };
 
   const overviewSeek = (clientX: number, center: boolean): void => {
@@ -1458,7 +1507,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   });
 
   const syncPlayBtn = (): void => {
-    playBtn.textContent = video.paused ? 'Reproducir' : 'Pausar';
+    playBtn.textContent = video.paused ? t('stage.play') : t('stage.pause');
   };
 
   const togglePlay = (): void => {
@@ -1641,12 +1690,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   /** Renders one clip; sequential by design (one encoder at a time). */
   const renderOne = async (clip: Clip, tag: string): Promise<void> => {
-    if (!activity) throw new Error('Carga primero un FIT.');
+    if (!activity) throw new Error(t('sync.noFit'));
     const template = selectedTemplate();
-    if (!template) throw new Error('Plantilla no encontrada.');
+    if (!template) throw new Error(t('r.errTemplate'));
     const trimStart = Math.max(0, clip.trimStart);
     if (clip.trimEnd !== null && !(clip.trimEnd > trimStart)) {
-      throw new Error(`“${clip.name}”: el fin del recorte debe ser mayor que el inicio.`);
+      throw new Error(t('r.errTrim', { name: clip.name }));
     }
     clip.status = 'renderizando';
     binMetaSig = '';
@@ -1662,8 +1711,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       canvas: previewCanvas,
       onProgress: (done, total) => {
         progress.value = total > 0 ? done / total : 0;
-        progressLabel.textContent =
-          `${tag} “${clip.name}”: ${formatClock(done)} / ${formatClock(total)}…`;
+        progressLabel.textContent = t('r.progressLine', {
+          tag,
+          name: clip.name,
+          done: formatClock(done),
+          total: formatClock(total),
+        });
       },
     });
     const url = URL.createObjectURL(blob);
@@ -1672,7 +1725,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const link = el('a', undefined, `${outputName(clip)} (${mb} MB)`);
     link.href = url;
     link.download = outputName(clip);
-    line.append('Listo. ', link);
+    line.append(t('r.ready'), link);
     result.appendChild(line);
     clip.status = 'hecho';
     binMetaSig = '';
@@ -1694,19 +1747,19 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (rendering) return;
     const clip = needClip();
     if (!clip || !activity) {
-      if (!activity) setStatus('Carga primero un FIT.');
+      if (!activity) setStatus(t('sync.noFit'));
       return;
     }
     setRendering(true);
-    void renderOne(clip, 'Renderizando')
+    void renderOne(clip, t('r.tagOne'))
       .then(() => {
         progressLabel.textContent = '';
-        setStatus(`Render listo: ${outputName(clip)}.`);
+        setStatus(t('r.doneOne', { name: outputName(clip) }));
       })
       .catch((err: unknown) => {
         clip.status = 'error';
         binMetaSig = '';
-        setStatus(err instanceof Error ? err.message : 'Falló el render.');
+        setStatus(err instanceof Error ? err.message : t('r.failed'));
         progressLabel.textContent = '';
       })
       .finally(() => setRendering(false));
@@ -1715,11 +1768,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   renderAllBtn.addEventListener('click', () => {
     if (rendering) return;
     if (clips.length === 0) {
-      setStatus('Agrega primero un video.');
+      setStatus(t('st.needVideo'));
       return;
     }
     if (!activity) {
-      setStatus('Carga primero un FIT.');
+      setStatus(t('sync.noFit'));
       return;
     }
     setRendering(true);
@@ -1727,24 +1780,22 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       let done = 0;
       for (const clip of clips) {
         try {
-          await renderOne(clip, `Clip ${done + 1}/${clips.length}.`);
+          await renderOne(clip, t('r.tagN', { done: done + 1, total: clips.length }));
           done += 1;
         } catch (err) {
           clip.status = 'error';
           binMetaSig = '';
-          setStatus(err instanceof Error ? err.message : 'Falló el render.');
+          setStatus(err instanceof Error ? err.message : t('r.failed'));
           break;
         }
       }
       progressLabel.textContent = '';
-      if (done === clips.length) setStatus(`Render listo: ${done} clip(s).`);
+      if (done === clips.length) setStatus(t('r.doneN', { done }));
     })().finally(() => setRendering(false));
   });
 
   video.addEventListener('error', () => {
-    setStatus(
-      'No se pudo decodificar este video en Chrome (¿HEVC de iPhone?). Conviértelo a H.264 para usarlo.',
-    );
+    setStatus(t('st.videoDecode'));
   });
 
   video.addEventListener('loadedmetadata', () => {
@@ -1813,7 +1864,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     liveCtx.font = '300 28px Inter, system-ui, sans-serif';
     liveCtx.textAlign = 'center';
     liveCtx.textBaseline = 'middle';
-    liveCtx.fillText('Agrega videos para previsualizar', canvas.width / 2, canvas.height / 2);
+    liveCtx.fillText(t('stage.empty'), canvas.width / 2, canvas.height / 2);
   };
   paintPlaceholder();
 
@@ -1827,7 +1878,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
     // Video time stays outside the canvas: it is UI chrome, never rendered output.
     const dur = Number.isFinite(video.duration) ? video.duration : 0;
-    videoClock.textContent = `video ${formatClock(vt)} / ${formatClock(dur)}`;
+    videoClock.textContent = t('stage.video', { vt: formatClock(vt), dur: formatClock(dur) });
     offsetClock.textContent = formatOffset(offsetSec);
 
     if (video.src && video.readyState >= 2 && video.videoWidth > 0) {
@@ -1872,15 +1923,18 @@ export async function renderApp(root: HTMLElement): Promise<void> {
           liveCtx.fillRect(sx + sw - hs, sy + sh - hs, hs, hs);
           liveCtx.restore();
         }
-        teleClock.textContent = `tele ${formatSpan(sample.t)}${inRange ? '' : ' (fuera de rango)'}`;
+        teleClock.textContent = t('stage.tele', {
+          t: formatSpan(sample.t),
+          suffix: inRange ? '' : t('stage.outOfRange'),
+        });
         teleClock.classList.toggle('out-of-range', !inRange);
         repaintThumbs(sample);
       } else {
-        teleClock.textContent = 'tele —';
+        teleClock.textContent = t('stage.teleNone');
         repaintThumbs({ ...DEMO_SAMPLE, t: vt });
       }
     } else if (!video.src) {
-      teleClock.textContent = 'tele —';
+      teleClock.textContent = t('stage.teleNone');
       repaintThumbs(DEMO_SAMPLE);
       if (video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) paintPlaceholder();
     }

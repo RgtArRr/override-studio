@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFit, sampleAt, summarize, widgetValue } from '../web/src/telemetry.ts';
+import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
 import { classifyAspect } from '../shared/src/template.ts';
 import {
   getCreationDate,
@@ -11,11 +12,13 @@ import {
   resolveVideoInstant,
 } from '../web/src/video-meta.ts';
 import {
-  METRIC_OPTIONS,
-  WIDGET_KIND_OPTIONS,
+  METRIC_IDS,
+  WIDGET_KINDS,
   defaultMetricFor,
   makeWidgetDef,
+  kindLabel,
   mapStrokeWidths,
+  metricLabel,
   navProject,
   navWindow,
   nextWidgetId,
@@ -171,9 +174,9 @@ assert.equal(widgetValue('speed', probe), 10);
 assert.equal(widgetValue('power', probe), undefined);
 
 // Widget catalog + factory (right panel: add widget, switch metric/kind).
-const kindValues = WIDGET_KIND_OPTIONS.map((o) => o.value);
+const kindValues = WIDGET_KINDS;
 assert.deepEqual(new Set(kindValues), KINDS);
-const metricValues = METRIC_OPTIONS.map((o) => o.value);
+const metricValues = METRIC_IDS;
 assert.equal(metricValues.length, METRICS.size);
 for (const m of metricValues) assert.ok(METRICS.has(m), `catalog metric ${m}`);
 for (const kind of kindValues) {
@@ -259,4 +262,28 @@ assert.equal(resolveVideoInstant(WALL, -6), WALL + 6 * 3600e3);
 assert.equal(resolveVideoInstant(WALL, 5.5), WALL - 5.5 * 3600e3);
 assert.equal(resolveVideoInstant(WALL, 0), WALL);
 
-console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds)`);
+// i18n: stored preference wins, else navigator autodetect, else English.
+assert.equal(resolveLocale('en', ['es-ES']), 'en');
+assert.equal(resolveLocale('es', ['en-US']), 'es');
+assert.equal(resolveLocale('fr', ['es-MX']), 'es');
+assert.equal(resolveLocale(null, ['es-ES', 'es']), 'es');
+assert.equal(resolveLocale(null, ['en-US']), 'en');
+assert.equal(resolveLocale(null, []), 'en');
+assert.equal(resolveLocale(null, ['fr-FR', 'de']), 'en');
+assert.equal(resolveLocale(null, ['ES-mx']), 'es');
+// Both locales carry the same keys; interpolation + fallback hold.
+assert.deepEqual(Object.keys(STRINGS.es).sort(), Object.keys(STRINGS.en).sort());
+setLocale('en');
+assert.equal(t('clip.title'), 'Clip');
+assert.equal(t('st.clipAdded', { name: 'X' }), 'Clip added: X.');
+assert.equal(t('no.such.key'), 'no.such.key');
+assert.equal(kindLabel('speedo'), 'Speedometer');
+assert.equal(metricLabel('heartRate'), 'Heart rate');
+assert.throws(() => parseFit(new Uint8Array(8).buffer), /not a valid FIT/);
+setLocale('es');
+assert.equal(t('clip.title'), 'Clip');
+assert.equal(kindLabel('speedo'), 'Velocímetro');
+assert.equal(metricLabel('heartRate'), 'Frecuencia cardiaca');
+assert.throws(() => parseFit(new Uint8Array(8).buffer), /no es un FIT/);
+
+console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + i18n`);

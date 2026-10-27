@@ -14,20 +14,9 @@ import {
 } from './telemetry.js';
 import { formatMetric, type Units } from './format.js';
 import { mapStrokeWidths, navProject, navWindow } from './widgets.js';
+import { t } from './i18n.js';
 
-const LABELS: Record<MetricId, string> = {
-  speed: 'VEL',
-  heartRate: 'FC',
-  power: 'POT',
-  cadence: 'CAD',
-  elevation: 'ALT',
-  distance: 'DIST',
-  elapsedTime: 'TIEMPO',
-  grade: 'PEND',
-  vam: 'VAM',
-  gears: 'DES',
-  none: '',
-};
+const labelFor = (metric: MetricId): string => t(`ovl.${metric}`);
 
 /** Fallback gauge scales in raw SI units, used when the widget sets no range. */
 const GAUGE_DEFAULTS: Record<MetricId, [number, number]> = {
@@ -126,7 +115,7 @@ function widgetText(
   const formatted =
     raw === undefined ? { value: '—', unit: '' } : formatMetric(widget.metric, raw, units);
   return {
-    label: widget.label ?? LABELS[widget.metric],
+    label: widget.label ?? labelFor(widget.metric),
     value: formatted.value,
     unit: widget.showUnit === false ? '' : formatted.unit,
   };
@@ -589,7 +578,7 @@ function drawGears(
   ctx.fillText(`${sample.frontGear}×${sample.rearGear}`, x + w / 2, y + h * 0.52, w * 0.92);
   ctx.fillStyle = style.accent;
   ctx.font = `600 ${Math.max(8, h * 0.1) * style.labelScale}px ${style.labelFont}`;
-  ctx.fillText('PLATO · PIÑÓN', x + w / 2, y + h * 0.78, w * 0.9);
+  ctx.fillText(t('ovl.gearsSub'), x + w / 2, y + h * 0.78, w * 0.9);
   ctx.restore();
 }
 
@@ -790,7 +779,7 @@ function drawVam(
 ): void {
   const style = resolveStyle(template, widget);
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
-  const label = widget.label ?? LABELS[widget.metric];
+  const label = widget.label ?? labelFor(widget.metric);
   drawLabelTop(ctx, style, label, x, y, w, h);
   const e1 = hist ? sampleAt(hist.activity, hist.t).elevation : sample.elevation;
   const e0 = hist ? sampleAt(hist.activity, hist.t - 60).elevation : undefined;
@@ -838,7 +827,7 @@ function drawMap(
     }
   }
   if (pts.length < 2 || !hist) {
-    drawLabelTop(ctx, style, widget.label ?? 'MAPA', x, y, w, h);
+    drawLabelTop(ctx, style, widget.label ?? t('ovl.map'), x, y, w, h);
     drawMissing(ctx, style, x, y + h * 0.15, w, h * 0.85);
     return;
   }
@@ -927,7 +916,7 @@ function drawNavMap(
     }
   }
   const missing = (): void => {
-    drawLabelTop(ctx, style, widget.label ?? 'NAV', x, y, w, h);
+    drawLabelTop(ctx, style, widget.label ?? t('ovl.nav'), x, y, w, h);
     drawMissing(ctx, style, x, y + h * 0.15, w, h * 0.85);
   };
   if (pts.length < 2 || !hist) {
@@ -1072,7 +1061,7 @@ function drawCompass(
     }
   }
   if (course === undefined) {
-    drawLabelTop(ctx, style, widget.label ?? 'RUMBO', x, y, w, h);
+    drawLabelTop(ctx, style, widget.label ?? t('ovl.compass'), x, y, w, h);
     drawMissing(ctx, style, x, y + h * 0.15, w, h * 0.85);
     return;
   }
@@ -1091,7 +1080,7 @@ function drawCompass(
     ['N', 0],
     ['E', 90],
     ['S', 180],
-    ['O', 270],
+    [t('ovl.west'), 270],
   ];
   for (const [glyph, deg] of cards) {
     const a = ((deg - course) * Math.PI) / 180 - Math.PI / 2;
@@ -1152,14 +1141,14 @@ function drawGoal(
   ctx.fillStyle = style.accent;
   let sub: string;
   if (frac >= 1) {
-    sub = '¡META!';
+    sub = t('ovl.goalDone');
   } else if (typeof sample.speed === 'number' && sample.speed > 0.5) {
     const eta = (target - dist) / sample.speed;
     const fmt = formatMetric('distance', target - dist, units);
-    sub = `${fmt.value} ${fmt.unit} · ETA ${formatSpan(eta)}`;
+    sub = t('ovl.goalEta', { v: fmt.value, u: fmt.unit, eta: formatSpan(eta) });
   } else {
     const fmt = formatMetric('distance', target - dist, units);
-    sub = `${fmt.value} ${fmt.unit} restantes`;
+    sub = t('ovl.goalLeft', { v: fmt.value, u: fmt.unit });
   }
   ctx.fillText(sub, x + w / 2, y + h * 0.82, w * 0.92);
   ctx.restore();

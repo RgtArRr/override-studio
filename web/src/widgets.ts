@@ -5,46 +5,46 @@ import type {
   WidgetKind,
   WidgetLayout,
 } from '@override-studio/shared';
+import { t } from './i18n.js';
 
 /** Pure, DOM-free widget catalog + factory for the right panel. No side effects. */
 
-export interface CatalogOption<T> {
-  value: T;
-  label: string;
-}
-
-export const WIDGET_KIND_OPTIONS: CatalogOption<WidgetKind>[] = [
-  { value: 'stat', label: 'Dato' },
-  { value: 'number', label: 'Número grande' },
-  { value: 'gauge', label: 'Arco' },
-  { value: 'zones', label: 'Zonas potencia' },
-  { value: 'speedo', label: 'Velocímetro' },
-  { value: 'ring', label: 'Anillo' },
-  { value: 'hbar', label: 'Barra FC' },
-  { value: 'slope', label: 'Inclinómetro' },
-  { value: 'gears', label: 'Desarrollos' },
-  { value: 'spark', label: 'Sparkline 30 s' },
-  { value: 'profile', label: 'Perfil' },
-  { value: 'vam', label: 'VAM' },
-  { value: 'map', label: 'Mapa ruta' },
-  { value: 'navmap', label: 'Navegación' },
-  { value: 'compass', label: 'Brújula' },
-  { value: 'goal', label: 'Meta' },
+export const WIDGET_KINDS: WidgetKind[] = [
+  'stat',
+  'number',
+  'gauge',
+  'zones',
+  'speedo',
+  'ring',
+  'hbar',
+  'slope',
+  'gears',
+  'spark',
+  'profile',
+  'vam',
+  'map',
+  'navmap',
+  'compass',
+  'goal',
 ];
 
-export const METRIC_OPTIONS: CatalogOption<MetricId>[] = [
-  { value: 'speed', label: 'Velocidad' },
-  { value: 'heartRate', label: 'Frecuencia cardiaca' },
-  { value: 'power', label: 'Potencia' },
-  { value: 'cadence', label: 'Cadencia' },
-  { value: 'elevation', label: 'Altitud' },
-  { value: 'distance', label: 'Distancia' },
-  { value: 'elapsedTime', label: 'Tiempo' },
-  { value: 'grade', label: 'Pendiente' },
-  { value: 'vam', label: 'VAM' },
-  { value: 'gears', label: 'Desarrollos' },
-  { value: 'none', label: 'Ninguna' },
+export const METRIC_IDS: MetricId[] = [
+  'speed',
+  'heartRate',
+  'power',
+  'cadence',
+  'elevation',
+  'distance',
+  'elapsedTime',
+  'grade',
+  'vam',
+  'gears',
+  'none',
 ];
+
+export const kindLabel = (kind: WidgetKind): string => t(`kind.${kind}`);
+
+export const metricLabel = (metric: MetricId): string => t(`metric.${metric}`);
 
 /** Canonical metric per kind, mirroring the built-in fixtures. */
 const DEFAULT_METRIC: Record<WidgetKind, MetricId> = {
