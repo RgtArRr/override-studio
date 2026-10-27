@@ -17,6 +17,7 @@
       "kind": "gauge",
       "visible": true,
       "range": [0, 12],
+      "style": { "valueScale": 0.75 },
       "layout": {
         "horizontal": { "x": 0.03, "y": 0.4, "w": 0.32, "h": 0.55 },
         "square": { "x": 0.06, "y": 0.36, "w": 0.56, "h": 0.4 },

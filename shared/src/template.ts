@@ -12,9 +12,28 @@ export type MetricId =
   | 'elevation'
   | 'distance'
   | 'elapsedTime'
-  | 'grade';
+  | 'grade'
+  | 'vam'
+  | 'gears'
+  | 'none';
 
-export type WidgetKind = 'stat' | 'number' | 'gauge';
+export type WidgetKind =
+  | 'stat'
+  | 'number'
+  | 'gauge'
+  | 'zones'
+  | 'speedo'
+  | 'ring'
+  | 'hbar'
+  | 'slope'
+  | 'gears'
+  | 'spark'
+  | 'profile'
+  | 'vam'
+  | 'map'
+  | 'navmap'
+  | 'compass'
+  | 'goal';
 
 export type PanelShape = 'rect' | 'pill' | 'none';
 
@@ -33,6 +52,14 @@ export interface WidgetStyle {
   backgroundOpacity?: number;
   accent?: string;
   text?: string;
+  /** Font family for the label line; theme font when absent. */
+  labelFont?: string;
+  /** Size multiplier for the label line. Defaults to 1. */
+  labelScale?: number;
+  /** Font family for the value (number) line; theme font when absent. */
+  valueFont?: string;
+  /** Size multiplier for the value (number) line. Defaults to 1. */
+  valueScale?: number;
 }
 
 export interface WidgetDef {
@@ -46,6 +73,10 @@ export interface WidgetDef {
   showUnit?: boolean;
   /** Gauge scale in raw SI units. Defaults per metric when absent. */
   range?: [number, number];
+  /** Zone base in raw units: FTP watts (zones) or max HR bpm (hbar). */
+  zoneBase?: number;
+  /** Map ridden-trail stroke width in px. Auto-sized from the box when absent. */
+  strokeWidth?: number;
   style?: WidgetStyle;
   layout: Record<AspectClass, WidgetLayout>;
 }

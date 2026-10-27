@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "id": "gears",
+  "name": "Marchas",
+  "description": "Plato × piñón actuales con datos de cambio electrónico.",
+  "theme": {
+    "fontFamily": "system-ui, sans-serif",
+    "text": "#ffffff",
+    "accent": "#ffd60a",
+    "panel": "#0b0e11",
+    "panelOpacity": 0.6
+  },
+  "widgets": [
+    {
+      "id": "gear",
+      "metric": "gears",
+      "kind": "gears",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.03, "y": 0.7, "w": 0.24, "h": 0.25 },
+        "square": { "x": 0.06, "y": 0.62, "w": 0.44, "h": 0.18 },
+        "vertical": { "x": 0.08, "y": 0.58, "w": 0.6, "h": 0.16 }
+      }
+    },
+    {
+      "id": "time",
+      "metric": "elapsedTime",
+      "kind": "stat",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.78, "y": 0.86, "w": 0.19, "h": 0.11 },
+        "square": { "x": 0.68, "y": 0.88, "w": 0.28, "h": 0.09 },
+        "vertical": { "x": 0.62, "y": 0.9, "w": 0.34, "h": 0.08 }
+      }
+    }
+  ]
+}

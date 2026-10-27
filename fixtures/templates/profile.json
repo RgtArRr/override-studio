@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "id": "profile",
+  "name": "Perfil",
+  "description": "Perfil de elevación de la salida con punto actual.",
+  "theme": {
+    "fontFamily": "system-ui, sans-serif",
+    "text": "#ffffff",
+    "accent": "#34c759",
+    "panel": "#0b0e11",
+    "panelOpacity": 0.6
+  },
+  "widgets": [
+    {
+      "id": "elevation",
+      "metric": "elevation",
+      "kind": "profile",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.03, "y": 0.68, "w": 0.6, "h": 0.27 },
+        "square": { "x": 0.06, "y": 0.6, "w": 0.88, "h": 0.2 },
+        "vertical": { "x": 0.08, "y": 0.55, "w": 0.84, "h": 0.2 }
+      }
+    },
+    {
+      "id": "time",
+      "metric": "elapsedTime",
+      "kind": "stat",
+      "visible": true,
+      "layout": {
+        "horizontal": { "x": 0.78, "y": 0.86, "w": 0.19, "h": 0.11 },
+        "square": { "x": 0.68, "y": 0.88, "w": 0.28, "h": 0.09 },
+        "vertical": { "x": 0.62, "y": 0.9, "w": 0.34, "h": 0.08 }
+      }
+    }
+  ]
+}

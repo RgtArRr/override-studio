@@ -28,18 +28,24 @@ nothing more. AI-generated templates must conform to it.
 ```jsonc
 {
   "id": "speed",           // unique within the template
-  "metric": "speed",       // speed|heartRate|power|cadence|elevation|distance|elapsedTime|grade
-  "kind": "gauge",         // stat|number|gauge (required)
+  "metric": "speed",       // speed|heartRate|power|cadence|elevation|distance|elapsedTime|grade|vam|gears|none
+  "kind": "gauge",         // stat|number|gauge|zones|speedo|ring|hbar|slope|gears|spark|profile|vam|map|navmap|compass|goal (required)
   "visible": true,
   "label": "VEL",          // optional custom label (stat + gauge; number ignores it)
   "showUnit": true,        // optional, default true
   "range": [0, 12],        // optional gauge scale in raw SI units (default per metric)
+  "zoneBase": 250,         // optional: FTP watts (zones) or max HR bpm (hbar)
+  "strokeWidth": 6,        // optional trail width in px (map; auto when absent)
   "style": {               // optional per-widget overrides
     "shape": "pill",       // rect|pill|none (default rect)
     "background": "#000000",
     "backgroundOpacity": 0.5,
     "accent": "#ffffff",
-    "text": "#ffffff"
+    "text": "#ffffff",
+    "labelFont": "Poppins, sans-serif",  // optional, theme font when absent
+    "labelScale": 1,                     // optional label size multiplier
+    "valueFont": "Poppins, sans-serif",  // optional, theme font when absent
+    "valueScale": 1.2                    // optional value (number) size multiplier
   },
   "layout": {              // required: one box per aspect, normalized 0..1
     "horizontal": { "x": 0.03, "y": 0.4, "w": 0.32, "h": 0.55 },
@@ -56,12 +62,36 @@ nothing more. AI-generated templates must conform to it.
   and `showUnit: false` for a pure floating number.
 - `gauge`: 270° arc with background track + accent value arc, value centered,
   label on top. Scale from `range`, else the built-in default.
+- `zones`: 7-segment Coggan power arc, active zone lit + `Z1..Z7` tag.
+  Base from `zoneBase` (FTP watts, default 250).
+- `speedo`: 180° speedometer with ticks, needle and digital readout.
+- `ring`: full progress ring for any metric + `range`, value centered.
+- `hbar`: 5-segment HR zone bar with position marker + `Z1..Z5` tag.
+  Base from `zoneBase` (max HR bpm, default 185).
+- `slope`: grade inclinometer, bubble on a centered track.
+- `gears`: front × rear teeth from shift events (`gears` metric). `—` without Di2/AXS.
+- `spark`: last-30 s area sparkline of any metric + current value. Needs history.
+- `profile`: full-ride elevation profile, ridden part shaded + you-are-here dot.
+  Needs history.
+- `vam`: 60 s climb rate (`vam` metric) with trend arrow. Needs history.
+- `map`: GPS track, faint full route + accent ridden trail + current dot.
+  Metric `none`. Needs history with lat/lon. Trail width from `strokeWidth`,
+  else auto-sized from the box.
+- `navmap`: navigation view, 50 m behind + 400 m ahead, course-up, position
+  arrow. Metric `none`. Needs history with lat/lon + motion. Same
+  `strokeWidth` as `map`.
+- `compass`: GPS course dial, card rotated so course points up + degrees.
+  Metric `none`. Needs history with motion.
+- `goal`: progress to `range[1]` meters (`distance` metric) with live ETA.
+
+History kinds (`spark`, `profile`, `vam`, `map`, `navmap`, `compass`) receive
+the full series at render time; without data they show `—`.
 
 ### Gauge default ranges (raw SI)
 
 speed `[0, 15]` m/s · heartRate `[40, 200]` bpm · power `[0, 400]` W ·
 cadence `[0, 120]` rpm · elevation `[0, 1000]` m · distance `[0, 10000]` m ·
-elapsedTime `[0, 3600]` s · grade `[-15, 15]` %.
+elapsedTime `[0, 3600]` s · grade `[-15, 15]` % · vam `[0, 2000]` m/h.
 
 Gauges suit rate-like metrics (speed, heartRate, power, cadence). Anything is
 allowed, but a distance gauge rarely makes sense.
@@ -84,6 +114,11 @@ the widget shows `—`.
 
 ## Built-ins
 
-broadcast · minimal · climb · chrono · strip · story · apex · pulse.
+broadcast · minimal · climb · chrono · strip · story · apex · pulse ·
+zones · speedo · ring · hbar · slope · gears · spark · profile · vam ·
+routemap · navmap · compass · goal.
+
+New metrics: `vam` (m/h, computed over 60 s), `gears` (shift teeth, never
+interpolated), `none` (map/compass placeholders).
 `apex` and `pulse` exercise gauges, numbers, pill/transparent panels, custom
 labels and explicit ranges — use them as the reference for new kinds.

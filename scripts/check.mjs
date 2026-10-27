@@ -6,6 +6,16 @@ import { fileURLToPath } from 'node:url';
 import { parseFit, sampleAt, summarize, widgetValue } from '../web/src/telemetry.ts';
 import { classifyAspect } from '../shared/src/template.ts';
 import { getCreationTime } from '../web/src/video-meta.ts';
+import {
+  METRIC_OPTIONS,
+  WIDGET_KIND_OPTIONS,
+  defaultMetricFor,
+  makeWidgetDef,
+  mapStrokeWidths,
+  navProject,
+  navWindow,
+  nextWidgetId,
+} from '../web/src/widgets.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const fitBytes = readFileSync(join(root, 'fixtures/activity/sample.fit'));
@@ -50,11 +60,31 @@ const METRICS = new Set([
   'distance',
   'elapsedTime',
   'grade',
+  'vam',
+  'gears',
+  'none',
 ]);
 const dims = { horizontal: [1280, 720], square: [720, 720], vertical: [720, 1280] };
 const files = readdirSync(join(root, 'fixtures/templates')).filter((f) => f.endsWith('.json'));
 assert.ok(files.length >= 8);
-const KINDS = new Set(['stat', 'number', 'gauge']);
+const KINDS = new Set([
+  'stat',
+  'number',
+  'gauge',
+  'zones',
+  'speedo',
+  'ring',
+  'hbar',
+  'slope',
+  'gears',
+  'spark',
+  'profile',
+  'vam',
+  'map',
+  'navmap',
+  'compass',
+  'goal',
+]);
 const SHAPES = new Set(['rect', 'pill', 'none']);
 for (const file of files) {
   const t = JSON.parse(readFileSync(join(root, 'fixtures/templates', file), 'utf8'));
@@ -64,6 +94,9 @@ for (const file of files) {
     if (w.style?.shape) assert.ok(SHAPES.has(w.style.shape), `${file} ${w.id} shape`);
     if (w.range) {
       assert.ok(Array.isArray(w.range) && w.range.length === 2 && w.range[0] < w.range[1], `${file} ${w.id} range`);
+    }
+    if (w.strokeWidth !== undefined) {
+      assert.ok(typeof w.strokeWidth === 'number' && w.strokeWidth > 0, `${file} ${w.id} strokeWidth`);
     }
   }
   for (const [aspect, [W, H]] of Object.entries(dims)) {
@@ -133,4 +166,62 @@ assert.equal(widgetValue('elapsedTime', probe), 999);
 assert.equal(widgetValue('speed', probe), 10);
 assert.equal(widgetValue('power', probe), undefined);
 
-console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets`);
+// Widget catalog + factory (right panel: add widget, switch metric/kind).
+const kindValues = WIDGET_KIND_OPTIONS.map((o) => o.value);
+assert.deepEqual(new Set(kindValues), KINDS);
+const metricValues = METRIC_OPTIONS.map((o) => o.value);
+assert.equal(metricValues.length, METRICS.size);
+for (const m of metricValues) assert.ok(METRICS.has(m), `catalog metric ${m}`);
+for (const kind of kindValues) {
+  assert.ok(METRICS.has(defaultMetricFor(kind)), `default metric ${kind}`);
+  const def = makeWidgetDef(kind, defaultMetricFor(kind), `t-${kind}`, 0);
+  assert.equal(def.visible, true);
+  assert.equal(def.kind, kind);
+  for (const [aspect, [W, H]] of Object.entries(dims)) {
+    const b = def.layout[aspect];
+    assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= 1.001 && b.y + b.h <= 1.001, `${kind}@${aspect} frame`);
+    assert.ok(b.w * W >= 24 && b.h * H >= 16, `${kind}@${aspect} size`);
+    assert.ok(b.w * 512 >= 24 && b.h * 288 >= 16, `${kind}@${aspect} thumb`);
+  }
+}
+// Ids stay unique and cascaded copies stay inside the frame.
+assert.equal(nextWidgetId(new Set(['gauge', 'gauge-2']), 'gauge'), 'gauge-3');
+assert.equal(nextWidgetId(new Set(['gauge']), 'stat'), 'stat');
+for (let slot = 0; slot < 8; slot++) {
+  const def = makeWidgetDef('map', 'none', `m${slot}`, slot);
+  for (const aspect of Object.keys(dims)) {
+    const b = def.layout[aspect];
+    assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= 1.001 && b.y + b.h <= 1.001, `cascade@${aspect}#${slot}`);
+  }
+}
+
+// Map stroke widths: explicit px wins (trail at 70%), else auto from the box.
+const autoW = mapStrokeWidths(undefined, 397, 396);
+assert.ok(Math.abs(autoW.ridden - 396 * 0.013) < 1e-9);
+assert.ok(Math.abs(autoW.track - 396 * 0.009) < 1e-9);
+assert.ok(autoW.ridden > autoW.track);
+const tinyW = mapStrokeWidths(undefined, 24, 16);
+assert.equal(tinyW.track, 2.5);
+assert.equal(tinyW.ridden, 3.5);
+const expW = mapStrokeWidths(6, 397, 396);
+assert.equal(expW.ridden, 6);
+assert.ok(Math.abs(expW.track - 4.2) < 1e-9);
+assert.equal(mapStrokeWidths(0, 100, 100).ridden, 1);
+assert.equal(mapStrokeWidths(-3, 100, 100).track, 1);
+assert.deepEqual(mapStrokeWidths(NaN, 100, 100), mapStrokeWidths(undefined, 100, 100));
+
+// Nav window + course-up projection (synthetic straight track, 10 m spacing).
+const DEG10 = 10 / 110540;
+const track = [];
+for (let i = 0; i <= 100; i++) track.push({ lon: -3.7, lat: 40.4 + i * DEG10, t: i });
+const win = navWindow(track, 50, 55, 405);
+assert.equal(win.start, 44);
+assert.equal(win.end, 91);
+assert.equal(navWindow(track, 0, 55, 405).start, 0);
+assert.equal(navWindow(track, 100, 55, 405).end, 100);
+const pN = navProject(track[60].lon, track[60].lat, track[50], 0);
+assert.ok(Math.abs(pN.fwd - 100) < 0.5 && Math.abs(pN.right) < 0.5);
+const pE = navProject(track[60].lon, track[60].lat, track[50], 90);
+assert.ok(Math.abs(pE.fwd) < 0.5 && Math.abs(pE.right + 100) < 0.5);
+
+console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds)`);

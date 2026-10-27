@@ -136,8 +136,12 @@ export async function renderVideo(options: RenderOptions): Promise<Blob> {
     for await (const sample of sink.samples(start, end)) {
       try {
         drawSample(ctx, canvas, sample);
-        const telemetry = sampleAt(options.activity, sample.timestamp + options.offsetSec);
-        drawOverlay(ctx, options.template, telemetry, canvas.width, canvas.height, options.units);
+        const tt = sample.timestamp + options.offsetSec;
+        const telemetry = sampleAt(options.activity, tt);
+        drawOverlay(ctx, options.template, telemetry, canvas.width, canvas.height, options.units, {
+          activity: options.activity,
+          t: tt,
+        });
         await canvasSource.add(sample.timestamp - start, sample.duration);
         frames += 1;
         options.onProgress?.(sample.timestamp - start, outDuration);

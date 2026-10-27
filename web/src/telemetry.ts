@@ -14,6 +14,9 @@ export interface TelemetrySample {
   grade?: number;
   lat?: number;
   lon?: number;
+  /** Gear teeth, forward-filled from shift events. Never interpolated. */
+  frontGear?: number;
+  rearGear?: number;
 }
 
 export interface Activity {
@@ -57,6 +60,9 @@ export function parseFit(buffer: ArrayBuffer): Activity {
   if (records.length === 0) throw new Error('El FIT no contiene registros con timestamp.');
 
   const t0 = (records[0].timestamp as Date).getTime();
+  // Shift events are sparse: carry the last known combo forward like the bike does.
+  let lastFront: number | undefined;
+  let lastRear: number | undefined;
   const samples: TelemetrySample[] = records.map((r) => {
     const s: TelemetrySample = { t: ((r.timestamp as Date).getTime() - t0) / 1000 };
     if (typeof r.speed === 'number') s.speed = r.speed;
@@ -68,6 +74,11 @@ export function parseFit(buffer: ArrayBuffer): Activity {
     if (typeof r.grade === 'number') s.grade = r.grade;
     if (typeof r.positionLat === 'number') s.lat = r.positionLat * SEMI_TO_DEG;
     if (typeof r.positionLong === 'number') s.lon = r.positionLong * SEMI_TO_DEG;
+    const gears = r as unknown as { frontGear?: unknown; rearGear?: unknown };
+    if (typeof gears.frontGear === 'number') lastFront = gears.frontGear;
+    if (typeof gears.rearGear === 'number') lastRear = gears.rearGear;
+    if (lastFront !== undefined) s.frontGear = lastFront;
+    if (lastRear !== undefined) s.rearGear = lastRear;
     return s;
   });
 
@@ -89,6 +100,9 @@ const NUMERIC_KEYS = [
   'lat',
   'lon',
 ] as const;
+
+/** Discrete fields: step-held from the left sample, never interpolated. */
+const STEP_KEYS = ['frontGear', 'rearGear'] as const;
 
 /** Interpolated sample at time t (clamped to the activity range). */
 export function sampleAt(activity: Activity, t: number): TelemetrySample {
@@ -112,6 +126,11 @@ export function sampleAt(activity: Activity, t: number): TelemetrySample {
     if (typeof va === 'number' && typeof vb === 'number') out[key] = va + (vb - va) * f;
     else if (typeof va === 'number') out[key] = va;
     else if (typeof vb === 'number') out[key] = vb;
+  }
+  for (const key of STEP_KEYS) {
+    const va = a[key];
+    if (typeof va === 'number') out[key] = va;
+    else if (typeof b[key] === 'number') out[key] = b[key];
   }
   return out;
 }
@@ -151,6 +170,8 @@ export function widgetValue(
   sample: TelemetrySample,
 ): number | undefined {
   if (metric === 'elapsedTime') return sample.t;
+  // Computed (vam), composite (gears) or absent (none): custom kinds read history directly.
+  if (metric === 'vam' || metric === 'gears' || metric === 'none') return undefined;
   return sample[metric];
 }
 

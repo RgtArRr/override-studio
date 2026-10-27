@@ -2,7 +2,12 @@ import {
   TEMPLATE_SCHEMA_VERSION,
   classifyAspect,
   type AspectClass,
+  type MetricId,
   type Template,
+  type WidgetDef,
+  type WidgetKind,
+  type WidgetLayout,
+  type WidgetStyle,
 } from '@override-studio/shared';
 import {
   parseFit,
@@ -19,6 +24,13 @@ import { drawOverlay } from './overlay.js';
 import { renderVideo } from './render.js';
 import { BUILTIN_TEMPLATES } from './templates.js';
 import { FIXTURE_FIT_URL, FIXTURE_VIDEO_URL } from './fixtures.js';
+import {
+  METRIC_OPTIONS,
+  WIDGET_KIND_OPTIONS,
+  defaultMetricFor,
+  makeWidgetDef,
+  nextWidgetId,
+} from './widgets.js';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -29,6 +41,23 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function mkSelectRow(
+  labelText: string,
+  options: { value: string; label: string }[],
+  selectClass: string,
+): [HTMLElement, HTMLSelectElement] {
+  const row = el('div', 'editor-row');
+  row.append(el('span', 'muted', labelText));
+  const select = el('select', `font-select ${selectClass}`);
+  for (const opt of options) {
+    const node = el('option', undefined, opt.label);
+    node.value = opt.value;
+    select.appendChild(node);
+  }
+  row.appendChild(select);
+  return [row, select];
 }
 
 function formatOffset(sec: number): string {
@@ -85,6 +114,22 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   let selectedTemplateId = BUILTIN_TEMPLATES[0].id;
   const widgetOverrides = new Map<string, Map<string, boolean>>();
   const layoutOverrides = new Map<string, Map<string, LayoutOverride>>();
+  const styleOverrides = new Map<string, Map<string, WidgetStyle>>();
+  const baseOverrides = new Map<string, Map<string, number>>();
+  const widthOverrides = new Map<string, Map<string, number>>();
+  const addedWidgets = new Map<string, WidgetDef[]>();
+  const defOverrides = new Map<string, Map<string, { metric?: MetricId; kind?: WidgetKind }>>();
+  /** Bumped on any override change so thumbnails repaint (see repaintThumbs sig). */
+  let overrideRev = 0;
+  /** Selected widget shows outline + handle + the Widget inspector panel. */
+  let selected: { templateId: string; widgetId: string } | null = null;
+  /** Resize handle: square at the widget's bottom-right corner, in CSS px. */
+  const HANDLE_PX = 14;
+  /** Min normalized size: overlay skips boxes under 24×16 px, 0.04 stays above that at 720p+. */
+  const MIN_NORM = 0.04;
+  const bumpRev = (): void => {
+    overrideRev += 1;
+  };
 
   const activeClip = (): Clip | null =>
     clips.find((c) => c.id === selectedClipId) ?? null;
@@ -95,28 +140,41 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const effectiveTemplate = (template: Template): Template => {
     const vis = widgetOverrides.get(template.id);
     const lay = layoutOverrides.get(template.id);
-    if (!vis && !lay) return template;
+    const sty = styleOverrides.get(template.id);
+    const bas = baseOverrides.get(template.id);
+    const wid = widthOverrides.get(template.id);
+    const def = defOverrides.get(template.id);
+    const added = addedWidgets.get(template.id);
+    if (!vis && !lay && !sty && !bas && !wid && !def && !added) return template;
+    const apply = (w: WidgetDef): WidgetDef => {
+      const pos = lay?.get(w.id);
+      const style = sty?.get(w.id);
+      const patch = def?.get(w.id);
+      return {
+        ...w,
+        metric: patch?.metric ?? w.metric,
+        kind: patch?.kind ?? w.kind,
+        visible: vis?.get(w.id) ?? w.visible,
+        zoneBase: bas?.get(w.id) ?? w.zoneBase,
+        strokeWidth: wid?.get(w.id) ?? w.strokeWidth,
+        style: style ? { ...w.style, ...style } : w.style,
+        layout: pos
+          ? {
+              ...w.layout,
+              [pos.aspect]: {
+                ...w.layout[pos.aspect],
+                x: pos.x,
+                y: pos.y,
+                w: pos.w,
+                h: pos.h,
+              },
+            }
+          : w.layout,
+      };
+    };
     return {
       ...template,
-      widgets: template.widgets.map((w) => {
-        const pos = lay?.get(w.id);
-        return {
-          ...w,
-          visible: vis?.get(w.id) ?? w.visible,
-          layout: pos
-            ? {
-                ...w.layout,
-                [pos.aspect]: {
-                  ...w.layout[pos.aspect],
-                  x: pos.x,
-                  y: pos.y,
-                  w: pos.w,
-                  h: pos.h,
-                },
-              }
-            : w.layout,
-        };
-      }),
+      widgets: [...template.widgets.map(apply), ...(added ?? []).map(apply)],
     };
   };
 
@@ -249,8 +307,74 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (!template) return;
     widgetOverrides.delete(template.id);
     layoutOverrides.delete(template.id);
+    styleOverrides.delete(template.id);
+    baseOverrides.delete(template.id);
+    widthOverrides.delete(template.id);
+    addedWidgets.delete(template.id);
+    defOverrides.delete(template.id);
+    selected = null;
+    bumpRev();
   });
-  templateHead.appendChild(resetWidgetsBtn);
+  const addOpenBtn = el('button', 'btn btn-small btn-primary', '+ Agregar widget');
+  addOpenBtn.type = 'button';
+  addOpenBtn.title = 'Agrega un widget a la plantilla seleccionada';
+  // Add lives in a modal: the inspector keeps swapping clip/widget/render only.
+  const addDialog = el('dialog', 'add-dialog');
+  addDialog.append(el('h2', undefined, 'Agregar widget'));
+  const [addKindRow, addKindSel] = mkSelectRow('Tipo ', WIDGET_KIND_OPTIONS, 'kind-select');
+  const [addMetricRow, addMetricSel] = mkSelectRow(
+    'Métrica ',
+    METRIC_OPTIONS,
+    'metric-select',
+  );
+  addKindSel.setAttribute('autofocus', '');
+  addMetricSel.value = defaultMetricFor(addKindSel.value as WidgetKind);
+  addKindSel.addEventListener('change', () => {
+    addMetricSel.value = defaultMetricFor(addKindSel.value as WidgetKind);
+  });
+  const addActions = el('div', 'add-actions');
+  const addConfirmBtn = el('button', 'btn btn-primary', 'Agregar');
+  addConfirmBtn.type = 'button';
+  const addCancelBtn = el('button', 'btn', 'Cancelar');
+  addCancelBtn.type = 'button';
+  addActions.append(addConfirmBtn, addCancelBtn);
+  addDialog.append(addKindRow, addMetricRow, addActions);
+  addCancelBtn.addEventListener('click', () => addDialog.close());
+  // Backdrop-only close: padding and row gaps look inside the card but report
+  // the dialog itself as the click target, so test coordinates instead.
+  const outsideDialog = (e: { clientX: number; clientY: number }): boolean => {
+    const r = addDialog.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  let downOutside = false;
+  addDialog.addEventListener('pointerdown', (e) => {
+    downOutside = outsideDialog(e);
+  });
+  addDialog.addEventListener('click', (e) => {
+    if (downOutside && outsideDialog(e)) addDialog.close();
+    downOutside = false;
+  });
+  addConfirmBtn.addEventListener('click', () => {
+    const template = selectedTemplate();
+    if (!template) return;
+    const kind = addKindSel.value as WidgetKind;
+    const metric = addMetricSel.value as MetricId;
+    const current = effectiveTemplate(template).widgets;
+    const id = nextWidgetId(
+      current.map((w) => w.id),
+      kind,
+    );
+    const slot = addedWidgets.get(template.id)?.length ?? 0;
+    const list = addedWidgets.get(template.id) ?? [];
+    list.push(makeWidgetDef(kind, metric, id, slot));
+    addedWidgets.set(template.id, list);
+    selected = { templateId: template.id, widgetId: id };
+    addDialog.close();
+    bumpRev();
+  });
+  addOpenBtn.addEventListener('click', () => addDialog.showModal());
+  templateHead.append(resetWidgetsBtn, addOpenBtn);
+  wrap.appendChild(addDialog);
   templateBox.appendChild(templateHead);
   interface Thumb {
     template: Template;
@@ -308,11 +432,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Templates sit above the viewer: one strip, no scroll to pick one.
   center.prepend(templateBox);
 
-  // Inspector (right): selected clip settings + render.
+  // Inspector (right): Clip panel swaps for the Widget panel on selection.
   const inspector = el('aside', 'inspector');
-  inspector.append(el('h2', undefined, 'Clip'));
+  const clipPanel = el('div', 'clip-panel');
+  clipPanel.append(el('h2', undefined, 'Clip'));
   const clipName = el('p', 'clip-name', 'Sin clip seleccionado');
-  inspector.appendChild(clipName);
+  clipPanel.appendChild(clipName);
   const trimRow = el('div', 'editor-row');
   const mkTrim = (labelText: string, btnText: string): [HTMLInputElement, HTMLButtonElement] => {
     const group = el('label', 'trim-group', labelText);
@@ -347,7 +472,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const raw = trimEndInput.value.trim();
     clip.trimEnd = raw === '' ? null : Math.max(0, Number(raw) || 0);
   });
-  inspector.appendChild(trimRow);
+  clipPanel.appendChild(trimRow);
   const audioLabel = el('label', 'check', 'Incluir audio');
   const audioCheck = el('input');
   audioCheck.type = 'checkbox';
@@ -357,13 +482,357 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const clip = activeClip();
     if (clip) clip.includeAudio = audioCheck.checked;
   });
-  inspector.appendChild(audioLabel);
-  inspector.append(el('h2', undefined, 'Render'));
+  clipPanel.appendChild(audioLabel);
+  inspector.appendChild(clipPanel);
+
+  // Widget panel: every option of the selected widget.
+  const widgetPanel = el('div', 'widget-panel');
+  widgetPanel.hidden = true;
+  widgetPanel.append(el('h2', undefined, 'Widget'));
+  const widgetTitle = el('p', 'clip-name', '');
+  const widgetSub = el('p', 'muted', '');
+  widgetPanel.append(widgetTitle, widgetSub);
+
+  const mkField = (
+    row: HTMLElement,
+    labelText: string,
+    type: string,
+    className: string,
+  ): HTMLInputElement => {
+    const group = el('label', 'trim-group', labelText);
+    const input = el('input', className);
+    input.type = type;
+    group.appendChild(input);
+    row.appendChild(group);
+    return input;
+  };
+
+  const [kindRow, kindSel] = mkSelectRow('Tipo ', WIDGET_KIND_OPTIONS, 'kind-select');
+  const [metricRow, metricSel] = mkSelectRow('Métrica ', METRIC_OPTIONS, 'metric-select');
+
+  const posRow = el('div', 'editor-row');
+  const xInput = mkField(posRow, 'X ', 'number', 'trim-input');
+  const yInput = mkField(posRow, 'Y ', 'number', 'trim-input');
+  const sizeRow = el('div', 'editor-row');
+  const wInput = mkField(sizeRow, 'W ', 'number', 'trim-input');
+  const hInput = mkField(sizeRow, 'H ', 'number', 'trim-input');
+  for (const input of [xInput, yInput, wInput, hInput]) {
+    input.min = '0';
+    input.max = '1';
+    input.step = '0.01';
+  }
+  const bgRow = el('div', 'editor-row');
+  const bgInput = mkField(bgRow, 'Fondo ', 'color', 'color-input');
+  const opGroup = el('label', 'op-group', 'Opac. ');
+  const opInput = el('input', 'range-input');
+  opInput.type = 'range';
+  opInput.min = '0';
+  opInput.max = '100';
+  opInput.step = '1';
+  const opPct = el('span', 'pct', '');
+  opGroup.append(opInput, opPct);
+  bgRow.appendChild(opGroup);
+  const shapeRow = el('div', 'editor-row');
+  shapeRow.append(el('span', 'muted', 'Forma '));
+  const shapeRadios: HTMLInputElement[] = [];
+  for (const [value, text] of [
+    ['rect', 'Rect'],
+    ['pill', 'Píldora'],
+    ['none', 'Nada'],
+  ]) {
+    const label = el('label', 'check', text);
+    const radio = el('input');
+    radio.type = 'radio';
+    radio.name = 'wshape';
+    radio.value = value;
+    label.prepend(radio);
+    shapeRow.appendChild(label);
+    shapeRadios.push(radio);
+  }
+  const colorRow = el('div', 'editor-row');
+  const accentInput = mkField(colorRow, 'Acento ', 'color', 'color-input');
+  const textInput = mkField(colorRow, 'Texto ', 'color', 'color-input');
+  const baseRow = el('div', 'editor-row');
+  const baseInput = mkField(baseRow, 'Base ', 'number', 'trim-input');
+  baseInput.min = '1';
+  baseInput.step = '1';
+  baseInput.title = 'FTP en vatios (zonas) o FC máxima en ppm (barra FC)';
+  const widthRow = el('div', 'editor-row');
+  const widthInput = mkField(widthRow, 'Grosor ', 'number', 'trim-input');
+  widthInput.min = '1';
+  widthInput.step = '0.5';
+  widthInput.placeholder = 'auto';
+  widthInput.title = 'Grosor de la línea del mapa en px (vacío = automático)';
+  const FONT_OPTIONS: [string, string][] = [
+    ['Tema', ''],
+    ['Inter', 'Inter, sans-serif'],
+    ['Poppins', 'Poppins, sans-serif'],
+    ['Mono', 'ui-monospace, monospace'],
+  ];
+  const mkFontRow = (
+    labelText: string,
+  ): [HTMLElement, HTMLSelectElement, HTMLInputElement, HTMLSpanElement] => {
+    const row = el('div', 'editor-row');
+    row.append(el('span', 'muted', labelText));
+    const select = el('select', 'font-select');
+    for (const [text, value] of FONT_OPTIONS) {
+      const opt = el('option', undefined, text);
+      opt.value = value;
+      select.appendChild(opt);
+    }
+    const scale = el('input', 'range-input');
+    scale.type = 'range';
+    scale.min = '50';
+    scale.max = '200';
+    scale.step = '5';
+    const pct = el('span', 'pct', '');
+    const scaleGroup = el('span', 'op-group');
+    scaleGroup.append(scale, pct);
+    row.append(select, scaleGroup);
+    return [row, select, scale, pct];
+  };
+  const [labelFontRow, labelFontSel, labelScaleInput, labelPct] = mkFontRow('Etiqueta ');
+  const [valueFontRow, valueFontSel, valueScaleInput, valuePct] = mkFontRow('Número ');
+  const widgetDeleteBtn = el('button', 'btn btn-danger', 'Eliminar widget');
+  widgetDeleteBtn.type = 'button';
+  widgetPanel.append(
+    kindRow,
+    metricRow,
+    posRow,
+    sizeRow,
+    bgRow,
+    shapeRow,
+    colorRow,
+    baseRow,
+    widthRow,
+    labelFontRow,
+    valueFontRow,
+    widgetDeleteBtn,
+  );
+  inspector.appendChild(widgetPanel);
+
+  const selectedWidget = (): { template: Template; widget: WidgetDef } | null => {
+    const template = selectedTemplate();
+    const sel = selected;
+    if (!template || !sel || sel.templateId !== template.id) return null;
+    const widget = effectiveTemplate(template).widgets.find((w) => w.id === sel.widgetId);
+    return widget && widget.visible ? { template, widget } : null;
+  };
+
+  const styleOv = (templateId: string, widgetId: string): WidgetStyle => {
+    let per = styleOverrides.get(templateId);
+    if (!per) {
+      per = new Map();
+      styleOverrides.set(templateId, per);
+    }
+    let ov = per.get(widgetId);
+    if (!ov) {
+      ov = {};
+      per.set(widgetId, ov);
+    }
+    return ov;
+  };
+
+  const writeLayoutPatch = (patch: Partial<WidgetLayout>): void => {
+    const sw = selectedWidget();
+    if (!sw) return;
+    const aspect = classifyAspect(canvas.width, canvas.height);
+    const box = sw.widget.layout[aspect];
+    const x = Math.min(Math.max(patch.x ?? box.x, 0), 1);
+    const y = Math.min(Math.max(patch.y ?? box.y, 0), 1);
+    const w = Math.min(Math.max(patch.w ?? box.w, MIN_NORM), 1 - x);
+    const h = Math.min(Math.max(patch.h ?? box.h, MIN_NORM), 1 - y);
+    let per = layoutOverrides.get(sw.template.id);
+    if (!per) {
+      per = new Map();
+      layoutOverrides.set(sw.template.id, per);
+    }
+    per.set(sw.widget.id, { aspect, x, y, w, h });
+    bumpRev();
+  };
+
+  const writeStylePatch = (patch: Partial<WidgetStyle>): void => {
+    const sw = selectedWidget();
+    if (!sw) return;
+    Object.assign(styleOv(sw.template.id, sw.widget.id), patch);
+    bumpRev();
+  };
+
+  const clearStyleKey = (key: keyof WidgetStyle): void => {
+    const sw = selectedWidget();
+    if (!sw) return;
+    const ov = styleOv(sw.template.id, sw.widget.id);
+    delete ov[key];
+    bumpRev();
+  };
+
+  const writeDefPatch = (patch: { metric?: MetricId; kind?: WidgetKind }): void => {
+    const sw = selectedWidget();
+    if (!sw) return;
+    let per = defOverrides.get(sw.template.id);
+    if (!per) {
+      per = new Map();
+      defOverrides.set(sw.template.id, per);
+    }
+    const prev = per.get(sw.widget.id) ?? {};
+    per.set(sw.widget.id, { ...prev, ...patch });
+    bumpRev();
+  };
+
+  const hideWidget = (template: Template, widgetId: string): void => {
+    let perTemplate = widgetOverrides.get(template.id);
+    if (!perTemplate) {
+      perTemplate = new Map(
+        effectiveTemplate(template).widgets.map((w) => [w.id, w.visible]),
+      );
+      widgetOverrides.set(template.id, perTemplate);
+    }
+    perTemplate.set(widgetId, false);
+    if (selected?.widgetId === widgetId) selected = null;
+    bumpRev();
+  };
+
+  xInput.addEventListener('change', () => writeLayoutPatch({ x: Number(xInput.value) }));
+  yInput.addEventListener('change', () => writeLayoutPatch({ y: Number(yInput.value) }));
+  wInput.addEventListener('change', () => writeLayoutPatch({ w: Number(wInput.value) }));
+  hInput.addEventListener('change', () => writeLayoutPatch({ h: Number(hInput.value) }));
+  bgInput.addEventListener('input', () => writeStylePatch({ background: bgInput.value }));
+  opInput.addEventListener('input', () =>
+    writeStylePatch({ backgroundOpacity: Number(opInput.value) / 100 }),
+  );
+  for (const radio of shapeRadios) {
+    radio.addEventListener('change', () => {
+      if (radio.checked) writeStylePatch({ shape: radio.value as WidgetStyle['shape'] });
+    });
+  }
+  accentInput.addEventListener('input', () => writeStylePatch({ accent: accentInput.value }));
+  textInput.addEventListener('input', () => writeStylePatch({ text: textInput.value }));
+  labelFontSel.addEventListener('change', () => {
+    if (labelFontSel.value) writeStylePatch({ labelFont: labelFontSel.value });
+    else clearStyleKey('labelFont');
+  });
+  valueFontSel.addEventListener('change', () => {
+    if (valueFontSel.value) writeStylePatch({ valueFont: valueFontSel.value });
+    else clearStyleKey('valueFont');
+  });
+  labelScaleInput.addEventListener('input', () =>
+    writeStylePatch({ labelScale: Number(labelScaleInput.value) / 100 }),
+  );
+  valueScaleInput.addEventListener('input', () =>
+    writeStylePatch({ valueScale: Number(valueScaleInput.value) / 100 }),
+  );
+  kindSel.addEventListener('change', () =>
+    writeDefPatch({ kind: kindSel.value as WidgetKind }),
+  );
+  metricSel.addEventListener('change', () =>
+    writeDefPatch({ metric: metricSel.value as MetricId }),
+  );
+  widgetDeleteBtn.addEventListener('click', () => {
+    const sw = selectedWidget();
+    if (sw) hideWidget(sw.template, sw.widget.id);
+  });
+  baseInput.addEventListener('change', () => {
+    const sw = selectedWidget();
+    if (!sw) return;
+    const v = Math.max(1, Math.round(Number(baseInput.value) || 0));
+    let per = baseOverrides.get(sw.template.id);
+    if (!per) {
+      per = new Map();
+      baseOverrides.set(sw.template.id, per);
+    }
+    per.set(sw.widget.id, v);
+    bumpRev();
+  });
+  widthInput.addEventListener('change', () => {
+    const sw = selectedWidget();
+    if (!sw) return;
+    let per = widthOverrides.get(sw.template.id);
+    if (!per) {
+      per = new Map();
+      widthOverrides.set(sw.template.id, per);
+    }
+    const raw = widthInput.value.trim();
+    if (raw === '') per.delete(sw.widget.id);
+    else per.set(sw.widget.id, Math.max(1, Number(raw) || 0));
+    bumpRev();
+  });
+
+  const toHex = (value: string, fallback: string): string =>
+    /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
+
+  const setIfIdle = (input: HTMLInputElement | HTMLSelectElement, value: string): void => {
+    if (document.activeElement !== input && input.value !== value) input.value = value;
+  };
+
+  const fillWidgetPanel = (): void => {
+    const sw = selectedWidget();
+    if (!sw) return;
+    const aspect = classifyAspect(canvas.width, canvas.height);
+    const box = sw.widget.layout[aspect];
+    const st = sw.widget.style ?? {};
+    widgetTitle.textContent = sw.widget.label ?? sw.widget.id;
+    widgetSub.textContent = `${sw.widget.kind} · ${sw.widget.metric} · ${aspect}`;
+    setIfIdle(kindSel, sw.widget.kind);
+    setIfIdle(metricSel, sw.widget.metric);
+    setIfIdle(xInput, box.x.toFixed(2));
+    setIfIdle(yInput, box.y.toFixed(2));
+    setIfIdle(wInput, box.w.toFixed(2));
+    setIfIdle(hInput, box.h.toFixed(2));
+    if (document.activeElement !== bgInput) {
+      bgInput.value = toHex(st.background ?? sw.template.theme.panel, '#0d0d0d');
+    }
+    const op = Math.round((st.backgroundOpacity ?? sw.template.theme.panelOpacity) * 100);
+    setIfIdle(opInput, String(op));
+    opPct.textContent = `${op} %`;
+    const shape = st.shape ?? 'rect';
+    for (const radio of shapeRadios) radio.checked = radio.value === shape;
+    if (document.activeElement !== accentInput) {
+      accentInput.value = toHex(st.accent ?? sw.template.theme.accent, '#0099ff');
+    }
+    if (document.activeElement !== textInput) {
+      textInput.value = toHex(st.text ?? sw.template.theme.text, '#ffffff');
+    }
+    baseRow.hidden = sw.widget.kind !== 'zones' && sw.widget.kind !== 'hbar';
+    if (!baseRow.hidden) {
+      const fallback = sw.widget.kind === 'zones' ? 250 : 185;
+      setIfIdle(baseInput, String(sw.widget.zoneBase ?? fallback));
+    }
+    const isMap = sw.widget.kind === 'map' || sw.widget.kind === 'navmap';
+    widthRow.hidden = !isMap;
+    if (isMap) {
+      setIfIdle(
+        widthInput,
+        sw.widget.strokeWidth !== undefined ? String(sw.widget.strokeWidth) : '',
+      );
+    }
+    // Map kinds render no label/value text: the font rows would be dead controls.
+    labelFontRow.hidden = isMap;
+    valueFontRow.hidden = isMap;
+    setIfIdle(labelFontSel, st.labelFont ?? '');
+    const ls = Math.round((st.labelScale ?? 1) * 100);
+    setIfIdle(labelScaleInput, String(ls));
+    labelPct.textContent = `${ls} %`;
+    setIfIdle(valueFontSel, st.valueFont ?? '');
+    const vs = Math.round((st.valueScale ?? 1) * 100);
+    setIfIdle(valueScaleInput, String(vs));
+    valuePct.textContent = `${vs} %`;
+  };
+
+  const syncInspector = (): void => {
+    const showWidget = selectedWidget() !== null;
+    clipPanel.hidden = showWidget;
+    widgetPanel.hidden = !showWidget;
+    renderPanel.hidden = showWidget;
+    if (showWidget) fillWidgetPanel();
+  };
+  // Render lives in its own panel so the Widget panel can hide it.
+  const renderPanel = el('div', 'render-panel');
+  renderPanel.append(el('h2', undefined, 'Render'));
   const renderRow = el('div', 'render-row');
   const renderBtn = el('button', 'btn btn-primary', 'Renderizar clip');
   renderBtn.type = 'button';
   renderRow.appendChild(renderBtn);
-  inspector.appendChild(renderRow);
+  renderPanel.appendChild(renderRow);
   const progress = el('progress', 'render-progress');
   progress.max = 1;
   progress.value = 0;
@@ -373,8 +842,23 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const previewCanvas = el('canvas', 'render-preview');
   previewCanvas.hidden = true;
   const result = el('div', 'result');
-  inspector.append(progress, progressLabel, previewCanvas, result);
+  renderPanel.append(progress, progressLabel, previewCanvas, result);
+  inspector.appendChild(renderPanel);
   grid.appendChild(inspector);
+
+  // Clicking anywhere except the canvas, the Widget panel or the add modal deselects.
+  window.addEventListener('pointerdown', (e) => {
+    const target = e.target;
+    if (
+      target instanceof Node &&
+      (target === canvas ||
+        target === addOpenBtn ||
+        widgetPanel.contains(target) ||
+        addDialog.contains(target))
+    )
+      return;
+    selected = null;
+  });
 
   // Bottom timeline: the whole activity with every clip window.
   const timelineBox = el('section', 'timeline-box');
@@ -405,7 +889,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       const visKey = th.template.widgets
         .map((w) => `${w.id}:${vis?.get(w.id) ?? w.visible}`)
         .join(',');
-      const sig = `${th.template.id}|${units}|${thumbAspect}|${Math.floor(sample.t)}|${visKey}`;
+      const sig = `${th.template.id}|${units}|${thumbAspect}|${Math.floor(sample.t)}|${visKey}|${overrideRev}`;
       if (sig === th.sig) continue;
       th.sig = sig;
       th.ctx.fillStyle = '#0d0d0d';
@@ -417,6 +901,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         th.canvas.width,
         th.canvas.height,
         units,
+        activity ? { activity, t: sample.t } : undefined,
       );
     }
   };
@@ -877,12 +1362,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   }
   let drag: DragState | null = null;
   let downPos: { x: number; y: number } | null = null;
-  /** Selected widget shows an outline + resize handle; template-scoped so stale picks never match. */
-  let selected: { templateId: string; widgetId: string } | null = null;
-  /** Resize handle: square at the widget's bottom-right corner, in CSS px. */
-  const HANDLE_PX = 14;
-  /** Min normalized size: overlay skips boxes under 24×16 px, 0.04 stays above that at 720p+. */
-  const MIN_NORM = 0.04;
 
   const toNorm = (e: { clientX: number; clientY: number }): { nx: number; ny: number } => {
     const rect = canvas.getBoundingClientRect();
@@ -991,6 +1470,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
           h: box.h,
         });
       }
+      bumpRev();
     } else if (e.pointerType === 'mouse' && downPos === null) {
       const { nx, ny } = toNorm(e);
       canvas.style.cursor = onHandle(e) ? 'nwse-resize' : hitWidget(nx, ny) ? 'grab' : 'pointer';
@@ -1021,7 +1501,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (!template) return;
     const { nx, ny } = toNorm(e);
     const hit = hitWidget(nx, ny);
-    if (hit) layoutOverrides.get(template.id)?.delete(hit);
+    if (hit && layoutOverrides.get(template.id)?.delete(hit)) bumpRev();
   });
 
   canvas.addEventListener('contextmenu', (e) => {
@@ -1031,13 +1511,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const { nx, ny } = toNorm(e);
     const hit = hitWidget(nx, ny);
     if (!hit) return;
-    let perTemplate = widgetOverrides.get(template.id);
-    if (!perTemplate) {
-      perTemplate = new Map(template.widgets.map((w) => [w.id, w.visible]));
-      widgetOverrides.set(template.id, perTemplate);
-    }
-    perTemplate.set(hit, false);
-    if (selected?.widgetId === hit) selected = null;
+    hideWidget(template, hit);
   });
 
   const outputName = (clip: Clip): string => {
@@ -1195,7 +1669,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       }
       return;
     }
-    if (event.target instanceof HTMLInputElement) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)
+      return;
     const step = event.shiftKey ? 0.5 : 0.1;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       const clip = activeClip();
@@ -1256,6 +1731,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
             canvas.width,
             canvas.height,
             units,
+            { activity, t: tt },
           );
         }
         // Selection chrome is preview-only: render.ts never sees it.
@@ -1289,6 +1765,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       if (video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) paintPlaceholder();
     }
     syncBinMeta();
+    syncInspector();
     paintOverview(activity ? vt + offsetSec : 0);
     requestAnimationFrame(tick);
   };

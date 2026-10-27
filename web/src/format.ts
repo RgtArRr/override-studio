@@ -33,5 +33,12 @@ export function formatMetric(metric: MetricId, raw: number, units: Units): Forma
       return { value: raw.toFixed(1), unit: '%' };
     case 'elapsedTime':
       return { value: formatSpan(raw), unit: '' };
+    case 'vam':
+      return units === 'metric'
+        ? { value: String(Math.round(raw)), unit: 'm/h' }
+        : { value: String(Math.round(raw * 3.28084)), unit: 'ft/h' };
+    case 'gears':
+    case 'none':
+      return { value: '', unit: '' };
   }
 }

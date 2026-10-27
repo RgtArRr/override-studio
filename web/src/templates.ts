@@ -6,6 +6,19 @@ import strip from '../../fixtures/templates/strip.json';
 import story from '../../fixtures/templates/story.json';
 import apex from '../../fixtures/templates/apex.json';
 import pulse from '../../fixtures/templates/pulse.json';
+import zones from '../../fixtures/templates/zones.json';
+import speedo from '../../fixtures/templates/speedo.json';
+import ring from '../../fixtures/templates/ring.json';
+import hbar from '../../fixtures/templates/hbar.json';
+import slope from '../../fixtures/templates/slope.json';
+import gears from '../../fixtures/templates/gears.json';
+import spark from '../../fixtures/templates/spark.json';
+import profile from '../../fixtures/templates/profile.json';
+import vam from '../../fixtures/templates/vam.json';
+import routemap from '../../fixtures/templates/routemap.json';
+import navmap from '../../fixtures/templates/navmap.json';
+import compass from '../../fixtures/templates/compass.json';
+import goal from '../../fixtures/templates/goal.json';
 import type { Template } from '@override-studio/shared';
 
 /** Built-in catalog. Fase 6+ adds generated ones. */
@@ -18,4 +31,17 @@ export const BUILTIN_TEMPLATES: Template[] = [
   story as Template,
   apex as Template,
   pulse as Template,
+  zones as Template,
+  speedo as Template,
+  ring as Template,
+  hbar as Template,
+  slope as Template,
+  gears as Template,
+  spark as Template,
+  profile as Template,
+  vam as Template,
+  routemap as Template,
+  navmap as Template,
+  compass as Template,
+  goal as Template,
 ];
