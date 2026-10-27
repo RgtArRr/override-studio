@@ -261,6 +261,28 @@ body {
   white-space: nowrap;
 }
 
+.local-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-pill);
+  padding: 5px 14px;
+  white-space: nowrap;
+}
+
+.local-badge::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
 .status {
   background: var(--surface);
   border-radius: var(--radius-card);
@@ -511,7 +533,8 @@ a {
 }
 
 .kind-select,
-.metric-select {
+.metric-select,
+.tz-select {
   max-width: none;
   flex: 1;
   min-width: 0;

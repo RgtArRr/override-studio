@@ -5,7 +5,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFit, sampleAt, summarize, widgetValue } from '../web/src/telemetry.ts';
 import { classifyAspect } from '../shared/src/template.ts';
-import { getCreationTime } from '../web/src/video-meta.ts';
+import {
+  getCreationDate,
+  getCreationTime,
+  resolveVideoInstant,
+} from '../web/src/video-meta.ts';
 import {
   METRIC_OPTIONS,
   WIDGET_KIND_OPTIONS,
@@ -223,5 +227,42 @@ const pN = navProject(track[60].lon, track[60].lat, track[50], 0);
 assert.ok(Math.abs(pN.fwd - 100) < 0.5 && Math.abs(pN.right) < 0.5);
 const pE = navProject(track[60].lon, track[60].lat, track[50], 90);
 assert.ok(Math.abs(pE.fwd) < 0.5 && Math.abs(pE.right + 100) < 0.5);
+
+// com.apple.quicktime.creationdate: wall reading + embedded offset.
+const mkMdta = (payload) => {
+  const enc = new TextEncoder();
+  const key = enc.encode('creationdate');
+  const data = enc.encode(payload);
+  const box = new Uint8Array(16 + data.length);
+  const dv = new DataView(box.buffer);
+  dv.setUint32(0, box.length);
+  box.set([0x64, 0x61, 0x74, 0x61], 4); // 'data'
+  dv.setUint32(8, 1); // utf-8
+  dv.setUint32(12, 0); // locale
+  box.set(data, 16);
+  const out = new Uint8Array(key.length + 8 + box.length);
+  out.set(key, 0);
+  out.set(box, key.length + 8);
+  return new Blob([out]);
+};
+const cd = await getCreationDate(mkMdta('2026-10-22T11:24:15-0600'));
+assert.equal(cd.wallMs, Date.UTC(2026, 9, 22, 11, 24, 15));
+assert.equal(cd.offsetMin, -360);
+const cdZ = await getCreationDate(mkMdta('2026-10-22T11:24:15Z'));
+assert.equal(cdZ.offsetMin, 0);
+assert.equal(await getCreationDate(new Blob([new Uint8Array(64)])), null);
+assert.equal(await getCreationDate(mkMdta('not-a-date')), null);
+
+// resolveVideoInstant: auto honors embedded offset else UTC; browser/fixed reinterpret the wall.
+const WALL = Date.UTC(2026, 9, 22, 16, 0, 0);
+assert.equal(resolveVideoInstant(WALL, -360, 'auto'), WALL + 360 * 60e3);
+assert.equal(resolveVideoInstant(WALL, null, 'auto'), WALL);
+assert.equal(resolveVideoInstant(WALL, null, -6), WALL + 6 * 3600e3);
+assert.equal(resolveVideoInstant(WALL, null, 5.5), WALL - 5.5 * 3600e3);
+const effB = new Date(resolveVideoInstant(WALL, null, 'browser'));
+assert.deepEqual(
+  [effB.getFullYear(), effB.getMonth(), effB.getDate(), effB.getHours(), effB.getMinutes(), effB.getSeconds()],
+  [2026, 9, 22, 16, 0, 0],
+);
 
 console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds)`);

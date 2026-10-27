@@ -38,20 +38,12 @@ function drawSample(
   canvas: HTMLCanvasElement,
   sample: VideoSample,
 ): void {
-  const W = canvas.width;
-  const H = canvas.height;
+  // sample.draw() already applies rotation, flip and aspect adjustments, and
+  // the canvas is sized to displayWidth/displayHeight, so a plain fill is
+  // exact. A manual transform here would rotate the frame twice.
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (sample.rotation === 0 && !sample.flip) {
-    sample.draw(ctx, 0, 0, W, H);
-  } else {
-    // Map the raw coded frame into the rotation-adjusted display box.
-    ctx.translate(W / 2, H / 2);
-    if (sample.flip) ctx.scale(-1, 1);
-    ctx.rotate((sample.rotation * Math.PI) / 180);
-    const swap = sample.rotation === 90 || sample.rotation === 270;
-    sample.draw(ctx, -(swap ? H : W) / 2, -(swap ? W : H) / 2, swap ? H : W, swap ? W : H);
-  }
+  sample.draw(ctx, 0, 0, canvas.width, canvas.height);
   ctx.restore();
 }
 

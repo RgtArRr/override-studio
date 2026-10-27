@@ -19,7 +19,12 @@ import {
   type TelemetrySample,
 } from './telemetry.js';
 import { formatMetric, type Units } from './format.js';
-import { getCreationTime } from './video-meta.js';
+import {
+  getCreationDate,
+  getCreationTime,
+  resolveVideoInstant,
+  type VideoZone,
+} from './video-meta.js';
 import { drawOverlay } from './overlay.js';
 import { renderVideo } from './render.js';
 import { BUILTIN_TEMPLATES } from './templates.js';
@@ -64,6 +69,17 @@ function formatOffset(sec: number): string {
   return `${sign}${Math.abs(sec).toFixed(1)} s`;
 }
 
+const tzName = (h: number): string => {
+  const sign = h < 0 ? '-' : '+';
+  const abs = Math.abs(h);
+  const hh = Math.floor(abs);
+  const mm = Math.round((abs - hh) * 60);
+  return `UTC${sign}${hh}${mm > 0 ? `:${String(mm).padStart(2, '0')}` : ''}`;
+};
+
+const tzLabel = (tz: VideoZone): string =>
+  tz === 'auto' ? 'auto' : tz === 'browser' ? 'nav' : tzName(tz);
+
 /** A clip can sit anywhere inside a long activity, so the guard is generous. */
 const OFFSET_LIMIT = 86400;
 
@@ -95,6 +111,9 @@ interface Clip {
   url: string;
   duration: number;
   videoCreation: Date | null;
+  videoWallMs: number | null;
+  videoOffsetMin: number | null;
+  tz: VideoZone;
   offsetSec: number;
   offsetDirty: boolean;
   trimStart: number;
@@ -186,7 +205,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   logo.src = '/icon.svg';
   logo.alt = '';
   header.append(logo, el('h1', undefined, 'override.studio'));
-  header.append(el('span', 'phase-badge', 'render 100% local'));
+  header.append(el('span', 'local-badge', 'render 100% local'));
   const headerSpacer = el('span', 'header-spacer');
   const headerActions = el('div', 'header-actions');
   const fitLabel = el('label', 'file-label', 'Archivo FIT');
@@ -485,6 +504,42 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (clip) clip.includeAudio = audioCheck.checked;
   });
   clipPanel.appendChild(audioLabel);
+  const tzRow = el('div', 'editor-row');
+  tzRow.append(el('span', 'muted', 'Zona horaria '));
+  const tzSelect = el('select', 'font-select tz-select');
+  tzSelect.title = 'Zona con que se interpreta la fecha grabada en el video';
+  const tzOption = (label: string, value: string): void => {
+    const opt = el('option', undefined, label);
+    opt.value = value;
+    tzSelect.appendChild(opt);
+  };
+  tzOption('Auto', 'auto');
+  tzOption(`Navegador (${tzName(-new Date().getTimezoneOffset() / 60)})`, 'browser');
+  const fixedHours: number[] = [];
+  for (let h = -12; h <= 14; h++) fixedHours.push(h);
+  fixedHours.push(-3.5, 3.5, 4.5, 5.5, 5.75, 6.5, 9.5);
+  for (const h of fixedHours.sort((a, b) => a - b)) tzOption(tzName(h), String(h));
+  tzRow.appendChild(tzSelect);
+  tzSelect.addEventListener('change', () => {
+    const clip = activeClip();
+    if (!clip) return;
+    const v = tzSelect.value;
+    clip.tz = v === 'auto' || v === 'browser' ? v : Number(v);
+    refreshClipInstant(clip);
+    if (clip.id === selectedClipId) showRecorded(clip);
+    if (!clip.videoCreation) {
+      setStatus('El clip no trae fecha de grabación: la zona no tiene efecto.');
+    } else if (applyAutoOffset(clip)) {
+      clip.offsetDirty = true;
+      setStatus(
+        `Zona ${tzLabel(clip.tz)} aplicada a “${clip.name}”: offset ${formatOffset(clip.offsetSec)}.`,
+      );
+    } else {
+      setStatus('Zona aplicada. Carga un FIT para sincronizar.');
+    }
+    binMetaSig = '';
+  });
+  clipPanel.appendChild(tzRow);
   inspector.appendChild(clipPanel);
 
   // Widget panel: every option of the selected widget.
@@ -835,6 +890,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   renderBtn.type = 'button';
   renderRow.appendChild(renderBtn);
   renderPanel.appendChild(renderRow);
+  renderPanel.appendChild(
+    el('p', 'muted', '100% en tu navegador: el video y el FIT nunca se suben.'),
+  );
   const progress = el('progress', 'render-progress');
   progress.max = 1;
   progress.value = 0;
@@ -969,7 +1027,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       if (!refs) continue;
       const parts = [
         clip.duration > 0 ? formatClock(clip.duration) : '—',
-        clip.videoCreation ? fmtRecorded(clip.videoCreation) : 'sin fecha',
+        clip.videoCreation ? `${fmtRecorded(clip.videoCreation)} (${tzLabel(clip.tz)})` : 'sin fecha',
         formatOffset(clip.offsetSec),
       ];
       refs.meta.textContent = parts.join(' · ');
@@ -979,7 +1037,16 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   const showRecorded = (clip: Clip | null): void => {
     recordedClock.textContent =
-      clip?.videoCreation ? `grabado ${fmtRecorded(clip.videoCreation)}` : 'grabado —';
+      clip?.videoCreation
+        ? `grabado ${fmtRecorded(clip.videoCreation)} (${tzLabel(clip.tz)})`
+        : 'grabado —';
+  };
+
+  const refreshClipInstant = (clip: Clip): void => {
+    clip.videoCreation =
+      clip.videoWallMs === null
+        ? null
+        : new Date(resolveVideoInstant(clip.videoWallMs, clip.videoOffsetMin, clip.tz));
   };
 
   const selectClip = (id: number): void => {
@@ -993,6 +1060,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     trimStartInput.value = clip.trimStart > 0 ? String(clip.trimStart) : '';
     trimEndInput.value = clip.trimEnd !== null ? String(clip.trimEnd) : '';
     audioCheck.checked = clip.includeAudio;
+    tzSelect.value = typeof clip.tz === 'number' ? String(clip.tz) : clip.tz;
     clipName.textContent = clip.name;
     showRecorded(clip);
     binMetaSig = '';
@@ -1067,6 +1135,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       url: URL.createObjectURL(file),
       duration: 0,
       videoCreation: null,
+      videoWallMs: null,
+      videoOffsetMin: null,
+      tz: 'auto',
       offsetSec: 0,
       offsetDirty: false,
       trimStart: 0,
@@ -1078,9 +1149,16 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     syncBin();
     if (selectedClipId === null) selectClip(clip.id);
     else binMetaSig = '';
-    void getCreationTime(file).then((date) => {
+    void Promise.all([getCreationDate(file), getCreationTime(file)]).then(([cd, ct]) => {
       if (!clips.includes(clip)) return;
-      clip.videoCreation = date;
+      if (cd) {
+        clip.videoWallMs = cd.wallMs;
+        clip.videoOffsetMin = cd.offsetMin;
+      } else if (ct) {
+        clip.videoWallMs = ct.getTime();
+        clip.videoOffsetMin = null;
+      }
+      refreshClipInstant(clip);
       if (clip.id === selectedClipId) showRecorded(clip);
       tryAutoSync(clip);
       binMetaSig = '';
@@ -1720,8 +1798,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
       }
-      // ponytail: preview ignores rotation metadata (render.ts handles it); rotated
-      // videos preview unrotated — upgrade by mirroring drawSample's transform.
+      // The video element applies rotation metadata and the canvas tracks the
+      // rotation-adjusted videoWidth/videoHeight, so preview stays correct.
       liveCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
       if (activity) {
         const tt = vt + offsetSec;
