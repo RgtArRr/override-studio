@@ -10,6 +10,7 @@ import {
   Mp4OutputFormat,
   Output,
   Quality,
+  StreamTarget,
   VideoSampleSink,
   type VideoSample,
 } from 'mediabunny';
@@ -29,6 +30,12 @@ export interface RenderOptions {
   /** Trim range in seconds of the source timeline. Defaults to the full video. */
   trimStart?: number;
   trimEnd?: number | null;
+  /**
+   * File stream for direct-to-disk output (File System Access API). When set,
+   * encoded data streams to the file as it is produced and RAM stays flat;
+   * when omitted, the whole file is buffered in memory (ceiling: long clips).
+   */
+  saveStream?: FileSystemWritableFileStream;
   /** Optional visible canvas: doubles as live render preview. */
   canvas?: HTMLCanvasElement;
   onProgress?: (renderedSec: number, totalSec: number) => void;
@@ -55,8 +62,10 @@ const PASSTHROUGH_AUDIO = new Set(['aac', 'mp3']);
 /**
  * Full-frame render: decode → paint frame + telemetry overlay → encode → mux.
  * Audio is copied packet-by-packet (no re-encode) when the codec allows it.
+ * Returns the rendered file, or null when it streamed straight to disk
+ * (finalize closes the file stream, so the video is already saved).
  */
-export async function renderVideo(options: RenderOptions): Promise<Blob> {
+export async function renderVideo(options: RenderOptions): Promise<Blob | null> {
   const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(options.file) });
   try {
     const videoTrack = await input.getPrimaryVideoTrack();
@@ -81,11 +90,16 @@ export async function renderVideo(options: RenderOptions): Promise<Blob> {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error(t('err.noCanvas'));
 
-    const target = new BufferTarget();
+    const saveStream = options.saveStream ?? null;
+    const target =
+      saveStream === null
+        ? new BufferTarget()
+        : new StreamTarget(saveStream, { chunked: true });
     const output = new Output({
       // ponytail: 'in-memory' fast-start holds the whole file in RAM (ceiling: long
-      // high-res clips); upgrade to StreamTarget + fastStart 'fragmented' if needed.
-      format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
+      // high-res clips); the disk path below avoids it via sequential writes.
+      // fastStart off on disk: plain moov-at-end MP4, friendliest to editors.
+      format: new Mp4OutputFormat({ fastStart: saveStream === null ? 'in-memory' : false }),
       target,
     });
     const canvasSource = new CanvasSource(canvas, {
@@ -145,8 +159,11 @@ export async function renderVideo(options: RenderOptions): Promise<Blob> {
     if (frames === 0) throw new Error(t('err.noFrames'));
 
     await output.finalize();
-    if (!target.buffer) throw new Error(t('err.noOutput'));
-    return new Blob([target.buffer], { type: 'video/mp4' });
+    if (target instanceof BufferTarget) {
+      if (!target.buffer) throw new Error(t('err.noOutput'));
+      return new Blob([target.buffer], { type: 'video/mp4' });
+    }
+    return null;
   } finally {
     input.dispose();
   }

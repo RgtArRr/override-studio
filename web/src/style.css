@@ -95,6 +95,28 @@ body {
   }
 }
 
+@media (max-width: 640px) {
+  .app {
+    padding: 20px 16px 64px;
+  }
+  .app-header {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+  .app-header h1 {
+    font-size: 20px;
+  }
+  .header-spacer {
+    display: none;
+  }
+  .header-actions {
+    flex-basis: 100%;
+  }
+  .local-badge {
+    font-size: 12px;
+  }
+}
+
 .bin,
 .inspector {
   background: var(--surface);

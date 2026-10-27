@@ -8,7 +8,7 @@
     "text": "#ffffff",
     "accent": "#0099ff",
     "panel": "#0b0e11",
-    "panelOpacity": 0.65
+    "panelOpacity": 0
   },
   "widgets": [
     {
@@ -17,7 +17,7 @@
       "kind": "map",
       "visible": true,
       "label": "RUTA",
-      "strokeWidth": 6,
+      "strokeWidth": 8,
       "layout": {
         "horizontal": { "x": 0.66, "y": 0.04, "w": 0.31, "h": 0.55 },
         "square": { "x": 0.38, "y": 0.06, "w": 0.56, "h": 0.5 },

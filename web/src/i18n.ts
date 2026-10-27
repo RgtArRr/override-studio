@@ -33,10 +33,14 @@ const ES: Record<string, string> = {
   'stage.teleNone': 'tele —',
   'stage.hint':
     'Arrastra un widget para moverlo · arrastra su esquina azul para redimensionarlo · clic derecho lo elimina · doble clic restablece su posición y tamaño.',
+  'stage.hintTouch':
+    'Arrastra un widget para moverlo · arrastra su esquina azul para redimensionarlo · mantén presionado para eliminarlo · doble toque restablece su posición y tamaño.',
   'stage.empty': 'Agrega videos para previsualizar',
   'sync.title': 'Sincronización',
   'sync.hint':
     'Atajo: ← / → ajustan ±0.1 s, con Mayús ±0.5 s. Arrastra sobre la actividad para posicionar el clip.',
+  'sync.hintTouch':
+    'Usa los botones para ajustes finos. Arrastra sobre la actividad para posicionar el clip.',
   'sync.auto': 'Auto',
   'sync.autoTitle': 'Calcula el offset desde la fecha del video y el inicio del FIT',
   'sync.noFit': 'Carga primero un FIT.',
@@ -105,6 +109,11 @@ const ES: Record<string, string> = {
   'r.failed': 'Falló el render.',
   'r.errTemplate': 'Plantilla no encontrada.',
   'r.errTrim': '“{name}”: el fin del recorte debe ser mayor que el inicio.',
+  'r.saved': 'Guardado en disco: {name}.',
+  'r.memH': 'Render en memoria',
+  'r.memBody':
+    'Tu navegador no permite guardar el video directo a disco, así que el resultado se mantiene en memoria mientras se renderiza. Con videos largos o en alta resolución el render puede fallar por falta de memoria.',
+  'r.memGo': 'Continuar de todos modos',
   'act.title': 'Actividad',
   'act.aria': 'Vista general de la actividad con la posición de los clips',
   'act.errCanvas': 'No se pudo crear el lienzo de actividad.',
@@ -222,10 +231,14 @@ const EN: Record<string, string> = {
   'stage.teleNone': 'tele —',
   'stage.hint':
     'Drag a widget to move it · drag its blue corner to resize · right-click deletes it · double-click resets its position and size.',
+  'stage.hintTouch':
+    'Drag a widget to move it · drag its blue corner to resize · long-press deletes it · double-tap resets its position and size.',
   'stage.empty': 'Add videos to preview',
   'sync.title': 'Sync',
   'sync.hint':
     'Shortcut: ← / → nudge ±0.1 s, with Shift ±0.5 s. Drag over the activity to place the clip.',
+  'sync.hintTouch':
+    'Use the buttons for fine nudges. Drag over the activity to place the clip.',
   'sync.auto': 'Auto',
   'sync.autoTitle': 'Computes the offset from the video date and the FIT start',
   'sync.noFit': 'Load a FIT first.',
@@ -294,6 +307,11 @@ const EN: Record<string, string> = {
   'r.failed': 'Render failed.',
   'r.errTemplate': 'Template not found.',
   'r.errTrim': '“{name}”: trim end must be after trim start.',
+  'r.saved': 'Saved to disk: {name}.',
+  'r.memH': 'In-memory render',
+  'r.memBody':
+    'Your browser cannot save the video straight to disk, so the result stays in memory while rendering. Long or high-resolution videos may fail for lack of memory.',
+  'r.memGo': 'Continue anyway',
   'act.title': 'Activity',
   'act.aria': 'Activity overview with clip positions',
   'act.errCanvas': 'Could not create the activity canvas.',

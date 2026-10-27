@@ -452,10 +452,14 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const teleClock = el('span', undefined, t('stage.teleNone'));
   const offsetClock = el('strong', undefined, formatOffset(0));
   clocks.append(playBtn, videoClock, teleClock, offsetClock);
+  const touchCapable = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+  const coarsePointer =
+    (window.matchMedia?.('(pointer: coarse)').matches ?? false) ||
+    (touchCapable && (window.matchMedia?.('(max-width: 640px)').matches ?? false));
   const stageHint = el(
     'p',
     'muted',
-    t('stage.hint'),
+    coarsePointer ? t('stage.hintTouch') : t('stage.hint'),
   );
   stage.append(video, canvas, timeline, clocks, stageHint);
   center.appendChild(stage);
@@ -469,7 +473,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     el(
       'p',
       'muted',
-      t('sync.hint'),
+      coarsePointer ? t('sync.hintTouch') : t('sync.hint'),
     ),
   );
   center.appendChild(syncBox);
@@ -1882,16 +1886,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     );
   };
 
-  const onHandle = (e: { clientX: number; clientY: number }): boolean => {
+  const onHandle = (e: { clientX: number; clientY: number; pointerType?: string }): boolean => {
     const box = selectedBox();
     if (!box) return false;
     const rect = canvas.getBoundingClientRect();
     const cx = rect.left + (box.x + box.w) * rect.width;
     const cy = rect.top + (box.y + box.h) * rect.height;
+    const slop = e.pointerType === 'touch' ? HANDLE_PX * 2 : HANDLE_PX;
     return (
-      e.clientX >= cx - HANDLE_PX &&
+      e.clientX >= cx - slop &&
       e.clientX <= cx &&
-      e.clientY >= cy - HANDLE_PX &&
+      e.clientY >= cy - slop &&
       e.clientY <= cy
     );
   };
@@ -2005,8 +2010,61 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     return `${base}-overlay.mp4`;
   };
 
+  /** Direct-to-disk render destination (File System Access, Chromium-only). */
+  interface DiskSave {
+    stream: FileSystemWritableFileStream;
+    name: string;
+  }
+  const canPickFile = (): boolean => typeof window.showSaveFilePicker === 'function';
+  const canPickDir = (): boolean => typeof window.showDirectoryPicker === 'function';
+  // In-memory fallback warning: without the pickers above, the whole output is
+  // buffered in RAM and long renders may die. Backdrop/Esc count as cancel.
+  const memDialog = el('dialog', 'add-dialog mem-dialog');
+  memDialog.append(el('h2', undefined, t('r.memH')));
+  memDialog.append(el('p', 'muted', t('r.memBody')));
+  const memActions = el('div', 'add-actions');
+  const memGoBtn = el('button', 'btn btn-primary', t('r.memGo'));
+  memGoBtn.type = 'button';
+  const memCancelBtn = el('button', 'btn', t('tpl.cancel'));
+  memCancelBtn.type = 'button';
+  memActions.append(memGoBtn, memCancelBtn);
+  memDialog.append(memActions);
+  wrap.appendChild(memDialog);
+  let memResolve: ((ok: boolean) => void) | null = null;
+  memGoBtn.addEventListener('click', () => memDialog.close('go'));
+  memCancelBtn.addEventListener('click', () => memDialog.close());
+  memDialog.addEventListener('close', () => {
+    memResolve?.(memDialog.returnValue === 'go');
+    memResolve = null;
+  });
+  const outsideMemDialog = (e: { clientX: number; clientY: number }): boolean => {
+    const r = memDialog.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  let memDownOutside = false;
+  memDialog.addEventListener('pointerdown', (e) => {
+    memDownOutside = outsideMemDialog(e);
+  });
+  memDialog.addEventListener('click', (e) => {
+    if (memDownOutside && outsideMemDialog(e)) memDialog.close();
+    memDownOutside = false;
+  });
+  const confirmMemoryRender = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      memResolve = resolve;
+      memDialog.showModal();
+    });
+  /** Best effort: discard the partial temp file (rejects when still locked). */
+  const abortSave = async (save: DiskSave): Promise<void> => {
+    try {
+      await save.stream.abort();
+    } catch {
+      /* ignore: the browser drops unclosed writables on its own */
+    }
+  };
+
   /** Renders one clip; sequential by design (one encoder at a time). */
-  const renderOne = async (clip: Clip, tag: string): Promise<void> => {
+  const renderOne = async (clip: Clip, tag: string, save: DiskSave | null = null): Promise<void> => {
     if (!activity) throw new Error(t('sync.noFit'));
     const template = selectedTemplate();
     if (!template) throw new Error(t('r.errTemplate'));
@@ -2025,6 +2083,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       includeAudio: clip.includeAudio,
       trimStart,
       trimEnd: clip.trimEnd,
+      saveStream: save?.stream,
       onProgress: (done, total) => {
         progress.value = total > 0 ? done / total : 0;
         progressLabel.textContent = t('r.progressLine', {
@@ -2035,6 +2094,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         });
       },
     });
+    if (blob === null) {
+      // Streamed path: finalize already closed the file; nothing to download.
+      result.appendChild(el('p', 'result-line', t('r.saved', { name: save?.name ?? outputName(clip) })));
+      clip.status = 'hecho';
+      binMetaSig = '';
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const mb = (blob.size / 1024 / 1024).toFixed(2);
     const line = el('p', 'result-line');
@@ -2065,19 +2131,38 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       if (!activity) setStatus(t('sync.noFit'));
       return;
     }
-    setRendering(true);
-    void renderOne(clip, t('r.tagOne'))
-      .then(() => {
+    void (async () => {
+      // Disk path first: one save picker, output streams to the file.
+      let save: DiskSave | null = null;
+      if (canPickFile()) {
+        try {
+          const handle = await window.showSaveFilePicker?.({
+            suggestedName: outputName(clip),
+            types: [{ description: 'MP4', accept: { 'video/mp4': ['.mp4'] } }],
+          });
+          if (!handle) return;
+          save = { stream: await handle.createWritable(), name: outputName(clip) };
+        } catch {
+          return; // picker cancelled: leave everything untouched
+        }
+      } else if (!(await confirmMemoryRender())) {
+        return;
+      }
+      setRendering(true);
+      try {
+        await renderOne(clip, t('r.tagOne'), save);
         progressLabel.textContent = '';
         setStatus(t('r.doneOne', { name: outputName(clip) }));
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
+        if (save) await abortSave(save);
         clip.status = 'error';
         binMetaSig = '';
         setStatus(err instanceof Error ? err.message : t('r.failed'));
         progressLabel.textContent = '';
-      })
-      .finally(() => setRendering(false));
+      } finally {
+        setRendering(false);
+      }
+    })();
   });
 
   renderAllBtn.addEventListener('click', () => {
@@ -2090,23 +2175,65 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       setStatus(t('sync.noFit'));
       return;
     }
-    setRendering(true);
     void (async () => {
-      let done = 0;
-      for (const clip of clips) {
+      // Disk path first: one folder picker for the whole batch.
+      let dir: FileSystemDirectoryHandle | null = null;
+      if (canPickDir()) {
         try {
-          await renderOne(clip, t('r.tagN', { done: done + 1, total: clips.length }));
-          done += 1;
-        } catch (err) {
-          clip.status = 'error';
-          binMetaSig = '';
-          setStatus(err instanceof Error ? err.message : t('r.failed'));
-          break;
+          dir = (await window.showDirectoryPicker?.()) ?? null;
+        } catch {
+          return; // picker cancelled: leave everything untouched
         }
+        if (!dir) return;
+      } else if (!(await confirmMemoryRender())) {
+        return;
       }
-      progressLabel.textContent = '';
-      if (done === clips.length) setStatus(t('r.doneN', { done }));
-    })().finally(() => setRendering(false));
+      // Same-name clips must not overwrite each other inside the folder.
+      const usedNames = new Set<string>();
+      const uniqueName = (base: string): string => {
+        let name = base;
+        let n = 2;
+        while (usedNames.has(name)) {
+          name = base.replace(/\.mp4$/, ` (${n}).mp4`);
+          n += 1;
+        }
+        usedNames.add(name);
+        return name;
+      };
+      setRendering(true);
+      try {
+        let done = 0;
+        for (const clip of clips) {
+          let save: DiskSave | null = null;
+          if (dir) {
+            try {
+              const name = uniqueName(outputName(clip));
+              const fileHandle = await dir.getFileHandle(name, { create: true });
+              save = { stream: await fileHandle.createWritable(), name };
+            } catch (err) {
+              clip.status = 'error';
+              binMetaSig = '';
+              setStatus(err instanceof Error ? err.message : t('r.failed'));
+              break;
+            }
+          }
+          try {
+            await renderOne(clip, t('r.tagN', { done: done + 1, total: clips.length }), save);
+            done += 1;
+          } catch (err) {
+            if (save) await abortSave(save);
+            clip.status = 'error';
+            binMetaSig = '';
+            setStatus(err instanceof Error ? err.message : t('r.failed'));
+            break;
+          }
+        }
+        progressLabel.textContent = '';
+        if (done === clips.length) setStatus(t('r.doneN', { done }));
+      } finally {
+        setRendering(false);
+      }
+    })();
   });
 
   video.addEventListener('error', () => {
