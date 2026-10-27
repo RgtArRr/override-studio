@@ -23,7 +23,6 @@ import { getCreationTime } from './video-meta.js';
 import { drawOverlay } from './overlay.js';
 import { renderVideo } from './render.js';
 import { BUILTIN_TEMPLATES } from './templates.js';
-import { FIXTURE_FIT_URL, FIXTURE_VIDEO_URL } from './fixtures.js';
 import {
   METRIC_OPTIONS,
   WIDGET_KIND_OPTIONS,
@@ -216,7 +215,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   fixtureBtn.type = 'button';
   const renderAllBtn = el('button', 'btn btn-primary', 'Renderizar todo');
   renderAllBtn.type = 'button';
-  headerActions.append(fitLabel, fitPill, unitsGroup, fixtureBtn, renderAllBtn);
+  headerActions.append(fitLabel, fitPill, unitsGroup);
+  // Fixtures are a dev-only helper: excluded from production builds.
+  if (import.meta.env.DEV) headerActions.appendChild(fixtureBtn);
+  headerActions.appendChild(renderAllBtn);
   header.append(headerSpacer, headerActions);
   wrap.appendChild(header);
 
@@ -1143,24 +1145,27 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
   });
 
-  fixtureBtn.addEventListener('click', () => {
-    setStatus('Cargando fixtures…');
-    void fetch(FIXTURE_VIDEO_URL)
-      .then((res) => {
-        if (!res.ok) throw new Error('No se pudo cargar el fixture de video.');
-        return res.blob();
-      })
-      .then((blob) => addClip(blob, 'sample-720p.mp4'))
-      .then(() => fetch(FIXTURE_FIT_URL))
-      .then((res) => {
-        if (!res.ok) throw new Error('No se pudo cargar el fixture FIT.');
-        return res.arrayBuffer();
-      })
-      .then((buffer) => loadFitBuffer(buffer, 'sample.fit'))
-      .catch((err: unknown) => {
-        setStatus(err instanceof Error ? err.message : 'Error cargando fixtures.');
-      });
-  });
+  if (import.meta.env.DEV) {
+    fixtureBtn.addEventListener('click', () => {
+      setStatus('Cargando fixtures…');
+      void import('./fixtures.js')
+        .then(({ FIXTURE_VIDEO_URL, FIXTURE_FIT_URL }) => fetch(FIXTURE_VIDEO_URL)
+          .then((res) => {
+            if (!res.ok) throw new Error('No se pudo cargar el fixture de video.');
+            return res.blob();
+          })
+          .then((blob) => addClip(blob, 'sample-720p.mp4'))
+          .then(() => fetch(FIXTURE_FIT_URL))
+          .then((res) => {
+            if (!res.ok) throw new Error('No se pudo cargar el fixture FIT.');
+            return res.arrayBuffer();
+          })
+          .then((buffer) => loadFitBuffer(buffer, 'sample.fit')))
+        .catch((err: unknown) => {
+          setStatus(err instanceof Error ? err.message : 'Error cargando fixtures.');
+        });
+    });
+  }
 
   // Sync buttons act on the selected clip.
   const needClip = (): Clip | null => {

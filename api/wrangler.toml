@@ -5,6 +5,5 @@ compatibility_date = "2026-10-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "override-studio-db"
-# Placeholder until `npm run db:create --workspace=api` (needs `wrangler login`).
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "68d11f5e-5be3-412b-83bc-17b7b73c056c"
 migrations_dir = "migrations"
