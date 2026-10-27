@@ -104,3 +104,82 @@ export function classifyAspect(width: number, height: number): AspectClass {
   if (ratio > 1.25) return 'horizontal';
   return 'square';
 }
+
+/** Neutral theme for blank or imported templates missing theme fields. */
+export const DEFAULT_TEMPLATE_THEME: TemplateTheme = {
+  fontFamily: 'system-ui, sans-serif',
+  text: '#ffffff',
+  accent: '#7dd3fc',
+  panel: '#0b0e11',
+  panelOpacity: 0.45,
+};
+
+const ASPECTS: AspectClass[] = ['vertical', 'square', 'horizontal'];
+
+const isLayout = (value: unknown): value is WidgetLayout =>
+  typeof value === 'object' &&
+  value !== null &&
+  ['x', 'y', 'w', 'h'].every(
+    (k) => typeof (value as Record<string, unknown>)[k] === 'number',
+  );
+
+/**
+ * Parse an exported template file back into a Template. Throws
+ * `not a template` on malformed JSON or a wrong shape; the caller assigns a
+ * fresh id (an export keeps its original id, which may already exist).
+ */
+export function parseTemplateJson(text: string): Template {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text) as unknown;
+  } catch {
+    throw new Error('not a template');
+  }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('not a template');
+  }
+  const rec = raw as Record<string, unknown>;
+  if (typeof rec.name !== 'string' || !Array.isArray(rec.widgets)) {
+    throw new Error('not a template');
+  }
+  for (const w of rec.widgets) {
+    if (typeof w !== 'object' || w === null) throw new Error('not a template');
+    const widget = w as Record<string, unknown>;
+    if (typeof widget.id !== 'string' || typeof widget.kind !== 'string') {
+      throw new Error('not a template');
+    }
+    const layout = widget.layout as Record<string, unknown> | undefined;
+    if (
+      typeof layout !== 'object' ||
+      layout === null ||
+      !ASPECTS.every((a) => isLayout(layout[a]))
+    ) {
+      throw new Error('not a template');
+    }
+  }
+  const theme =
+    typeof rec.theme === 'object' && rec.theme !== null
+      ? (rec.theme as Record<string, unknown>)
+      : {};
+  const pick = (key: keyof TemplateTheme, fallback: number | string): number | string => {
+    const value = theme[key as string];
+    return typeof value === typeof fallback ? (value as number | string) : fallback;
+  };
+  return {
+    schemaVersion: TEMPLATE_SCHEMA_VERSION,
+    id: typeof rec.id === 'string' && rec.id ? rec.id : 'imported',
+    name: rec.name as string,
+    ...(typeof rec.description === 'string' ? { description: rec.description } : {}),
+    theme: {
+      fontFamily: pick('fontFamily', DEFAULT_TEMPLATE_THEME.fontFamily) as string,
+      text: pick('text', DEFAULT_TEMPLATE_THEME.text) as string,
+      accent: pick('accent', DEFAULT_TEMPLATE_THEME.accent) as string,
+      panel: pick('panel', DEFAULT_TEMPLATE_THEME.panel) as string,
+      panelOpacity: pick('panelOpacity', DEFAULT_TEMPLATE_THEME.panelOpacity) as number,
+    },
+    widgets: (rec.widgets as Template['widgets']).map((w) => ({
+      ...w,
+      visible: w.visible ?? true,
+    })),
+  };
+}

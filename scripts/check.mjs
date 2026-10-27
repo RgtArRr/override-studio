@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFit, sampleAt, summarize, widgetValue } from '../web/src/telemetry.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
-import { classifyAspect } from '../shared/src/template.ts';
+import { classifyAspect, parseTemplateJson } from '../shared/src/template.ts';
 import {
   getCreationDate,
   getCreationTime,
@@ -286,4 +286,24 @@ assert.equal(kindLabel('speedo'), 'Velocímetro');
 assert.equal(metricLabel('heartRate'), 'Frecuencia cardiaca');
 assert.throws(() => parseFit(new Uint8Array(8).buffer), /no es un FIT/);
 
-console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + i18n`);
+// Template export/import roundtrip: every fixture parses, and bad shapes throw.
+for (const f of files) {
+  const tpl = parseTemplateJson(readFileSync(join(root, 'fixtures/templates', f), 'utf8'));
+  assert.equal(tpl.schemaVersion, 2);
+  assert.ok(tpl.name.length > 0);
+  assert.ok(Array.isArray(tpl.widgets));
+  assert.equal(parseTemplateJson(JSON.stringify(tpl)).widgets.length, tpl.widgets.length);
+}
+assert.throws(() => parseTemplateJson('no json'), /not a template/);
+assert.throws(() => parseTemplateJson('{}'), /not a template/);
+assert.throws(() => parseTemplateJson('{"name":"x"}'), /not a template/);
+assert.throws(() => parseTemplateJson('{"name":"x","widgets":[null]}'), /not a template/);
+assert.throws(
+  () => parseTemplateJson('{"name":"x","widgets":[{"id":"a","kind":"stat"}]}'),
+  /not a template/,
+);
+const slim = parseTemplateJson('{"name":"","widgets":[]}');
+assert.equal(slim.id, 'imported');
+assert.equal(slim.theme.accent, '#7dd3fc');
+
+console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + i18n + tpljson`);

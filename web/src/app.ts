@@ -1,6 +1,8 @@
 import {
+  DEFAULT_TEMPLATE_THEME,
   TEMPLATE_SCHEMA_VERSION,
   classifyAspect,
+  parseTemplateJson,
   type AspectClass,
   type MetricId,
   type Template,
@@ -161,8 +163,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const activeClip = (): Clip | null =>
     clips.find((c) => c.id === selectedClipId) ?? null;
 
+  /** Session templates from the + card, newest first, ahead of the builtins. */
+  const customTemplates: Template[] = [];
+  const allTemplates = (): Template[] => [...customTemplates, ...BUILTIN_TEMPLATES];
+  let customSeq = 0;
+  const freshTemplateId = (): string => {
+    customSeq += 1;
+    return `custom-${Date.now().toString(36)}-${customSeq}`;
+  };
+
   const selectedTemplate = (): Template | undefined =>
-    BUILTIN_TEMPLATES.find((t) => t.id === selectedTemplateId);
+    allTemplates().find((t) => t.id === selectedTemplateId);
 
   const effectiveTemplate = (template: Template): Template => {
     const vis = widgetOverrides.get(template.id);
@@ -217,44 +228,50 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   header.append(el('span', 'local-badge', t('hdr.badge')));
   const headerSpacer = el('span', 'header-spacer');
   const headerActions = el('div', 'header-actions');
-  const fitLabel = el('label', 'file-label', t('hdr.fit'));
-  const fitInput = el('input');
-  fitInput.type = 'file';
-  fitInput.accept = '.fit';
-  fitLabel.appendChild(fitInput);
-  const fitPill = el('span', 'phase-badge', t('hdr.nofit'));
-  const unitsGroup = el('div', 'units');
+  const unitsGroup = el('div', 'seg-switch');
+  unitsGroup.setAttribute('role', 'group');
+  unitsGroup.setAttribute('aria-label', t('hdr.units'));
+  const unitBtns: HTMLButtonElement[] = [];
+  const syncUnits = (): void => {
+    for (const b of unitBtns) {
+      const active = b.dataset.units === units;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
+  };
   const mkUnit = (value: Units, text: string): void => {
-    const label = el('label', 'check', text);
-    const radio = el('input');
-    radio.type = 'radio';
-    radio.name = 'units';
-    radio.value = value;
-    radio.checked = value === units;
-    radio.addEventListener('change', () => {
-      if (radio.checked) units = value;
+    const btn = el('button', 'seg-opt', text);
+    btn.type = 'button';
+    btn.dataset.units = value;
+    btn.addEventListener('click', () => {
+      if (units === value) return;
+      units = value;
+      syncUnits();
+      renderFitStats();
     });
-    label.prepend(radio);
-    unitsGroup.appendChild(label);
+    unitBtns.push(btn);
+    unitsGroup.appendChild(btn);
   };
   mkUnit('metric', 'km / m');
   mkUnit('imperial', 'mi / ft');
-  const localeGroup = el('div', 'units');
+  syncUnits();
+  const localeGroup = el('div', 'seg-switch');
+  localeGroup.setAttribute('role', 'group');
+  localeGroup.setAttribute('aria-label', t('hdr.locale'));
   const mkLocale = (value: Locale, text: string): void => {
-    const label = el('label', 'check', text);
-    const radio = el('input');
-    radio.type = 'radio';
-    radio.name = 'locale';
-    radio.value = value;
-    radio.checked = getLocale() === value;
-    radio.addEventListener('change', () => {
-      if (radio.checked && getLocale() !== value) {
+    const btn = el('button', 'seg-opt', text);
+    btn.type = 'button';
+    btn.dataset.locale = value;
+    const active = getLocale() === value;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+    btn.addEventListener('click', () => {
+      if (getLocale() !== value) {
         saveLocale(value);
         location.reload();
       }
     });
-    label.prepend(radio);
-    localeGroup.appendChild(label);
+    localeGroup.appendChild(btn);
   };
   mkLocale('es', 'ES');
   mkLocale('en', 'EN');
@@ -262,10 +279,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   fixtureBtn.type = 'button';
   const renderAllBtn = el('button', 'btn btn-primary', t('hdr.renderAll'));
   renderAllBtn.type = 'button';
-  headerActions.append(fitLabel, fitPill, unitsGroup, localeGroup);
+  // Editor controls first, then a separator, then the system (language) switch.
+  const headerSep = el('span', 'header-sep');
+  headerSep.setAttribute('aria-hidden', 'true');
+  headerActions.append(unitsGroup);
   // Fixtures are a dev-only helper: excluded from production builds.
   if (import.meta.env.DEV) headerActions.appendChild(fixtureBtn);
-  headerActions.appendChild(renderAllBtn);
+  headerActions.append(renderAllBtn, headerSep, localeGroup);
   header.append(headerSpacer, headerActions);
   wrap.appendChild(header);
 
@@ -276,6 +296,48 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   const grid = el('div', 'editor-grid');
   wrap.appendChild(grid);
+
+  // Left column: FIT block above the media bin.
+  const leftCol = el('div', 'left-col');
+  const fitBlock = el('section', 'fit-block');
+  fitBlock.append(el('h2', undefined, 'FIT'));
+  const fitLabel = el('label', 'file-label', t('hdr.fit'));
+  const fitInput = el('input');
+  fitInput.type = 'file';
+  fitInput.accept = '.fit';
+  fitLabel.appendChild(fitInput);
+  const fitPill = el('span', 'phase-badge', t('hdr.nofit'));
+  const fitStats = el('div', 'fit-stats');
+  fitStats.hidden = true;
+  fitBlock.append(fitLabel, fitPill, fitStats);
+  leftCol.appendChild(fitBlock);
+  /** Basic stats of the loaded FIT, re-rendered on load and on units change. */
+  const renderFitStats = (): void => {
+    fitStats.replaceChildren();
+    if (!activity) {
+      fitStats.hidden = true;
+      return;
+    }
+    const s = summarize(activity);
+    const dist = formatMetric('distance', s.distanceM, units);
+    const rows: [string, string][] = [
+      [t('fit.dur'), formatSpan(s.durationSec)],
+      [t('fit.dist'), `${dist.value} ${dist.unit}`],
+      [t('fit.samples'), String(s.samples)],
+    ];
+    if (s.avgSpeed !== null) {
+      const avg = formatMetric('speed', s.avgSpeed, units);
+      rows.push([t('fit.avgSpeed'), `${avg.value} ${avg.unit}`]);
+    }
+    if (s.avgHeartRate !== null) rows.push([t('fit.avgHr'), `${Math.round(s.avgHeartRate)} bpm`]);
+    if (s.avgPower !== null) rows.push([t('fit.avgPower'), `${Math.round(s.avgPower)} W`]);
+    for (const [label, value] of rows) {
+      const row = el('div', 'fit-stat');
+      row.append(el('span', 'muted', label), el('span', 'fit-stat-v', value));
+      fitStats.appendChild(row);
+    }
+    fitStats.hidden = false;
+  };
 
   // Media bin (left): the ride's clips.
   const bin = el('aside', 'bin');
@@ -292,7 +354,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const binList = el('div', 'bin-list');
   const binEmpty = el('p', 'muted', t('bin.empty'));
   bin.append(binHead, addLabel, binList, binEmpty);
-  grid.appendChild(bin);
+  leftCol.appendChild(bin);
+  grid.appendChild(leftCol);
 
   // Center: viewer + sync + templates.
   const center = el('div', 'center');
@@ -427,12 +490,33 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     bumpRev();
   });
   addOpenBtn.addEventListener('click', () => addDialog.showModal());
+  /** Export downloads a template with its current widget setup. */
+  const downloadTemplate = (template: Template): void => {
+    const slug = template.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const blob = new Blob([JSON.stringify(effectiveTemplate(template), null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${slug || template.id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
   templateHead.append(resetWidgetsBtn, addOpenBtn);
   wrap.appendChild(addDialog);
   templateBox.appendChild(templateHead);
   interface Thumb {
     template: Template;
-    card: HTMLButtonElement;
+    card: HTMLElement;
+    open: HTMLButtonElement;
     canvas: HTMLCanvasElement;
     ctx: CanvasRenderingContext2D;
     sig: string;
@@ -445,13 +529,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     for (const th of thumbs) {
       const active = th.template.id === selectedTemplateId;
       th.card.classList.toggle('selected', active);
-      th.card.setAttribute('aria-pressed', String(active));
+      th.open.setAttribute('aria-pressed', String(active));
     }
   };
   const thumbErr = t('tpl.errThumb');
-  for (const t of BUILTIN_TEMPLATES) {
-    const card = el('button', 'template-card');
-    card.type = 'button';
+  const addCard = (tpl: Template): HTMLElement => {
+    const card = el('div', 'template-card');
     const thumbCanvas = document.createElement('canvas');
     thumbCanvas.width = 512;
     thumbCanvas.height = 288;
@@ -459,15 +542,35 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     thumbCanvas.setAttribute('aria-hidden', 'true');
     const thumbCtx = thumbCanvas.getContext('2d');
     if (!thumbCtx) throw new Error(thumbErr);
-    const name = el('span', 'template-name', t.name);
-    card.append(thumbCanvas, name);
-    card.addEventListener('click', () => {
-      selectedTemplateId = t.id;
+    const openBtn = el('button', 'template-open');
+    openBtn.type = 'button';
+    openBtn.setAttribute('aria-label', tpl.name);
+    openBtn.append(thumbCanvas, el('span', 'template-name', tpl.name));
+    openBtn.addEventListener('click', () => {
+      selectedTemplateId = tpl.id;
       syncCards();
     });
+    const exportBtn = el('button', 'card-export');
+    exportBtn.type = 'button';
+    exportBtn.title = t('tpl.exportTitle');
+    exportBtn.setAttribute('aria-label', t('tpl.export'));
+    const icon = el('span', 'icon icon-download');
+    icon.setAttribute('aria-hidden', 'true');
+    exportBtn.appendChild(icon);
+    exportBtn.addEventListener('click', () => downloadTemplate(tpl));
+    card.append(openBtn, exportBtn);
     cardsBox.appendChild(card);
-    thumbs.push({ template: t, card, canvas: thumbCanvas, ctx: thumbCtx, sig: '' });
-  }
+    thumbs.push({ template: tpl, card, open: openBtn, canvas: thumbCanvas, ctx: thumbCtx, sig: '' });
+    return card;
+  };
+  // "+" card first: same size as a template, white with a black border.
+  const newCard = el('button', 'template-card new-template');
+  newCard.type = 'button';
+  newCard.title = t('tpl.newTitle');
+  newCard.setAttribute('aria-label', t('tpl.newTitle'));
+  newCard.append(el('span', 'new-plus', '+'), el('span', 'template-name', t('tpl.new')));
+  cardsBox.appendChild(newCard);
+  for (const tpl of allTemplates()) addCard(tpl);
   /** Thumbnails mirror the loaded video's aspect so cards preview the real layout. */
   const sizeThumbs = (): void => {
     const dims =
@@ -499,6 +602,114 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     { passive: false },
   );
   syncCards();
+  // New-template dialog: name a blank template or restore an exported JSON.
+  const newDialog = el('dialog', 'add-dialog');
+  newDialog.append(el('h2', undefined, t('tpl.createH')));
+  const nameRow = el('div', 'editor-row');
+  nameRow.append(el('span', 'muted', t('tpl.nameLabel')));
+  const nameInput = el('input', 'name-input');
+  nameInput.type = 'text';
+  nameInput.placeholder = t('tpl.namePh');
+  nameInput.maxLength = 60;
+  nameInput.setAttribute('autofocus', '');
+  nameRow.appendChild(nameInput);
+  const fileRow = el('div', 'editor-row');
+  fileRow.append(el('span', 'muted', t('tpl.fileLabel')));
+  const fileInput = el('input', 'name-input file-input');
+  fileInput.type = 'file';
+  fileInput.accept = 'application/json,.json';
+  fileRow.appendChild(fileInput);
+  const importErr = el('p', 'import-err', t('tpl.errImport'));
+  importErr.hidden = true;
+  const newActions = el('div', 'add-actions');
+  const createBtn = el('button', 'btn btn-primary', t('tpl.create'));
+  createBtn.type = 'button';
+  const newCancelBtn = el('button', 'btn', t('tpl.cancel'));
+  newCancelBtn.type = 'button';
+  newActions.append(createBtn, newCancelBtn);
+  newDialog.append(
+    nameRow,
+    el('p', 'muted', t('tpl.orImport')),
+    fileRow,
+    importErr,
+    newActions,
+  );
+  newCancelBtn.addEventListener('click', () => newDialog.close());
+  const outsideNewDialog = (e: { clientX: number; clientY: number }): boolean => {
+    const r = newDialog.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  let newDownOutside = false;
+  newDialog.addEventListener('pointerdown', (e) => {
+    newDownOutside = outsideNewDialog(e);
+  });
+  newDialog.addEventListener('click', (e) => {
+    if (newDownOutside && outsideNewDialog(e)) newDialog.close();
+    newDownOutside = false;
+  });
+  /** Custom templates land right after the + card, selected and ready. */
+  const insertCustom = (tpl: Template): void => {
+    customTemplates.unshift(tpl);
+    const card = addCard(tpl);
+    cardsBox.insertBefore(card, newCard.nextSibling);
+    selectedTemplateId = tpl.id;
+    selected = null;
+    syncCards();
+    sizeThumbs();
+    cardsBox.scrollLeft = 0;
+    bumpRev();
+  };
+  createBtn.addEventListener('click', () => {
+    const typed = nameInput.value.trim();
+    const file = fileInput.files?.[0] ?? null;
+    if (!file) {
+      insertCustom({
+        schemaVersion: TEMPLATE_SCHEMA_VERSION,
+        id: freshTemplateId(),
+        name: typed || t('tpl.untitled'),
+        theme: { ...DEFAULT_TEMPLATE_THEME },
+        widgets: [],
+      });
+      newDialog.close();
+      return;
+    }
+    void file
+      .text()
+      .then((text) => {
+        let tpl: Template;
+        try {
+          tpl = parseTemplateJson(text);
+        } catch {
+          importErr.hidden = false;
+          return;
+        }
+        const known = tpl.widgets.every(
+          (w) =>
+            (WIDGET_KINDS as readonly string[]).includes(w.kind) &&
+            (METRIC_IDS as readonly string[]).includes(w.metric),
+        );
+        if (!known) {
+          importErr.hidden = false;
+          return;
+        }
+        insertCustom({
+          ...tpl,
+          id: freshTemplateId(),
+          name: typed || tpl.name.trim() || t('tpl.untitled'),
+        });
+        newDialog.close();
+      })
+      .catch(() => {
+        importErr.hidden = false;
+      });
+  });
+  newCard.addEventListener('click', () => {
+    nameInput.value = '';
+    fileInput.value = '';
+    importErr.hidden = true;
+    newDialog.showModal();
+  });
+  wrap.appendChild(newDialog);
   // Templates sit above the viewer: one strip, no scroll to pick one.
   center.prepend(templateBox);
 
@@ -1260,21 +1471,16 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         (speedUnit ? t('fit.footerAvg', { v: speedUnit.value, u: speedUnit.unit }) : '') +
         t('fit.footerSchema', { v: TEMPLATE_SCHEMA_VERSION });
       // One ride, many videos: every undated clip gets its auto offset now.
-      let synced = 0;
       for (const clip of clips) {
-        if (!clip.offsetDirty && applyAutoOffset(clip)) synced += 1;
+        if (!clip.offsetDirty) applyAutoOffset(clip);
       }
-      setStatus(
-        t('st.fitLoaded', { n: s.samples }) +
-          (synced > 0
-            ? t('st.fitLoadedSync', { k: synced })
-            : t('st.fitLoadedLive')),
-      );
+      renderFitStats();
       const clip = activeClip();
       if (clip && activity && !clip.videoCreation) tryAutoSync(clip);
       binMetaSig = '';
     } catch (err) {
       activity = null;
+      renderFitStats();
       setStatus(err instanceof Error ? err.message : t('st.fitUnreadable'));
     }
   };

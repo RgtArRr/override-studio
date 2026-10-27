@@ -112,6 +112,22 @@ the selected units (metric/imperial). `elapsedTime` is FIT elapsed seconds at th
 rendered moment and formats as `h:mm:ss`. If a metric is missing from the data,
 the widget shows `—`.
 
+## Custom, export, import
+
+The strip starts with a white **+** card that opens the new-template dialog:
+type a name to create a blank template (first position, selected, ready for
+widgets), or pick a previously exported `.json` to restore it instantly. A
+typed name wins over the file's embedded name; imports always get a fresh id
+so they never collide with the built-ins.
+
+Each card carries its own small export icon button (right of the name), which
+downloads that template with its current widget setup (visibility, layout,
+style, added widgets) as `{name}.json`. The importer
+(`parseTemplateJson` in `shared/src/template.ts`) requires the shape above —
+name string, widgets array, one box per aspect per widget — fills a neutral
+theme when fields are missing, defaults `visible` to true, and rejects
+unknown widget kinds/metrics. Covered by `npm run check` (+ tpljson).
+
 ## Built-ins
 
 broadcast · minimal · climb · chrono · strip · story · apex · pulse ·

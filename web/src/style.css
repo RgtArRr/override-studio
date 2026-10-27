@@ -91,6 +91,54 @@ body {
   padding: 16px;
 }
 
+.left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.fit-block {
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+}
+
+.fit-block .file-label {
+  width: 100%;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.fit-block .phase-badge {
+  display: block;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.fit-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.fit-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.fit-stat-v {
+  color: var(--graphite);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .bin-head {
   display: flex;
   align-items: baseline;
@@ -408,6 +456,7 @@ a {
 
 .offset-box h2,
 .bin h2,
+.fit-block h2,
 .inspector h2,
 .timeline-box h2,
 .template-box h2 {
@@ -586,9 +635,41 @@ a {
   accent-color: var(--ink);
 }
 
-.units {
-  display: flex;
-  gap: 16px;
+.seg-switch {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.seg-opt {
+  border: none;
+  background: none;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.seg-opt:hover {
+  color: var(--ink);
+}
+
+.seg-opt.active {
+  background: var(--ink);
+  color: #fff;
+}
+
+.header-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
 }
 
 .render-row {
@@ -609,14 +690,57 @@ a {
 }
 
 .template-card {
+  position: relative;
   background: var(--surface);
   border: 2px solid transparent;
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   padding: 8px;
-  cursor: pointer;
   font-family: inherit;
   flex-shrink: 0;
+}
+
+.template-open {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.card-export {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--graphite);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.card-export:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* Masked asset icon: glyph takes the button's currentColor. */
+.card-export .icon {
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  -webkit-mask: url('/icons/download.svg') no-repeat center / contain;
+  mask: url('/icons/download.svg') no-repeat center / contain;
 }
 
 .template-card:hover {
@@ -639,8 +763,50 @@ a {
   display: block;
   font-size: 14px;
   color: var(--graphite);
-  padding: 8px 4px 4px;
+  padding: 8px 40px 4px 4px;
   text-align: left;
+}
+
+.template-card.new-template {
+  background: #fff;
+  border: 2px solid #000;
+  cursor: pointer;
+}
+
+.template-card.new-template:hover {
+  border-color: #000;
+}
+
+.new-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 108px;
+  font-size: 64px;
+  line-height: 1;
+  color: #000;
+}
+
+.template-card.new-template .template-name {
+  color: #000;
+}
+
+.name-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  color: var(--graphite);
+  padding: 7px 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.import-err {
+  color: var(--danger);
+  font-size: 14px;
+  margin: 4px 0 0;
 }
 
 .render-progress {
