@@ -253,16 +253,10 @@ assert.equal(cdZ.offsetMin, 0);
 assert.equal(await getCreationDate(new Blob([new Uint8Array(64)])), null);
 assert.equal(await getCreationDate(mkMdta('not-a-date')), null);
 
-// resolveVideoInstant: auto honors embedded offset else UTC; browser/fixed reinterpret the wall.
+// resolveVideoInstant: fixed offsets reinterpret the file wall reading.
 const WALL = Date.UTC(2026, 9, 22, 16, 0, 0);
-assert.equal(resolveVideoInstant(WALL, -360, 'auto'), WALL + 360 * 60e3);
-assert.equal(resolveVideoInstant(WALL, null, 'auto'), WALL);
-assert.equal(resolveVideoInstant(WALL, null, -6), WALL + 6 * 3600e3);
-assert.equal(resolveVideoInstant(WALL, null, 5.5), WALL - 5.5 * 3600e3);
-const effB = new Date(resolveVideoInstant(WALL, null, 'browser'));
-assert.deepEqual(
-  [effB.getFullYear(), effB.getMonth(), effB.getDate(), effB.getHours(), effB.getMinutes(), effB.getSeconds()],
-  [2026, 9, 22, 16, 0, 0],
-);
+assert.equal(resolveVideoInstant(WALL, -6), WALL + 6 * 3600e3);
+assert.equal(resolveVideoInstant(WALL, 5.5), WALL - 5.5 * 3600e3);
+assert.equal(resolveVideoInstant(WALL, 0), WALL);
 
 console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds)`);

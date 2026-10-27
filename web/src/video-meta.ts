@@ -123,30 +123,10 @@ export async function getCreationDate(file: Blob): Promise<CreationDateInfo | nu
   return scanWindows(file, findCreationDate);
 }
 
-/** How to interpret a file wall reading: embedded/UTC, host zone, or fixed UTC offset in hours. */
-export type VideoZone = 'auto' | 'browser' | number;
+/** How to interpret a file wall reading: fixed UTC offset in hours. */
+export type VideoZone = number;
 
-/**
- * Absolute recording instant from a file wall reading under a zone choice.
- * 'browser' reinterprets the wall in the host zone with that date's DST rules.
- */
-export function resolveVideoInstant(
-  wallMs: number,
-  embeddedOffsetMin: number | null,
-  tz: VideoZone,
-): number {
-  if (typeof tz === 'number') return wallMs - tz * 3600e3;
-  if (tz === 'browser') {
-    const d = new Date(wallMs);
-    return new Date(
-      d.getUTCFullYear(),
-      d.getUTCMonth(),
-      d.getUTCDate(),
-      d.getUTCHours(),
-      d.getUTCMinutes(),
-      d.getUTCSeconds(),
-      d.getUTCMilliseconds(),
-    ).getTime();
-  }
-  return embeddedOffsetMin === null ? wallMs : wallMs - embeddedOffsetMin * 60e3;
+/** Absolute recording instant from a file wall reading under a zone choice. */
+export function resolveVideoInstant(wallMs: number, tz: VideoZone): number {
+  return wallMs - tz * 3600e3;
 }

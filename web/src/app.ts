@@ -77,8 +77,15 @@ const tzName = (h: number): string => {
   return `UTC${sign}${hh}${mm > 0 ? `:${String(mm).padStart(2, '0')}` : ''}`;
 };
 
-const tzLabel = (tz: VideoZone): string =>
-  tz === 'auto' ? 'auto' : tz === 'browser' ? 'nav' : tzName(tz);
+/** Fixed UTC offsets (hours) offered in the clip timezone selector. */
+const FIXED_TZS: number[] = [
+  -12, -11, -10, -9.5, -9, -8, -7, -6, -5, -4, -3.5, -3, -2, -1, 0, 1, 2, 3,
+  3.5, 4, 4.5, 5, 5.5, 5.75, 6, 6.5, 7, 8, 8.75, 9, 9.5, 10, 10.5, 11, 12,
+  12.75, 13, 13.75, 14,
+];
+
+/** Host UTC offset in hours, preselected for every new clip. */
+const BROWSER_TZ: number = -new Date().getTimezoneOffset() / 60;
 
 /** A clip can sit anywhere inside a long activity, so the guard is generous. */
 const OFFSET_LIMIT = 86400;
@@ -112,7 +119,6 @@ interface Clip {
   duration: number;
   videoCreation: Date | null;
   videoWallMs: number | null;
-  videoOffsetMin: number | null;
   tz: VideoZone;
   offsetSec: number;
   offsetDirty: boolean;
@@ -241,7 +247,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   header.append(headerSpacer, headerActions);
   wrap.appendChild(header);
 
-  const status = el('p', 'muted', 'Agrega los videos de la salida y un FIT, o usa los fixtures.');
+  const status = el('p', 'muted', '');
+  status.hidden = true;
   status.setAttribute('role', 'status');
   wrap.appendChild(status);
 
@@ -449,6 +456,21 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
   };
   templateBox.appendChild(cardsBox);
+  // Vertical wheel over the strip scrolls it horizontally; page scroll resumes at the ends.
+  cardsBox.addEventListener(
+    'wheel',
+    (e) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const max = cardsBox.scrollWidth - cardsBox.clientWidth;
+      if (max <= 0) return;
+      const atStart = cardsBox.scrollLeft <= 0 && e.deltaY < 0;
+      const atEnd = cardsBox.scrollLeft >= max && e.deltaY > 0;
+      if (atStart || atEnd) return;
+      e.preventDefault();
+      cardsBox.scrollLeft += e.deltaY;
+    },
+    { passive: false },
+  );
   syncCards();
   // Templates sit above the viewer: one strip, no scroll to pick one.
   center.prepend(templateBox);
@@ -513,18 +535,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     opt.value = value;
     tzSelect.appendChild(opt);
   };
-  tzOption('Auto', 'auto');
-  tzOption(`Navegador (${tzName(-new Date().getTimezoneOffset() / 60)})`, 'browser');
-  const fixedHours: number[] = [];
-  for (let h = -12; h <= 14; h++) fixedHours.push(h);
-  fixedHours.push(-3.5, 3.5, 4.5, 5.5, 5.75, 6.5, 9.5);
-  for (const h of fixedHours.sort((a, b) => a - b)) tzOption(tzName(h), String(h));
+  for (const h of FIXED_TZS) tzOption(tzName(h), String(h));
+  tzSelect.value = String(BROWSER_TZ);
   tzRow.appendChild(tzSelect);
   tzSelect.addEventListener('change', () => {
     const clip = activeClip();
     if (!clip) return;
-    const v = tzSelect.value;
-    clip.tz = v === 'auto' || v === 'browser' ? v : Number(v);
+    clip.tz = Number(tzSelect.value);
     refreshClipInstant(clip);
     if (clip.id === selectedClipId) showRecorded(clip);
     if (!clip.videoCreation) {
@@ -532,7 +549,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     } else if (applyAutoOffset(clip)) {
       clip.offsetDirty = true;
       setStatus(
-        `Zona ${tzLabel(clip.tz)} aplicada a “${clip.name}”: offset ${formatOffset(clip.offsetSec)}.`,
+        `Zona ${tzName(clip.tz)} aplicada a “${clip.name}”: offset ${formatOffset(clip.offsetSec)}.`,
       );
     } else {
       setStatus('Zona aplicada. Carga un FIT para sincronizar.');
@@ -890,9 +907,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   renderBtn.type = 'button';
   renderRow.appendChild(renderBtn);
   renderPanel.appendChild(renderRow);
-  renderPanel.appendChild(
-    el('p', 'muted', '100% en tu navegador: el video y el FIT nunca se suben.'),
-  );
   const progress = el('progress', 'render-progress');
   progress.max = 1;
   progress.value = 0;
@@ -939,6 +953,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   root.appendChild(wrap);
 
   const setStatus = (text: string): void => {
+    status.hidden = false;
     status.textContent = text;
   };
 
@@ -1027,7 +1042,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       if (!refs) continue;
       const parts = [
         clip.duration > 0 ? formatClock(clip.duration) : '—',
-        clip.videoCreation ? `${fmtRecorded(clip.videoCreation)} (${tzLabel(clip.tz)})` : 'sin fecha',
+        clip.videoCreation ? `${fmtRecorded(clip.videoCreation)} (${tzName(clip.tz)})` : 'sin fecha',
         formatOffset(clip.offsetSec),
       ];
       refs.meta.textContent = parts.join(' · ');
@@ -1038,15 +1053,18 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const showRecorded = (clip: Clip | null): void => {
     recordedClock.textContent =
       clip?.videoCreation
-        ? `grabado ${fmtRecorded(clip.videoCreation)} (${tzLabel(clip.tz)})`
+        ? `grabado ${fmtRecorded(clip.videoCreation)} (${tzName(clip.tz)})`
         : 'grabado —';
   };
 
   const refreshClipInstant = (clip: Clip): void => {
     clip.videoCreation =
-      clip.videoWallMs === null
-        ? null
-        : new Date(resolveVideoInstant(clip.videoWallMs, clip.videoOffsetMin, clip.tz));
+      clip.videoWallMs === null ? null : new Date(resolveVideoInstant(clip.videoWallMs, clip.tz));
+  };
+
+  const syncTzSelect = (): void => {
+    const clip = activeClip();
+    if (clip) tzSelect.value = String(clip.tz);
   };
 
   const selectClip = (id: number): void => {
@@ -1060,7 +1078,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     trimStartInput.value = clip.trimStart > 0 ? String(clip.trimStart) : '';
     trimEndInput.value = clip.trimEnd !== null ? String(clip.trimEnd) : '';
     audioCheck.checked = clip.includeAudio;
-    tzSelect.value = typeof clip.tz === 'number' ? String(clip.tz) : clip.tz;
+    syncTzSelect();
     clipName.textContent = clip.name;
     showRecorded(clip);
     binMetaSig = '';
@@ -1090,6 +1108,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         playBtn.disabled = true;
         clipName.textContent = 'Sin clip seleccionado';
         showRecorded(null);
+        syncTzSelect();
       }
     }
     binMetaSig = '';
@@ -1127,7 +1146,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     );
   };
 
-  const addClip = (file: Blob, name: string): void => {
+  const addClip = (file: Blob, name: string): number => {
     const clip: Clip = {
       id: nextClipId++,
       name,
@@ -1136,8 +1155,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       duration: 0,
       videoCreation: null,
       videoWallMs: null,
-      videoOffsetMin: null,
-      tz: 'auto',
+      tz: BROWSER_TZ,
       offsetSec: 0,
       offsetDirty: false,
       trimStart: 0,
@@ -1153,17 +1171,24 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       if (!clips.includes(clip)) return;
       if (cd) {
         clip.videoWallMs = cd.wallMs;
-        clip.videoOffsetMin = cd.offsetMin;
+        // A file-declared zone wins over the browser assumption.
+        const browserMin = -new Date(cd.wallMs).getTimezoneOffset();
+        if (cd.offsetMin !== browserMin && FIXED_TZS.includes(cd.offsetMin / 60)) {
+          clip.tz = cd.offsetMin / 60;
+        }
       } else if (ct) {
         clip.videoWallMs = ct.getTime();
-        clip.videoOffsetMin = null;
       }
       refreshClipInstant(clip);
-      if (clip.id === selectedClipId) showRecorded(clip);
+      if (clip.id === selectedClipId) {
+        showRecorded(clip);
+        syncTzSelect();
+      }
       tryAutoSync(clip);
       binMetaSig = '';
     });
     setStatus(`Clip agregado: ${name}.`);
+    return clip.id;
   };
 
   const loadFitBuffer = (buffer: ArrayBuffer, name: string): void => {
@@ -1226,19 +1251,31 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   if (import.meta.env.DEV) {
     fixtureBtn.addEventListener('click', () => {
       setStatus('Cargando fixtures…');
+      let fixtureId = -1;
       void import('./fixtures.js')
         .then(({ FIXTURE_VIDEO_URL, FIXTURE_FIT_URL }) => fetch(FIXTURE_VIDEO_URL)
           .then((res) => {
             if (!res.ok) throw new Error('No se pudo cargar el fixture de video.');
             return res.blob();
           })
-          .then((blob) => addClip(blob, 'sample-720p.mp4'))
+          .then((blob) => {
+            fixtureId = addClip(blob, 'sample-720p.mp4');
+          })
           .then(() => fetch(FIXTURE_FIT_URL))
           .then((res) => {
             if (!res.ok) throw new Error('No se pudo cargar el fixture FIT.');
             return res.arrayBuffer();
           })
-          .then((buffer) => loadFitBuffer(buffer, 'sample.fit')))
+          .then((buffer) => {
+            loadFitBuffer(buffer, 'sample.fit');
+            // Fixtures are synthetic: pin sync instead of trusting file dates.
+            const clip = clips.find((c) => c.id === fixtureId);
+            if (clip) {
+              clip.offsetSec = 0;
+              clip.offsetDirty = true;
+              binMetaSig = '';
+            }
+          }))
         .catch((err: unknown) => {
           setStatus(err instanceof Error ? err.message : 'Error cargando fixtures.');
         });
