@@ -13,6 +13,7 @@ import {
   type WidgetStyle,
 } from '@override-studio/shared';
 import {
+  activityFromIntervalsStreams,
   parseFit,
   sampleAt,
   summarize,
@@ -41,6 +42,21 @@ import {
   nextWidgetId,
 } from './widgets.js';
 import { getLocale, saveLocale, t, type Locale } from './i18n.js';
+import {
+  deleteIntervalsKey,
+  fetchSession,
+  getIntervalsStreams,
+  intervalsStatus,
+  listCloudTemplates,
+  listIntervalsActivities,
+  login,
+  logout,
+  register,
+  saveCloudTemplate,
+  saveIntervalsKey,
+  type AccountUser,
+  type IntervalsActivity,
+} from './auth.js';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -162,6 +178,35 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const bumpRev = (): void => {
     overrideRev += 1;
     syncExportBtns();
+    schedulePersist();
+    scheduleCloudSave();
+  };
+  /** Logged-in account; null keeps the app fully local (login-less default). */
+  let account: AccountUser | null = null;
+  /** Custom template ids backed by the account (synced to the cloud). */
+  const cloudIds = new Set<string>();
+  let persistTimer = 0;
+  const schedulePersist = (): void => {
+    window.clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(() => persistLocalCustoms(), 1000);
+  };
+  let cloudTimer = 0;
+  let cloudErrShown = false;
+  const scheduleCloudSave = (): void => {
+    if (!account) return;
+    window.clearTimeout(cloudTimer);
+    cloudTimer = window.setTimeout(() => {
+      const tpl = selectedTemplate();
+      if (!account || !tpl || !cloudIds.has(tpl.id)) return;
+      void saveCloudTemplate(tpl.id, tpl.name, effectiveTemplate(tpl)).then((okSave) => {
+        if (!okSave && !cloudErrShown) {
+          cloudErrShown = true;
+          setStatus(t('auth.errCloud'));
+        } else if (okSave) {
+          cloudErrShown = false;
+        }
+      });
+    }, 2000);
   };
 
   const activeClip = (): Clip | null =>
@@ -289,8 +334,126 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Fixtures are a dev-only helper: excluded from production builds.
   if (import.meta.env.DEV) headerActions.appendChild(fixtureBtn);
   headerActions.append(renderAllBtn, headerSep, localeGroup);
+  const accountBox = el('span', 'account-box');
+  const loginBtn = el('button', 'btn btn-small', t('auth.login'));
+  loginBtn.type = 'button';
+  const accountName = el('span', 'account-name');
+  const logoutBtn = el('button', 'btn btn-small', t('auth.logout'));
+  logoutBtn.type = 'button';
+  logoutBtn.addEventListener('click', () => {
+    void logout().finally(() => location.reload());
+  });
+  accountBox.appendChild(loginBtn);
+  headerActions.appendChild(accountBox);
+  const syncAccountUI = (): void => {
+    accountBox.replaceChildren();
+    if (account) {
+      accountName.textContent = account.name ?? account.email ?? '';
+      accountBox.append(accountName, logoutBtn);
+    } else {
+      accountBox.appendChild(loginBtn);
+    }
+  };
   header.append(headerSpacer, headerActions);
   wrap.appendChild(header);
+  const authDialog = el('dialog', 'add-dialog auth-dialog');
+  const authH = el('h2', undefined, t('auth.loginH'));
+  const authEmail = el('input', 'name-input auth-field');
+  authEmail.type = 'email';
+  authEmail.placeholder = t('auth.email');
+  authEmail.autocomplete = 'email';
+  const authPass = el('input', 'name-input auth-field');
+  authPass.type = 'password';
+  authPass.placeholder = t('auth.password');
+  authPass.autocomplete = 'current-password';
+  const authConfirm = el('input', 'name-input auth-field');
+  authConfirm.type = 'password';
+  authConfirm.placeholder = t('auth.confirm');
+  authConfirm.autocomplete = 'new-password';
+  const authPolicy = el('p', 'muted', t('auth.policy'));
+  const authErr = el('p', 'auth-err', '');
+  authErr.hidden = true;
+  const authSubmit = el('button', 'btn btn-primary provider-btn', t('auth.goLogin'));
+  authSubmit.type = 'button';
+  const authToggle = el('button', 'link-btn', t('auth.toRegister'));
+  authToggle.type = 'button';
+  const authActions = el('div', 'add-actions');
+  const authCancelBtn = el('button', 'btn', t('tpl.cancel'));
+  authCancelBtn.type = 'button';
+  authActions.append(authSubmit, authToggle, authCancelBtn);
+  authDialog.append(authH, authEmail, authPass, authConfirm, authPolicy, authErr, authActions);
+  wrap.appendChild(authDialog);
+  let authMode: 'login' | 'register' = 'login';
+  const syncAuthDialog = (): void => {
+    const registering = authMode === 'register';
+    authH.textContent = t(registering ? 'auth.registerH' : 'auth.loginH');
+    authPass.autocomplete = registering ? 'new-password' : 'current-password';
+    authConfirm.hidden = !registering;
+    authPolicy.hidden = !registering;
+    authSubmit.textContent = t(registering ? 'auth.goRegister' : 'auth.goLogin');
+    authToggle.textContent = t(registering ? 'auth.toLogin' : 'auth.toRegister');
+    authErr.hidden = true;
+  };
+  const authFail = (message: string): void => {
+    authErr.textContent = message;
+    authErr.hidden = false;
+  };
+  authToggle.addEventListener('click', () => {
+    authMode = authMode === 'login' ? 'register' : 'login';
+    syncAuthDialog();
+  });
+  authSubmit.addEventListener('click', () => {
+    const email = authEmail.value.trim();
+    const password = authPass.value;
+    if (authMode === 'register' && password !== authConfirm.value) {
+      authFail(t('auth.errMismatch'));
+      return;
+    }
+    authSubmit.disabled = true;
+    const done = authMode === 'register' ? register(email, password) : login(email, password);
+    void done.then((res) => {
+      authSubmit.disabled = false;
+      if ('user' in res) {
+        location.reload();
+        return;
+      }
+      const key =
+        res.error === 'invalid'
+          ? 'auth.errInvalid'
+          : res.error === 'taken'
+            ? 'auth.errTaken'
+            : res.error === 'email'
+              ? 'auth.errEmail'
+              : res.error === 'weak'
+                ? 'auth.policy'
+                : 'auth.errNet';
+      authFail(t(key));
+    });
+  });
+  syncAuthDialog();
+  authDialog.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+      e.preventDefault();
+      authSubmit.click();
+    }
+  });
+  loginBtn.addEventListener('click', () => {
+    syncAuthDialog();
+    authDialog.showModal();
+  });
+  authCancelBtn.addEventListener('click', () => authDialog.close());
+  const outsideAuthDialog = (e: { clientX: number; clientY: number }): boolean => {
+    const r = authDialog.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  let authDownOutside = false;
+  authDialog.addEventListener('pointerdown', (e) => {
+    authDownOutside = outsideAuthDialog(e);
+  });
+  authDialog.addEventListener('click', (e) => {
+    if (authDownOutside && outsideAuthDialog(e)) authDialog.close();
+    authDownOutside = false;
+  });
 
   const status = el('p', 'muted', '');
   status.hidden = true;
@@ -338,7 +501,195 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   fitPill.hidden = true;
   const fitStats = el('div', 'fit-stats');
   fitStats.hidden = true;
-  fitBlock.append(fitDrop, fitPill, fitStats);
+  const intervalsPickBtn = el('button', 'btn btn-small act-btn', t('intervals.pick'));
+  intervalsPickBtn.type = 'button';
+  fitBlock.append(fitDrop, intervalsPickBtn, fitPill, fitStats);
+  // Intervals picker: API-key account source, same .fit-style load path.
+  const icuDialog = el('dialog', 'add-dialog icu-dialog');
+  const icuTitle = el('h2', undefined, t('intervals.title'));
+  const icuKeyView = el('div', 'icu-view');
+  const icuKeyInput = el('input', 'name-input auth-field');
+  icuKeyInput.type = 'text';
+  icuKeyInput.placeholder = t('intervals.keyPh');
+  icuKeyInput.autocomplete = 'off';
+  icuKeyInput.spellcheck = false;
+  const icuKeyErr = el('p', 'auth-err', '');
+  icuKeyErr.hidden = true;
+  const icuKeySave = el('button', 'btn btn-primary provider-btn', t('intervals.keySave'));
+  icuKeySave.type = 'button';
+  icuKeyView.append(
+    el('p', 'muted', t('intervals.keyHelp')),
+    icuKeyInput,
+    icuKeyErr,
+    icuKeySave,
+  );
+  const icuListView = el('div', 'icu-view');
+  const icuState = el('p', 'muted', '');
+  const icuList = el('div', 'act-list');
+  const icuPager = el('div', 'act-pager');
+  const icuPrev = el('button', 'btn btn-small', t('intervals.prev'));
+  icuPrev.type = 'button';
+  const icuNext = el('button', 'btn btn-small', t('intervals.next'));
+  icuNext.type = 'button';
+  icuPager.append(icuPrev, icuNext);
+  icuListView.append(icuState, icuList, icuPager);
+  const icuActions = el('div', 'add-actions');
+  const icuDisconnect = el('button', 'link-btn', t('intervals.disconnect'));
+  icuDisconnect.type = 'button';
+  const icuCancel = el('button', 'btn', t('tpl.cancel'));
+  icuCancel.type = 'button';
+  icuActions.append(icuDisconnect, icuCancel);
+  icuDialog.append(icuTitle, icuKeyView, icuListView, icuActions);
+  wrap.appendChild(icuDialog);
+  icuCancel.addEventListener('click', () => icuDialog.close());
+  const outsideIcuDialog = (e: { clientX: number; clientY: number }): boolean => {
+    const r = icuDialog.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  let icuDownOutside = false;
+  let icuBusy = false;
+  const setIcuBusy = (busy: boolean): void => {
+    icuBusy = busy;
+    icuList.querySelectorAll('button').forEach((b) => {
+      b.disabled = busy;
+    });
+    icuPrev.disabled = busy || icuPage <= 1;
+    icuNext.disabled = busy || icuPage >= ICU_MAX_PAGE;
+    icuCancel.disabled = busy;
+    icuDisconnect.disabled = busy;
+  };
+  icuDialog.addEventListener('pointerdown', (e) => {
+    icuDownOutside = outsideIcuDialog(e);
+  });
+  icuDialog.addEventListener('click', (e) => {
+    if (icuDownOutside && outsideIcuDialog(e) && !icuBusy) icuDialog.close();
+    icuDownOutside = false;
+  });
+  icuDialog.addEventListener('cancel', (e) => {
+    if (icuBusy) e.preventDefault();
+  });
+  const ICU_MAX_PAGE = 12;
+  let icuPage = 1;
+  const showIcuKey = (message: string): void => {
+    icuTitle.textContent = t('intervals.keyH');
+    icuKeyView.hidden = false;
+    icuListView.hidden = true;
+    icuDisconnect.hidden = true;
+    icuKeyErr.textContent = message;
+    icuKeyErr.hidden = message === '';
+  };
+  const renderIcuPage = async (): Promise<void> => {
+    icuState.textContent = t('intervals.loading');
+    icuList.replaceChildren();
+    icuPrev.disabled = true;
+    icuNext.disabled = true;
+    const res = await listIntervalsActivities(icuPage);
+    if ('error' in res) {
+      if (res.error === 'reconnect') showIcuKey(t('intervals.reconnect'));
+      else icuState.textContent = t('intervals.error');
+      return;
+    }
+    if (res.activities.length === 0) {
+      icuState.textContent = t('intervals.empty');
+    } else {
+      icuState.textContent = '';
+    }
+    for (const a of res.activities) {
+      const row = el('button', 'act-row');
+      row.type = 'button';
+      const when = new Date(a.start_date_local);
+      const date = Number.isNaN(when.getTime()) ? '' : when.toLocaleDateString(localeTag());
+      const sport = a.type ? ` · ${a.type}` : '';
+      row.append(
+        el('span', 'act-name', a.name || a.type || a.id),
+        el('span', 'muted', `${date}${sport} · ${formatSpan(a.elapsed_time)}`),
+      );
+      row.addEventListener('click', () => void pickIcuActivity(a));
+      icuList.appendChild(row);
+    }
+    icuPrev.disabled = icuPage <= 1;
+    icuNext.disabled = icuPage >= ICU_MAX_PAGE;
+  };
+  const refreshIcu = async (): Promise<void> => {
+    const connected = await intervalsStatus();
+    if (!connected) {
+      showIcuKey('');
+      return;
+    }
+    icuTitle.textContent = t('intervals.title');
+    icuKeyView.hidden = true;
+    icuListView.hidden = false;
+    icuDisconnect.hidden = false;
+    void renderIcuPage();
+  };
+  const localeTag = (): string => (getLocale() === 'es' ? 'es-ES' : 'en-US');
+  icuPrev.addEventListener('click', () => {
+    if (icuPage > 1) {
+      icuPage -= 1;
+      void renderIcuPage();
+    }
+  });
+  icuNext.addEventListener('click', () => {
+    if (icuPage < ICU_MAX_PAGE) {
+      icuPage += 1;
+      void renderIcuPage();
+    }
+  });
+  icuKeySave.addEventListener('click', () => {
+    const key = icuKeyInput.value.trim();
+    if (!key) {
+      showIcuKey(t('intervals.keyBad'));
+      return;
+    }
+    icuKeySave.disabled = true;
+    void saveIntervalsKey(key).then((ok) => {
+      icuKeySave.disabled = false;
+      if (ok) {
+        icuKeyInput.value = '';
+        icuPage = 1;
+        void refreshIcu();
+      } else {
+        showIcuKey(t('intervals.keyBad'));
+      }
+    });
+  });
+  icuDisconnect.addEventListener('click', () => {
+    void deleteIntervalsKey().then(() => showIcuKey(''));
+  });
+  const pickIcuActivity = async (a: IntervalsActivity): Promise<void> => {
+    if (icuBusy) return;
+    setIcuBusy(true);
+    try {
+      icuState.textContent = t('intervals.loading');
+      const res = await getIntervalsStreams(a.id);
+      if ('error' in res) {
+        if (res.error === 'reconnect') showIcuKey(t('intervals.reconnect'));
+        else icuState.textContent = t('intervals.error');
+        return;
+      }
+      try {
+        const act = activityFromIntervalsStreams(res.streams, a.start_date_local, a.timezone);
+        icuDialog.close();
+        loadActivity(act, t('intervals.source', { name: a.name || a.id }));
+      } catch (err) {
+        activity = null;
+        fitPill.hidden = true;
+        renderFitStats();
+        setStatus(err instanceof Error ? err.message : t('intervals.error'));
+      }
+    } finally {
+      setIcuBusy(false);
+    }
+  };
+  intervalsPickBtn.addEventListener('click', () => {
+    if (!account) {
+      authDialog.showModal();
+      return;
+    }
+    icuPage = 1;
+    icuDialog.showModal();
+    void refreshIcu();
+  });
   leftCol.appendChild(fitBlock);
   /** Basic stats of the loaded FIT, re-rendered on load and on units change. */
   const renderFitStats = (): void => {
@@ -739,17 +1090,36 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (newDownOutside && outsideNewDialog(e)) newDialog.close();
     newDownOutside = false;
   });
+  /** Drops a session custom (card + model) so cloud restores can replace it. */
+  const removeCustom = (id: string): void => {
+    const ti = thumbs.findIndex((th) => th.custom && th.template.id === id);
+    if (ti >= 0) {
+      thumbs[ti].card.remove();
+      thumbs.splice(ti, 1);
+    }
+    const ci = customTemplates.findIndex((c) => c.id === id);
+    if (ci >= 0) customTemplates.splice(ci, 1);
+  };
   /** Custom templates land right after the + card, selected and ready. */
-  const insertCustom = (tpl: Template): void => {
+  const insertCustom = (tpl: Template, silent = false): void => {
+    removeCustom(tpl.id);
     customTemplates.unshift(tpl);
     const card = addCard(tpl, true);
     cardsBox.insertBefore(card, newCard.nextSibling);
-    selectedTemplateId = tpl.id;
-    selected = null;
+    if (!silent) {
+      selectedTemplateId = tpl.id;
+      selected = null;
+      cardsBox.scrollLeft = 0;
+    }
     syncCards();
     sizeThumbs();
-    cardsBox.scrollLeft = 0;
     bumpRev();
+    if (account && !cloudIds.has(tpl.id)) {
+      void saveCloudTemplate(tpl.id, tpl.name, effectiveTemplate(tpl)).then((okSave) => {
+        if (okSave) cloudIds.add(tpl.id);
+        else setStatus(t('auth.errCloud'));
+      });
+    }
   };
   createBtn.addEventListener('click', () => {
     const typed = nameInput.value.trim();
@@ -802,6 +1172,64 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     newDialog.showModal();
   });
   wrap.appendChild(newDialog);
+  /** Session customs survive reloads (flattened); the cloud wins on id clash. */
+  const CUSTOMS_KEY = 'override.customs';
+  const persistLocalCustoms = (): void => {
+    try {
+      const flat = customTemplates.map((c) => effectiveTemplate(c));
+      localStorage.setItem(CUSTOMS_KEY, JSON.stringify(flat));
+    } catch {
+      /* quota/private mode: session-only */
+    }
+  };
+  const restoreLocalCustoms = (): void => {
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(CUSTOMS_KEY);
+    } catch {
+      return;
+    }
+    if (!raw) return;
+    try {
+      const list: unknown = JSON.parse(raw);
+      if (!Array.isArray(list)) return;
+      for (const item of [...list].reverse()) {
+        try {
+          insertCustom(parseTemplateJson(JSON.stringify(item)), true);
+        } catch {
+          /* skip corrupt */
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+  /** Login-less by default: customs restore locally, cloud loads only on session. */
+  const bootAccount = async (): Promise<void> => {
+    restoreLocalCustoms();
+    account = await fetchSession();
+    syncAccountUI();
+    if (!account) return;
+    const cloud = await listCloudTemplates();
+    if (!cloud) {
+      setStatus(t('auth.errCloud'));
+      return;
+    }
+    for (const ct of cloud) {
+      try {
+        const tpl = parseTemplateJson(JSON.stringify(ct.definition));
+        cloudIds.add(ct.id);
+        insertCustom({ ...tpl, id: ct.id, name: ct.name }, true);
+      } catch {
+        /* skip corrupt */
+      }
+    }
+    for (const tpl of customTemplates) {
+      if (cloudIds.has(tpl.id)) continue;
+      const okSave = await saveCloudTemplate(tpl.id, tpl.name, effectiveTemplate(tpl));
+      if (okSave) cloudIds.add(tpl.id);
+    }
+  };
   // Templates sit above the viewer: one strip, no scroll to pick one.
   center.prepend(templateBox);
 
@@ -1293,7 +1721,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     selected = null;
   });
 
-  // Bottom timeline: the whole activity with every clip window.
+  // Activity timeline: lives in the center column under sync, not full-width.
   const timelineBox = el('section', 'timeline-box');
   timelineBox.append(el('h2', undefined, t('act.title')));
   const activityCanvas = el('canvas', 'activity-overview');
@@ -1305,7 +1733,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   if (!activityCtx) throw new Error(t('act.errCanvas'));
   const activityLabel = el('p', 'muted', t('act.empty'));
   timelineBox.append(activityCanvas, activityLabel);
-  wrap.appendChild(timelineBox);
+  center.appendChild(timelineBox);
 
   const footer = el('p', 'muted');
   wrap.appendChild(footer);
@@ -1554,41 +1982,46 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     return clip.id;
   };
 
+  /** Any parsed source (FIT file, provider streams) becomes the activity here. */
+  const loadActivity = (act: Activity, name: string): void => {
+    activity = act;
+    fitPill.textContent = name;
+    fitPill.hidden = false;
+    overviewCache = null;
+    const metric = pickOverviewMetric(activity);
+    if (metric) {
+      let min = Infinity;
+      let max = -Infinity;
+      for (const s of activity.samples) {
+        const v = s[metric];
+        if (typeof v === 'number') {
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+      if (max > min) overviewCache = { metric, min, max };
+    }
+    const s = summarize(activity);
+    const distUnit = formatMetric('distance', s.distanceM, units);
+    const speedUnit = s.avgSpeed !== null ? formatMetric('speed', s.avgSpeed, units) : null;
+    footer.textContent =
+      t('fit.footer1', { name, n: s.samples, dur: formatSpan(s.durationSec) }) +
+      `, ${distUnit.value} ${distUnit.unit}` +
+      (speedUnit ? t('fit.footerAvg', { v: speedUnit.value, u: speedUnit.unit }) : '') +
+      t('fit.footerSchema', { v: TEMPLATE_SCHEMA_VERSION });
+    // One ride, many videos: every undated clip gets its auto offset now.
+    for (const clip of clips) {
+      if (!clip.offsetDirty) applyAutoOffset(clip);
+    }
+    renderFitStats();
+    const clip = activeClip();
+    if (clip && activity && !clip.videoCreation) tryAutoSync(clip);
+    binMetaSig = '';
+  };
+
   const loadFitBuffer = (buffer: ArrayBuffer, name: string): void => {
     try {
-      activity = parseFit(buffer);
-      fitPill.textContent = name;
-      fitPill.hidden = false;
-      overviewCache = null;
-      const metric = pickOverviewMetric(activity);
-      if (metric) {
-        let min = Infinity;
-        let max = -Infinity;
-        for (const s of activity.samples) {
-          const v = s[metric];
-          if (typeof v === 'number') {
-            if (v < min) min = v;
-            if (v > max) max = v;
-          }
-        }
-        if (max > min) overviewCache = { metric, min, max };
-      }
-      const s = summarize(activity);
-      const distUnit = formatMetric('distance', s.distanceM, units);
-      const speedUnit = s.avgSpeed !== null ? formatMetric('speed', s.avgSpeed, units) : null;
-      footer.textContent =
-        t('fit.footer1', { name, n: s.samples, dur: formatSpan(s.durationSec) }) +
-        `, ${distUnit.value} ${distUnit.unit}` +
-        (speedUnit ? t('fit.footerAvg', { v: speedUnit.value, u: speedUnit.unit }) : '') +
-        t('fit.footerSchema', { v: TEMPLATE_SCHEMA_VERSION });
-      // One ride, many videos: every undated clip gets its auto offset now.
-      for (const clip of clips) {
-        if (!clip.offsetDirty) applyAutoOffset(clip);
-      }
-      renderFitStats();
-      const clip = activeClip();
-      if (clip && activity && !clip.videoCreation) tryAutoSync(clip);
-      binMetaSig = '';
+      loadActivity(parseFit(buffer), name);
     } catch (err) {
       activity = null;
       fitPill.hidden = true;
@@ -2380,5 +2813,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     requestAnimationFrame(tick);
   };
   syncBin();
+  void bootAccount();
   requestAnimationFrame(tick);
 }

@@ -11,6 +11,8 @@
     "db:apply:local": "wrangler d1 migrations apply override-studio-db --local"
   },
   "dependencies": {
+    "@auth/core": "^0.41.3",
+    "@auth/d1-adapter": "^1.11.3",
     "@override-studio/shared": "*"
   },
   "devDependencies": {

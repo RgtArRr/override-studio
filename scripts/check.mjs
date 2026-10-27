@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fillDerivedGrade, parseFit, sampleAt, summarize, widgetValue } from '../web/src/telemetry.ts';
+import { activityFromIntervalsStreams, fillDerivedGrade, parseFit, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
+import { hashPassword, normalizeEmail, validatePassword, verifyPassword } from '../api/src/password.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
 import { classifyAspect, parseTemplateJson } from '../shared/src/template.ts';
 import { formatElapsed, formatMetric } from '../web/src/format.ts';
@@ -60,6 +61,45 @@ assert.equal(stopped[0].grade, 0);
 const noElev = [{ t: 0, distance: 0 }];
 fillDerivedGrade(noElev);
 assert.equal(noElev[0].grade, undefined);
+
+// IANA wall readings -> UTC (fixed zone, DST winter/summer, bad input).
+assert.equal(zonedTimeToUtc('2026-01-15T10:00:00', 'America/Lima')?.toISOString(), '2026-01-15T15:00:00.000Z');
+assert.equal(zonedTimeToUtc('2026-01-15T10:00:00', 'America/New_York')?.toISOString(), '2026-01-15T15:00:00.000Z');
+assert.equal(zonedTimeToUtc('2026-07-15T10:00:00', 'America/New_York')?.toISOString(), '2026-07-15T14:00:00.000Z');
+assert.equal(zonedTimeToUtc('nope', 'America/Lima'), null);
+assert.equal(zonedTimeToUtc('2026-01-15T10:00:00', 'Mars/Olympus'), null);
+
+// intervals.icu streams -> Activity (grade derived, zone applied).
+const icu = {
+  time: [0, 1, 2, 3],
+  distance: [0, 8, 16, 24],
+  latlng: [[-12.0, -77.0], [-12.001, -77.001], [-12.002, -77.002], [-12.003, -77.003]],
+  altitude: [100, 101, 102, 103],
+  velocity_smooth: [8, 8, 8, 8],
+  heartrate: [120, 121, 122, 123],
+  watts: [200, 201, 202, 203],
+};
+const iact = activityFromIntervalsStreams(icu, '2026-10-26T10:00:00', 'America/Lima');
+assert.equal(iact.samples.length, 4);
+assert.equal(iact.samples[2].power, 202);
+assert.equal(iact.samples[0].lat, -12.0);
+assert.equal(iact.samples[3].speed, 8);
+assert.ok(typeof iact.samples[1].grade === 'number');
+assert.equal(iact.startTime.toISOString(), '2026-10-26T15:00:00.000Z');
+assert.throws(() => activityFromIntervalsStreams({}, '2026-10-26T10:00:00', null), /telemet/);
+
+// Credentials policy + hashing (WebCrypto, Workers-safe).
+assert.equal(normalizeEmail('  USER@X.test  '), 'user@x.test');
+assert.equal(normalizeEmail('nope'), null);
+assert.equal(normalizeEmail(123), null);
+assert.equal(validatePassword('secretpass99'), null);
+assert.equal(validatePassword('short1'), 'weak');
+assert.equal(validatePassword('longpasswordwithoutdigit'), 'weak');
+assert.equal(validatePassword('12345678901'), 'weak');
+const ph = await hashPassword('secretpass99');
+assert.ok(ph.startsWith('pbkdf2$100000$'));
+assert.equal(await verifyPassword('secretpass99', ph), true);
+assert.equal(await verifyPassword('wrongpass11', ph), false);
 
 // Interpolation + clamp.
 const mid = sampleAt(act, 30.5);

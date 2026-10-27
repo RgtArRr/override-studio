@@ -203,6 +203,54 @@ body {
   white-space: nowrap;
 }
 
+.act-btn {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.act-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+
+.act-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+
+.act-row:hover {
+  border-color: var(--graphite);
+}
+
+.act-row:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.act-name {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.act-pager {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .bin-head {
   display: flex;
   align-items: baseline;
@@ -486,6 +534,63 @@ a {
 .btn-small {
   padding: 8px 16px;
   font-size: 14px;
+}
+
+.account-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.provider-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.add-dialog .auth-field {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.auth-dialog .muted {
+  font-size: 13px;
+}
+
+.auth-err {
+  color: var(--danger);
+  font-size: 14px;
+  margin: 8px 0 0;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--graphite);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  padding: 8px 4px;
+}
+
+.link-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.auth-div {
+  text-align: center;
+  margin: 12px 0 0;
 }
 
 .stage {

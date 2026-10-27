@@ -40,6 +40,116 @@ export interface ActivitySummary {
 
 const SEMI_TO_DEG = 180 / 2 ** 31;
 
+/**
+ * Interprets a wall reading ('YYYY-MM-DDTHH:mm:ss') in an IANA zone as a UTC
+ * instant, via one format round-trip (DST-safe: the offset is read at that
+ * instant). Null on bad input or unknown zone.
+ */
+export function zonedTimeToUtc(wall: string, timeZone: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(wall);
+  if (!m) return null;
+  const asUtc = Date.UTC(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6] ?? '0'),
+  );
+  try {
+    const dtf = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const parts: Record<string, string> = {};
+    for (const p of dtf.formatToParts(new Date(asUtc))) {
+      if (p.type !== 'literal') parts[p.type] = p.value;
+    }
+    const back = Date.UTC(
+      Number(parts['year']),
+      Number(parts['month']) - 1,
+      Number(parts['day']),
+      Number(parts['hour'] === '24' ? '0' : parts['hour']),
+      Number(parts['minute']),
+      Number(parts['second']),
+    );
+    return new Date(asUtc - (back - asUtc));
+  } catch {
+    return null;
+  }
+}
+
+/** Provider streams as our API serves them: stream type -> data. */
+export type StreamSet = Record<string, unknown>;
+
+/**
+ * Builds an Activity from intervals.icu streams. No native grade stream:
+ * elevation+distance derive it like the FIT path. velocity_smooth is m/s
+ * (metric API; verify against a real ride if speed reads off).
+ */
+export function activityFromIntervalsStreams(
+  streams: StreamSet,
+  startDateLocal: string,
+  timezone: string | null,
+): Activity {
+  const numArr = (v: unknown): number[] | undefined =>
+    Array.isArray(v) && v.every((x) => typeof x === 'number')
+      ? (v as number[])
+      : undefined;
+  const time = numArr(streams['time']) ?? [];
+  if (time.length === 0) throw new Error(t('err.intervalsEmpty'));
+  const start =
+    (timezone ? zonedTimeToUtc(startDateLocal, timezone) : null) ??
+    new Date(startDateLocal);
+  if (Number.isNaN(start.getTime())) throw new Error(t('err.intervalsEmpty'));
+  const distance = numArr(streams['distance']);
+  const altitude = numArr(streams['altitude']);
+  const speed = numArr(streams['velocity_smooth']);
+  const heartRate = numArr(streams['heartrate']);
+  const cadence = numArr(streams['cadence']);
+  const power = numArr(streams['watts']);
+  const rawPairs = streams['latlng'];
+  const pairs: [number, number][] | undefined =
+    Array.isArray(rawPairs) &&
+    rawPairs.every(
+      (p): p is [number, number] =>
+        Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number',
+    )
+      ? (rawPairs as [number, number][])
+      : undefined;
+  const at = (arr: number[] | undefined, i: number): number | undefined =>
+    arr && i < arr.length ? arr[i] : undefined;
+  const samples: TelemetrySample[] = time.map((tt, i) => {
+    const s: TelemetrySample = { t: tt };
+    const vSpeed = at(speed, i);
+    if (vSpeed !== undefined) s.speed = vSpeed;
+    const vHr = at(heartRate, i);
+    if (vHr !== undefined) s.heartRate = vHr;
+    const vPower = at(power, i);
+    if (vPower !== undefined) s.power = vPower;
+    const vCad = at(cadence, i);
+    if (vCad !== undefined) s.cadence = vCad;
+    const vEle = at(altitude, i);
+    if (vEle !== undefined) s.elevation = vEle;
+    const vDist = at(distance, i);
+    if (vDist !== undefined) s.distance = vDist;
+    const pair = pairs && i < pairs.length ? pairs[i] : undefined;
+    if (pair) {
+      s.lat = pair[0];
+      s.lon = pair[1];
+    }
+    return s;
+  });
+  fillDerivedGrade(samples);
+  return { startTime: start, durationSec: time[time.length - 1], samples };
+}
+
 function pickRecords(messages: Record<string, unknown>): RecordMesg[] {
   for (const key of ['recordMesgs', 'record']) {
     const value = messages[key];
