@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { activityFromIntervalsStreams, activityFromTrackPoints, buildActivity, fillDerivedGrade, parseFit, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
+import { activityFromIntervalsStreams, activityFromTrackPoints, buildActivity, fillDerivedGrade, nextProfileWindow, parseFit, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
 import { hashPassword, needsRehash, normalizeEmail, storedIterations, validatePassword, verifyPassword } from '../api/src/password.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
 import {
@@ -184,18 +184,25 @@ const KINDS = new Set([
   'gears',
   'spark',
   'profile',
+  'profilenext',
   'vam',
   'map',
   'navmap',
   'compass',
 ]);
+const OVERLAP_OK = new Set([
+  // grade va superpuesto al perfil en la plantilla Broadcast (diseño intencional).
+  'broadcast.json|grade|profile',
+]);
 const SHAPES = new Set(['rect', 'pill', 'none']);
+const ALIGNS = new Set(['left', 'center', 'right']);
 for (const file of files) {
   const t = JSON.parse(readFileSync(join(root, 'fixtures/templates', file), 'utf8'));
   assert.equal(t.schemaVersion, 2, file);
   for (const w of t.widgets) {
     assert.ok(KINDS.has(w.kind), `${file} ${w.id} kind`);
     if (w.style?.shape) assert.ok(SHAPES.has(w.style.shape), `${file} ${w.id} shape`);
+    if (w.style?.align) assert.ok(ALIGNS.has(w.style.align), `${file} ${w.id} align`);
     if (w.range) {
       assert.ok(Array.isArray(w.range) && w.range.length === 2 && w.range[0] < w.range[1], `${file} ${w.id} range`);
     }
@@ -206,7 +213,7 @@ for (const file of files) {
   for (const [aspect, [W, H]] of Object.entries(dims)) {
     const boxes = t.widgets.map((w) => {
       assert.ok(METRICS.has(w.metric), `${file} ${w.id}`);
-      return w.layout[aspect];
+      return { id: w.id, ...w.layout[aspect] };
     });
     for (const b of boxes) {
       assert.ok(b.x + b.w <= 1.001 && b.y + b.h <= 1.001, `${file}@${aspect} frame`);
@@ -218,7 +225,8 @@ for (const file of files) {
         const a = boxes[i];
         const b = boxes[j];
         const hit = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-        assert.ok(!hit, `${file}@${aspect} overlap`);
+        const pair = [file, ...[a.id, b.id].sort()].join('|');
+        assert.ok(!hit || OVERLAP_OK.has(pair), `${file}@${aspect} overlap`);
       }
     }
   }
@@ -264,7 +272,7 @@ assert.equal(
   null,
 );
 
-// Time widget shows FIT elapsed at the rendered moment.
+// Time widget shows activity elapsed at the rendered moment.
 const probe = { t: 999, speed: 10, heartRate: 150 };
 assert.equal(widgetValue('elapsedTime', probe), 999);
 assert.equal(widgetValue('speed', probe), 10);
@@ -387,6 +395,26 @@ const WALL = Date.UTC(2026, 9, 22, 16, 0, 0);
 assert.equal(resolveVideoInstant(WALL, -6), WALL + 6 * 3600e3);
 assert.equal(resolveVideoInstant(WALL, 5.5), WALL - 5.5 * 3600e3);
 assert.equal(resolveVideoInstant(WALL, 0), WALL);
+
+// profilenext window: dot ~0.5 km ahead of the rendered start, 5 min ahead at right.
+const winSamples = [];
+for (let tt = 0; tt <= 3600; tt++) {
+  winSamples.push({ t: tt, distance: tt * 5, elevation: 100 + tt * 0.01 });
+}
+let pwin = nextProfileWindow(winSamples, 1000, 5000, true);
+assert.equal(pwin.xMin, 4500);
+assert.equal(pwin.xMax, 6500);
+pwin = nextProfileWindow(winSamples, 100, 500, true);
+assert.equal(pwin.xMin, 0);
+assert.equal(pwin.xMax, 2000);
+pwin = nextProfileWindow(winSamples, 3500, 17500, true);
+assert.equal(pwin.xMin, 17000);
+assert.equal(pwin.xMax, 18000);
+pwin = nextProfileWindow(winSamples, 1000, 1000, false);
+assert.equal(pwin.xMin, 940);
+assert.equal(pwin.xMax, 1300);
+assert.equal(nextProfileWindow([], 0, 0, true), null);
+assert.equal(nextProfileWindow([{ t: 0, elevation: 5 }], 0, 0, true), null);
 
 // i18n: stored preference wins, else navigator autodetect, else English.
 assert.equal(resolveLocale('en', ['es-ES']), 'en');
@@ -609,4 +637,4 @@ for (const css of readdirSync(join(distDir, 'assets')).filter((f) => f.endsWith(
   assert.ok(!body.includes('fonts.googleapis.com'), `no google fonts in ${css}`);
 }
 
-console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + i18n + tpljson + seo(${locs.length} urls)`);
+console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + profwin + i18n + tpljson + seo(${locs.length} urls)`);

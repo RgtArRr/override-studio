@@ -273,7 +273,7 @@ export type StreamSet = Record<string, unknown>;
 
 /**
  * Builds an Activity from intervals.icu streams. No native grade stream:
- * elevation+distance derive it like the FIT path. velocity_smooth is m/s
+ * elevation+distance derive it like parseFit. velocity_smooth is m/s
  * (metric API; verify against a real ride if speed reads off).
  */
 /**
@@ -508,8 +508,56 @@ export function summarize(activity: Activity): ActivitySummary {
   };
 }
 
-/** Raw value for an overlay widget from the FIT sample at the rendered moment.
- * elapsedTime is the activity clock (FIT elapsed), not the video position. */
+/** Forward-looking profile: 5 min ahead of the dot. */
+export const PROFILE_NEXT_AHEAD_SEC = 300;
+/** Dot sits ~0.5 km ahead of the rendered start (distance mode). */
+export const PROFILE_NEXT_BEHIND_M = 500;
+/** Rendered start behind the dot when samples carry no distance. */
+export const PROFILE_NEXT_BEHIND_SEC = 60;
+
+export interface ProfileWindow {
+  xMin: number;
+  xMax: number;
+}
+
+/**
+ * Sliding window for the 'profilenext' kind over ascending-t samples.
+ * nowT/nowX locate the dot (interpolated sample values are fine).
+ * Returns null when the window degenerates: the caller shows the missing glyph.
+ */
+export function nextProfileWindow(
+  samples: TelemetrySample[],
+  nowT: number,
+  nowX: number,
+  useDist: boolean,
+): ProfileWindow | null {
+  if (samples.length === 0) return null;
+  const xk = (s: TelemetrySample): number | undefined => (useDist ? s.distance : s.t);
+  // Right edge: first sample at least 5 min ahead, else the ride end.
+  let lo = 0;
+  let hi = samples.length;
+  const target = nowT + PROFILE_NEXT_AHEAD_SEC;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (samples[mid].t < target) lo = mid + 1;
+    else hi = mid;
+  }
+  const xMax = xk(samples[Math.min(lo, samples.length - 1)]);
+  // Left edge: ~0.5 km behind the dot, clamped to the ride start.
+  let xMin = nowX - (useDist ? PROFILE_NEXT_BEHIND_M : PROFILE_NEXT_BEHIND_SEC);
+  for (const s of samples) {
+    const first = xk(s);
+    if (typeof first === 'number') {
+      if (xMin < first) xMin = first;
+      break;
+    }
+  }
+  if (typeof xMax !== 'number' || !(xMax - xMin > 1e-9)) return null;
+  return { xMin, xMax };
+}
+
+/** Raw value for an overlay widget from the activity sample at the rendered moment.
+ * elapsedTime is the activity clock, not the video position. */
 export function widgetValue(
   metric: MetricId,
   sample: TelemetrySample,

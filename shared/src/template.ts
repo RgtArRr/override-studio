@@ -27,12 +27,14 @@ export type WidgetKind =
   | 'gears'
   | 'spark'
   | 'profile'
+  | 'profilenext'
   | 'vam'
   | 'map'
   | 'navmap'
   | 'compass';
 
 export type PanelShape = 'rect' | 'pill' | 'none';
+export type TextAlign = 'left' | 'center' | 'right';
 
 export const WIDGET_KINDS: readonly WidgetKind[] = [
   'stat',
@@ -44,6 +46,7 @@ export const WIDGET_KINDS: readonly WidgetKind[] = [
   'gears',
   'spark',
   'profile',
+  'profilenext',
   'vam',
   'map',
   'navmap',
@@ -90,6 +93,8 @@ export interface WidgetStyle {
   valueFont?: string;
   /** Size multiplier for the value (number) line. Defaults to 1. */
   valueScale?: number;
+  /** Text alignment for kinds that lay out text lines (stat, number). */
+  align?: TextAlign;
 }
 
 export interface WidgetDef {

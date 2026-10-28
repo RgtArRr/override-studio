@@ -134,14 +134,14 @@ body {
   min-width: 0;
 }
 
-.fit-block {
+.activity-block {
   background: var(--surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   padding: 24px;
 }
 
-.fit-drop,
+.activity-drop,
 .bin-drop {
   border: 2px dashed var(--border);
   border-radius: var(--radius-input);
@@ -153,21 +153,21 @@ body {
   margin-bottom: 12px;
 }
 
-.fit-drop:hover,
-.fit-drop.over,
+.activity-drop:hover,
+.activity-drop.over,
 .bin-drop:hover {
   border-color: var(--accent);
   color: var(--ink);
   background: var(--info-bg);
 }
 
-.fit-drop:focus-visible,
+.activity-drop:focus-visible,
 .bin-drop:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.fit-drop input,
+.activity-drop input,
 .bin-drop input {
   display: none;
 }
@@ -177,21 +177,21 @@ body {
   outline-offset: -2px;
 }
 
-.fit-block .phase-badge {
+.activity-block .phase-badge {
   display: block;
   text-align: center;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 
-.fit-stats {
+.activity-stats {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 12px;
 }
 
-.fit-stat {
+.activity-stat {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -199,7 +199,7 @@ body {
   font-size: 14px;
 }
 
-.fit-stat-v {
+.activity-stat-v {
   color: var(--graphite);
   font-weight: 600;
   white-space: nowrap;
@@ -682,7 +682,7 @@ a {
 
 .offset-box h2,
 .bin h2,
-.fit-block h2,
+.activity-block h2,
 .inspector h2,
 .timeline-box h2,
 .template-box h2 {
@@ -1031,6 +1031,34 @@ a {
   background: currentColor;
   -webkit-mask: url('/icons/download.svg') no-repeat center / contain;
   mask: url('/icons/download.svg') no-repeat center / contain;
+}
+
+/* Icon-only segmented option: centered glyph button (widget text alignment). */
+.seg-switch .seg-opt.seg-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.seg-opt.seg-icon .icon {
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+}
+
+.seg-opt.seg-icon .icon-align-left {
+  -webkit-mask: url('/icons/align-left.svg') no-repeat center / contain;
+  mask: url('/icons/align-left.svg') no-repeat center / contain;
+}
+
+.seg-opt.seg-icon .icon-align-center {
+  -webkit-mask: url('/icons/align-center.svg') no-repeat center / contain;
+  mask: url('/icons/align-center.svg') no-repeat center / contain;
+}
+
+.seg-opt.seg-icon .icon-align-right {
+  -webkit-mask: url('/icons/align-right.svg') no-repeat center / contain;
+  mask: url('/icons/align-right.svg') no-repeat center / contain;
 }
 
 .template-card:hover {

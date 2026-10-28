@@ -45,25 +45,25 @@ export const HUB: Record<Locale, HubCopy> = {
   es: {
     title: 'Telemetría deportiva en tus videos: potencia, FC, GPS | override.studio',
     description:
-      'Incrusta potencia, frecuencia cardíaca, velocidad y GPS de tu FIT en tus clips MP4/MOV. Render 100% local en tu navegador: nada se sube y tu privacidad queda intacta. Gratis y sin instalar nada.',
+      'Incrusta potencia, frecuencia cardíaca, velocidad y GPS de tu actividad (FIT, GPX o TCX) en tus clips MP4/MOV. Render 100% local en tu navegador: nada se sube y tu privacidad queda intacta. Gratis y sin instalar nada.',
     h1: 'Incrusta la telemetría de tu FIT en tus videos',
     lede: 'override.studio sincroniza tu actividad con tus clips y dibuja potencia, FC, velocidad y mapa sobre el video. Todo se procesa en tu navegador: tus archivos nunca salen de tu equipo.',
     howTitle: 'Cómo funciona',
     how: [
-      'Agrega tus clips MP4 o MOV y tu archivo .FIT (o elige una actividad de Intervals.icu).',
+      'Agrega tus clips MP4 o MOV y tu archivo .FIT, .GPX o .TCX (o elige una actividad de Intervals.icu).',
       'Sincroniza cada clip: el offset automático usa la fecha de grabación del video y afinas con ← / →.',
       'Elige una plantilla, coloca los widgets y renderiza. El video se guarda directo en tu disco.',
     ],
     fmtTitle: 'Formatos y compatibilidad',
     formats: [
       'Video: MP4 y MOV con H.264. El HEVC de iPhone no decodifica en Chrome: conviértelo a H.264 primero.',
-      'Telemetría: archivos .FIT con registros y marca temporal (Garmin y compatibles) o actividades de Intervals.icu.',
+      'Telemetría: archivos .FIT, .GPX o .TCX con registros y marca temporal (Garmin y compatibles) o actividades de Intervals.icu.',
       'Navegadores: Chrome y Edge en computadora y Android. Safari y iOS no tienen WebCodecs y no están soportados.',
-      'Plantillas: 18 incluidas en 13 tipos de widget; crea las tuyas y expórtalas como JSON.',
+      'Plantillas: 18 incluidas en 14 tipos de widget; crea las tuyas y expórtalas como JSON.',
     ],
     privTitle: 'Privado por diseño',
     priv: [
-      'El render es 100% local con WebCodecs: video y FIT no se suben a ningún servidor.',
+      'El render es 100% local con WebCodecs: ni el video ni tu actividad se suben a ningún servidor.',
       'La cuenta es opcional: solo guarda tus plantillas en la nube y tu clave de Intervals.icu.',
     ],
     guidesTitle: 'Guías',
@@ -71,19 +71,19 @@ export const HUB: Record<Locale, HubCopy> = {
     faqs: [
       {
         q: '¿Qué es override.studio?',
-        a: 'Un editor web que incrusta telemetría deportiva (potencia, frecuencia cardíaca, velocidad, GPS) de tu archivo .FIT en tus clips MP4/MOV, con plantillas y widgets configurables.',
+        a: 'Un editor web que incrusta telemetría deportiva (potencia, frecuencia cardíaca, velocidad, GPS) de tu archivo .FIT, .GPX o .TCX en tus clips MP4/MOV, con plantillas y widgets configurables.',
       },
       {
         q: '¿Tengo que subir mis videos a algún servidor?',
-        a: 'No. El render ocurre íntegramente en tu navegador con WebCodecs: ni el video ni el FIT salen de tu equipo.',
+        a: 'No. El render ocurre íntegramente en tu navegador con WebCodecs: ni el video ni tu actividad salen de tu equipo.',
       },
       {
         q: '¿Qué archivos acepta?',
-        a: 'Videos MP4 y MOV codificados en H.264, y telemetría en formato .FIT con registros y marca temporal. También puedes traer actividades desde Intervals.icu con tu clave API.',
+        a: 'Videos MP4 y MOV codificados en H.264, y telemetría en formato .FIT, .GPX o .TCX con registros y marca temporal. También puedes traer actividades desde Intervals.icu con tu clave API.',
       },
       {
         q: '¿Cómo sincroniza el video con la actividad?',
-        a: 'Lee la fecha de grabación del video, calcula el offset contra el inicio del FIT y te deja afinar con las flechas (0.1 s, o 0.5 s con Mayús) o arrastrando sobre la vista de actividad.',
+        a: 'Lee la fecha de grabación del video, calcula el offset contra el inicio de la actividad y te deja afinar con las flechas (0.1 s, o 0.5 s con Mayús) o arrastrando sobre la vista de actividad.',
       },
       {
         q: '¿Funciona en mi navegador?',
@@ -103,15 +103,15 @@ export const HUB: Record<Locale, HubCopy> = {
       },
       {
         q: '¿Qué es Intervals.icu aquí?',
-        a: 'Una fuente opcional de telemetría: pegas tu clave API personal y eliges actividades sin pasar por archivos .FIT. La clave se guarda cifrada en tu cuenta.',
+        a: 'Una fuente opcional de telemetría: pegas tu clave API personal y eliges actividades sin pasar por archivos. La clave se guarda cifrada en tu cuenta.',
       },
       {
         q: '¿Por qué no hay conexión con Strava?',
-        a: 'Este es un proyecto pequeño y los límites de Strava no encajan: las apps nuevas solo acceden a su propio autor, exigen revisión para crecer y las cuotas de API no dan para muchos usuarios. Con archivos .FIT o Intervals.icu por clave personal tienes la misma telemetría sin esos techos.',
+        a: 'Este es un proyecto pequeño y los límites de Strava no encajan: las apps nuevas solo acceden a su propio autor, exigen revisión para crecer y las cuotas de API no dan para muchos usuarios. Con archivos .FIT, .GPX o .TCX, o Intervals.icu por clave personal, tienes la misma telemetría sin esos techos.',
       },
       {
         q: '¿Por qué no puedo entrar con mi cuenta de Garmin?',
-        a: 'Garmin no ofrece un “entrar con Garmin” autogestionado: el acceso a datos pasa por su programa de desarrolladores, con solicitud y revisión pensadas para empresas. Como proyecto pequeño, la vía práctica es la misma: descarga el .FIT desde Garmin Connect o sincroniza vía Intervals.icu.',
+        a: 'Garmin no ofrece un “entrar con Garmin” autogestionado: el acceso a datos pasa por su programa de desarrolladores, con solicitud y revisión pensadas para empresas. Como proyecto pequeño, la vía práctica es la misma: descarga el archivo (.FIT, .GPX o .TCX) desde Garmin Connect o sincroniza vía Intervals.icu.',
       },
       {
         q: '¿Dónde se guardan mis plantillas?',
@@ -125,25 +125,25 @@ export const HUB: Record<Locale, HubCopy> = {
   en: {
     title: 'Sports telemetry on your videos: power, HR, GPS | override.studio',
     description:
-      'Overlay power, heart rate, speed and GPS from your FIT onto MP4/MOV clips. 100% local render in your browser: nothing is uploaded, your privacy stays intact. Free, no install.',
+      'Overlay power, heart rate, speed and GPS from your activity (FIT, GPX or TCX) onto MP4/MOV clips. 100% local render in your browser: nothing is uploaded, your privacy stays intact. Free, no install.',
     h1: 'Overlay your FIT telemetry on your videos',
     lede: 'override.studio syncs your activity with your clips and draws power, HR, speed and map over the video. Everything renders in your browser: your files never leave your machine.',
     howTitle: 'How it works',
     how: [
-      'Add your MP4 or MOV clips and your .FIT file (or pick an activity from Intervals.icu).',
+      'Add your MP4 or MOV clips and your .FIT, .GPX or .TCX file (or pick an activity from Intervals.icu).',
       'Sync each clip: auto offset uses the video recording date, then nudge with ← / →.',
       'Pick a template, place the widgets and render. The video saves straight to your disk.',
     ],
     fmtTitle: 'Formats and compatibility',
     formats: [
       'Video: MP4 and MOV in H.264. iPhone HEVC does not decode in Chrome: convert to H.264 first.',
-      'Telemetry: .FIT files with timestamped records (Garmin and compatibles) or Intervals.icu activities.',
+      'Telemetry: .FIT, .GPX or .TCX files with timestamped records (Garmin and compatibles) or Intervals.icu activities.',
       'Browsers: Chrome and Edge on desktop and Android. Safari and iOS lack WebCodecs and are not supported.',
-      'Templates: 18 included across 13 widget kinds; build your own and export them as JSON.',
+      'Templates: 18 included across 14 widget kinds; build your own and export them as JSON.',
     ],
     privTitle: 'Private by design',
     priv: [
-      'Rendering is 100% local with WebCodecs: video and FIT are never uploaded anywhere.',
+      'Rendering is 100% local with WebCodecs: neither the video nor your activity is ever uploaded anywhere.',
       'An account is optional: it only stores your templates in the cloud and your Intervals.icu key.',
     ],
     guidesTitle: 'Guides',
@@ -151,19 +151,19 @@ export const HUB: Record<Locale, HubCopy> = {
     faqs: [
       {
         q: 'What is override.studio?',
-        a: 'A web editor that overlays sports telemetry (power, heart rate, speed, GPS) from your .FIT file onto MP4/MOV clips, with configurable templates and widgets.',
+        a: 'A web editor that overlays sports telemetry (power, heart rate, speed, GPS) from your .FIT, .GPX or .TCX file onto MP4/MOV clips, with configurable templates and widgets.',
       },
       {
         q: 'Do I have to upload my videos to a server?',
-        a: 'No. Rendering happens entirely in your browser with WebCodecs: neither the video nor the FIT leaves your machine.',
+        a: 'No. Rendering happens entirely in your browser with WebCodecs: neither the video nor your activity leaves your machine.',
       },
       {
         q: 'Which files does it accept?',
-        a: 'MP4 and MOV video encoded in H.264, and telemetry in .FIT format with timestamped records. You can also pull activities from Intervals.icu with your API key.',
+        a: 'MP4 and MOV video encoded in H.264, and telemetry in .FIT, .GPX or .TCX format with timestamped records. You can also pull activities from Intervals.icu with your API key.',
       },
       {
         q: 'How does it sync the video with the activity?',
-        a: 'It reads the video recording date, computes the offset against the FIT start, and lets you nudge with the arrow keys (0.1 s, or 0.5 s with Shift) or by dragging over the activity view.',
+        a: 'It reads the video recording date, computes the offset against the activity start, and lets you nudge with the arrow keys (0.1 s, or 0.5 s with Shift) or by dragging over the activity view.',
       },
       {
         q: 'Does it work in my browser?',
@@ -183,15 +183,15 @@ export const HUB: Record<Locale, HubCopy> = {
       },
       {
         q: 'What is Intervals.icu here?',
-        a: 'An optional telemetry source: paste your personal API key and pick activities without .FIT files. The key is stored encrypted on your account.',
+        a: 'An optional telemetry source: paste your personal API key and pick activities without files. The key is stored encrypted on your account.',
       },
       {
         q: 'Why is there no Strava connection?',
-        a: 'This is a small project and Strava’s limits don’t fit: new apps can only access their own author, require review to grow, and the API quotas can’t sync many users. With .FIT files or Intervals.icu via personal API key you get the same telemetry without those ceilings.',
+        a: 'This is a small project and Strava’s limits don’t fit: new apps can only access their own author, require review to grow, and the API quotas can’t sync many users. With .FIT, .GPX or .TCX files, or Intervals.icu via personal API key, you get the same telemetry without those ceilings.',
       },
       {
         q: 'Why can’t I sign in with my Garmin account?',
-        a: 'Garmin offers no self-service “sign in with Garmin”: data access goes through their developer program, with an application and review aimed at companies. As a small project, the practical path is the same: download the .FIT from Garmin Connect or sync via Intervals.icu.',
+        a: 'Garmin offers no self-service “sign in with Garmin”: data access goes through their developer program, with an application and review aimed at companies. As a small project, the practical path is the same: download the file (.FIT, .GPX or .TCX) from Garmin Connect or sync via Intervals.icu.',
       },
       {
         q: 'Where are my templates stored?',
@@ -244,7 +244,7 @@ export const GUIDES: GuideEntry[] = [
       es: {
         title: 'Cómo sincronizar tu FIT con tu video (GoPro, iPhone) | override.studio',
         description:
-          'Sincroniza tu archivo .FIT con tus clips MP4/MOV: offset automático por fecha de grabación, zona horaria por clip y ajuste fino. Guía paso a paso.',
+          'Sincroniza tu archivo .FIT, .GPX o .TCX con tus clips MP4/MOV: offset automático por fecha de grabación, zona horaria por clip y ajuste fino. Guía paso a paso.',
         h1: 'Sincroniza tu FIT con tu video',
         lede: 'La sincronía es el corazón del overlay: cada frame debe mostrar el dato del segundo exacto. override.studio propone un offset automático y te deja afinarlo a mano.',
         sections: [
@@ -252,13 +252,13 @@ export const GUIDES: GuideEntry[] = [
             h2: 'Cómo funciona el offset',
             paragraphs: [
               'Cada clip tiene un offset en segundos que desplaza la telemetría respecto al video. Si tu video empezó 90 segundos después del inicio de la actividad, el offset es +90 s.',
-              'El botón Auto calcula ese offset restando el inicio del FIT a la fecha de grabación del video. Por eso la fecha del archivo y la zona horaria importan: si la zona está mal, el offset nace desplazado horas enteras.',
+              'El botón Auto calcula ese offset restando el inicio de la actividad a la fecha de grabación del video. Por eso la fecha del archivo y la zona horaria importan: si la zona está mal, el offset nace desplazado horas enteras.',
             ],
           },
           {
             h2: 'Antes de empezar',
             paragraphs: [
-              'Carga primero el FIT: sin actividad no hay nada contra qué sincronizar. Revisa que el clip tenga fecha de grabación (el panel Clip la muestra); sin fecha, tendrás que posicionar el clip a mano sobre la vista de actividad.',
+              'Carga primero la actividad: sin actividad no hay nada contra qué sincronizar. Revisa que el clip tenga fecha de grabación (el panel Clip la muestra); sin fecha, tendrás que posicionar el clip a mano sobre la vista de actividad.',
               'Si tu video es HEVC de iPhone, conviértelo a H.264 antes: Chrome no puede decodificarlo.',
             ],
           },
@@ -266,8 +266,8 @@ export const GUIDES: GuideEntry[] = [
         stepsTitle: 'Pasos',
         steps: [
           {
-            name: 'Carga el FIT',
-            text: 'Arrastra tu .FIT a la zona de actividad o haz clic para elegirlo. Verás el resumen (duración, distancia, muestras) y la gráfica de la actividad.',
+            name: 'Carga la actividad',
+            text: 'Arrastra tu archivo (.FIT, .GPX o .TCX) a la zona de actividad o haz clic para elegirlo. Verás el resumen (duración, distancia, muestras) y la gráfica de la actividad.',
           },
           {
             name: 'Agrega el clip',
@@ -279,7 +279,7 @@ export const GUIDES: GuideEntry[] = [
           },
           {
             name: 'Pulsa Auto',
-            text: 'El botón Auto calcula el offset desde la fecha del video y el inicio del FIT. El estado te muestra el cálculo (video − FIT) para verificarlo.',
+            text: 'El botón Auto calcula el offset desde la fecha del video y el inicio de la actividad. El estado te muestra el cálculo (video − actividad) para verificarlo.',
           },
           {
             name: 'Afina a mano',
@@ -302,7 +302,7 @@ export const GUIDES: GuideEntry[] = [
       en: {
         title: 'How to sync your FIT with your video (GoPro, iPhone) | override.studio',
         description:
-          'Sync your .FIT file with MP4/MOV clips: automatic offset from the recording date, per-clip time zone and fine nudging. Step-by-step guide.',
+          'Sync your .FIT, .GPX or .TCX file with MP4/MOV clips: automatic offset from the recording date, per-clip time zone and fine nudging. Step-by-step guide.',
         h1: 'Sync your FIT with your video',
         lede: 'Sync is the heart of the overlay: every frame must show the data of the exact second. override.studio proposes an automatic offset and lets you fine-tune it by hand.',
         sections: [
@@ -310,13 +310,13 @@ export const GUIDES: GuideEntry[] = [
             h2: 'How the offset works',
             paragraphs: [
               'Each clip has an offset in seconds that shifts telemetry relative to the video. If your video started 90 seconds into the activity, the offset is +90 s.',
-              'The Auto button computes that offset by subtracting the FIT start from the video recording date. That is why the file date and time zone matter: with the wrong zone, the offset is born hours off.',
+              'The Auto button computes that offset by subtracting the activity start from the video recording date. That is why the file date and time zone matter: with the wrong zone, the offset is born hours off.',
             ],
           },
           {
             h2: 'Before you start',
             paragraphs: [
-              'Load the FIT first: without an activity there is nothing to sync against. Check the clip carries a recording date (the Clip panel shows it); without one, you must place the clip by hand over the activity view.',
+              'Load the activity first: without an activity there is nothing to sync against. Check the clip carries a recording date (the Clip panel shows it); without one, you must place the clip by hand over the activity view.',
               'If your video is iPhone HEVC, convert it to H.264 first: Chrome cannot decode it.',
             ],
           },
@@ -324,8 +324,8 @@ export const GUIDES: GuideEntry[] = [
         stepsTitle: 'Steps',
         steps: [
           {
-            name: 'Load the FIT',
-            text: 'Drag your .FIT onto the activity area or click to pick it. You will see the summary (duration, distance, samples) and the activity chart.',
+            name: 'Load the activity',
+            text: 'Drag your file (.FIT, .GPX or .TCX) onto the activity area or click to pick it. You will see the summary (duration, distance, samples) and the activity chart.',
           },
           {
             name: 'Add the clip',
@@ -337,7 +337,7 @@ export const GUIDES: GuideEntry[] = [
           },
           {
             name: 'Press Auto',
-            text: 'The Auto button computes the offset from the video date and the FIT start. The status line shows the math (video − FIT) so you can verify it.',
+            text: 'The Auto button computes the offset from the video date and the activity start. The status line shows the math (video − activity) so you can verify it.',
           },
           {
             name: 'Nudge by hand',
@@ -366,21 +366,21 @@ export const GUIDES: GuideEntry[] = [
       es: {
         title: 'Overlay de potencia, FC, velocidad y GPS en tu video | override.studio',
         description:
-          'Dibuja potencia, frecuencia cardíaca, velocidad y mapa GPS sobre tus clips: 18 plantillas, 13 tipos de widget y personalización total. Guía paso a paso.',
+          'Dibuja potencia, frecuencia cardíaca, velocidad y mapa GPS sobre tus clips: 18 plantillas, 14 tipos de widget y personalización total. Guía paso a paso.',
         h1: 'Pon potencia, FC, velocidad y GPS sobre tu video',
-        lede: 'Los widgets leen tu FIT segundo a segundo y se dibujan sobre cada frame al renderizar. Elige una plantilla lista o construye la tuya.',
+        lede: 'Los widgets leen tu actividad segundo a segundo y se dibujan sobre cada frame al renderizar. Elige una plantilla lista o construye la tuya.',
         sections: [
           {
             h2: 'Plantillas y widgets',
             paragraphs: [
-              'Hay 18 plantillas incluidas y 13 tipos de widget: dato, número grande, arco, velocímetro, anillo, inclinómetro, desarrollos, minigráfico de 30 s, perfil, VAM, mapa de ruta, navegación y brújula.',
+              'Hay 18 plantillas incluidas y 14 tipos de widget: dato, número grande, arco, velocímetro, anillo, inclinómetro, desarrollos, minigráfico de 30 s, perfil, perfil próximos 5 min, VAM, mapa de ruta, navegación y brújula.',
               'Cada widget muestra una métrica (velocidad, FC, potencia, cadencia, altitud, distancia, tiempo, pendiente, VAM, desarrollos) y se puede mover, redimensionar, dar forma de rectángulo o píldora, y teñir con acento y fondo.',
             ],
           },
           {
             h2: 'Mapa y GPS',
             paragraphs: [
-              'Los widgets de mapa dibujan tu ruta con el trazado recorrido hasta el segundo actual; el grosor de línea es ajustable. Necesitan que el FIT traiga posiciones GPS.',
+              'Los widgets de mapa dibujan tu ruta con el trazado recorrido hasta el segundo actual; el grosor de línea es ajustable. Necesitan que la actividad traiga posiciones GPS.',
               'Si tu actividad es de rodillo sin GPS, el mapa sale vacío: usa widgets de dato en su lugar.',
             ],
           },
@@ -424,21 +424,21 @@ export const GUIDES: GuideEntry[] = [
       en: {
         title: 'Power, HR, speed and GPS overlay on your video | override.studio',
         description:
-          'Draw power, heart rate, speed and GPS map over your clips: 18 templates, 13 widget kinds, full styling. Step-by-step guide.',
+          'Draw power, heart rate, speed and GPS map over your clips: 18 templates, 14 widget kinds, full styling. Step-by-step guide.',
         h1: 'Put power, HR, speed and GPS on your video',
-        lede: 'Widgets read your FIT second by second and draw over every frame at render. Pick a ready template or build your own.',
+        lede: 'Widgets read your activity second by second and draw over every frame at render. Pick a ready template or build your own.',
         sections: [
           {
             h2: 'Templates and widgets',
             paragraphs: [
-              'There are 18 included templates and 13 widget kinds: value, big number, arc, speedometer, ring, inclinometer, gears, 30 s sparkline, profile, VAM, route map, navigation and compass.',
+              'There are 18 included templates and 14 widget kinds: value, big number, arc, speedometer, ring, inclinometer, gears, 30 s sparkline, profile, profile next 5 min, VAM, route map, navigation and compass.',
               'Each widget shows one metric (speed, HR, power, cadence, elevation, distance, time, grade, VAM, gears) and can be moved, resized, shaped as rectangle or pill, and tinted with accent and background.',
             ],
           },
           {
             h2: 'Map and GPS',
             paragraphs: [
-              'Map widgets draw your route with the track covered up to the current second; line width is adjustable. They need GPS positions in the FIT.',
+              'Map widgets draw your route with the track covered up to the current second; line width is adjustable. They need GPS positions in the activity.',
               'If your activity is an indoor ride without GPS, the map renders empty: use value widgets instead.',
             ],
           },
@@ -602,9 +602,9 @@ export const GUIDES: GuideEntry[] = [
       es: {
         title: 'Usar Intervals.icu como fuente de telemetría | override.studio',
         description:
-          'Conecta Intervals.icu con tu clave API y elige actividades sin archivos .FIT: lista, ventanas de 30 días y streams por segundo.',
+          'Conecta Intervals.icu con tu clave API y elige actividades sin archivos: lista, ventanas de 30 días y streams por segundo.',
         h1: 'Trae tu telemetría desde Intervals.icu',
-        lede: 'Si tus actividades viven en Intervals.icu, no necesitas descargar .FIT: conecta tu clave API personal y elige la actividad dentro de la app.',
+        lede: 'Si tus actividades viven en Intervals.icu, no necesitas descargar archivos: conecta tu clave API personal y elige la actividad dentro de la app.',
         sections: [
           {
             h2: 'Cómo se conecta',
@@ -617,7 +617,7 @@ export const GUIDES: GuideEntry[] = [
             h2: 'Qué trae cada actividad',
             paragraphs: [
               'La lista muestra tus actividades en ventanas de 30 días (hasta 12 páginas atrás). Al elegir una, la app descarga sus streams por segundo: potencia, FC, velocidad, GPS y demás.',
-              'La hora de inicio se interpreta con la zona horaria de la actividad, igual que un FIT local: la sincronía con el video funciona igual.',
+              'La hora de inicio se interpreta con la zona horaria de la actividad, igual que un archivo local: la sincronía con el video funciona igual.',
             ],
           },
         ],
@@ -629,7 +629,7 @@ export const GUIDES: GuideEntry[] = [
           },
           {
             name: 'Abre “Elegir de Intervals”',
-            text: 'Junto a la zona de FIT verás el botón para elegir desde Intervals.icu.',
+            text: 'Junto a la zona de actividad verás el botón para elegir desde Intervals.icu.',
           },
           {
             name: 'Pega tu clave API',
@@ -641,7 +641,7 @@ export const GUIDES: GuideEntry[] = [
           },
           {
             name: 'Sincroniza y renderiza',
-            text: 'Desde aquí todo es igual que con un FIT: sincroniza el clip, elige plantilla y renderiza.',
+            text: 'Desde aquí todo es igual que con un archivo: sincroniza el clip, elige plantilla y renderiza.',
           },
         ],
         tipsTitle: 'Consejos',
@@ -656,9 +656,9 @@ export const GUIDES: GuideEntry[] = [
       en: {
         title: 'Using Intervals.icu as a telemetry source | override.studio',
         description:
-          'Connect Intervals.icu with your API key and pick activities without .FIT files: listing, 30-day windows and per-second streams.',
+          'Connect Intervals.icu with your API key and pick activities without files: listing, 30-day windows and per-second streams.',
         h1: 'Pull your telemetry from Intervals.icu',
-        lede: 'If your activities live in Intervals.icu, skip downloading .FIT files: connect your personal API key and pick the activity inside the app.',
+        lede: 'If your activities live in Intervals.icu, skip downloading files: connect your personal API key and pick the activity inside the app.',
         sections: [
           {
             h2: 'How it connects',
@@ -671,7 +671,7 @@ export const GUIDES: GuideEntry[] = [
             h2: 'What each activity brings',
             paragraphs: [
               'The list shows your activities in 30-day windows (up to 12 pages back). Picking one downloads its per-second streams: power, HR, speed, GPS and more.',
-              'Start time is interpreted with the activity time zone, just like a local FIT: syncing with video works the same.',
+              'Start time is interpreted with the activity time zone, just like a local file: syncing with video works the same.',
             ],
           },
         ],
@@ -683,7 +683,7 @@ export const GUIDES: GuideEntry[] = [
           },
           {
             name: 'Open “Pick from Intervals”',
-            text: 'Next to the FIT area you will find the button to pick from Intervals.icu.',
+            text: 'Next to the activity area you will find the button to pick from Intervals.icu.',
           },
           {
             name: 'Paste your API key',
@@ -695,7 +695,7 @@ export const GUIDES: GuideEntry[] = [
           },
           {
             name: 'Sync and render',
-            text: 'From here everything matches the FIT flow: sync the clip, pick a template, render.',
+            text: 'From here everything matches the file flow: sync the clip, pick a template, render.',
           },
         ],
         tipsTitle: 'Tips',
@@ -737,7 +737,7 @@ export const GUIDES: GuideEntry[] = [
           {
             h2: 'Dónde encaja override.studio',
             paragraphs: [
-              'Es la única opción que corre en el navegador: sin instalar, en cualquier sistema con Chrome o Edge. Gratis y open source (MIT), con FIT nativo, Intervals.icu, 18 plantillas y 13 tipos de widget.',
+              'Es la única opción que corre en el navegador: sin instalar, en cualquier sistema con Chrome o Edge. Gratis y open source (MIT), con FIT nativo, Intervals.icu, 18 plantillas y 14 tipos de widget.',
               'Sus límites, con honestidad: aún no lee GPX/TCX ni telemetría embebida en el MP4 (GPMF de GoPro, SRT de DJI), y exporta el MP4 final, no un overlay transparente para tu NLE. Si necesitas eso, Telemetry Overlay u OVRLEY te sirven mejor.',
             ],
           },
@@ -798,7 +798,7 @@ export const GUIDES: GuideEntry[] = [
           {
             h2: 'Where override.studio fits',
             paragraphs: [
-              'It is the only option running in the browser: no install, on any system with Chrome or Edge. Free and open source (MIT), with native FIT, Intervals.icu, 18 templates and 13 widget kinds.',
+              'It is the only option running in the browser: no install, on any system with Chrome or Edge. Free and open source (MIT), with native FIT, Intervals.icu, 18 templates and 14 widget kinds.',
               'Its limits, honestly: it does not read GPX/TCX yet, nor telemetry embedded in the MP4 (GoPro GPMF, DJI SRT), and it exports the final MP4, not a transparent overlay for your NLE. If you need that, Telemetry Overlay or OVRLEY serve you better.',
             ],
           },
@@ -879,7 +879,7 @@ export const LEGAL: LegalEntry[] = [
         description:
           'Qué datos guarda override.studio (cuenta, plantillas, clave de Intervals.icu) y qué nunca sale de tu navegador. Sin cookies de rastreo.',
         h1: 'Política de privacidad',
-        lede: 'Vigente desde el 28 de octubre de 2026. En resumen: tus videos y tus FIT nunca salen de tu navegador; solo guardamos datos si creas una cuenta, y puedes pedir su borrado.',
+        lede: 'Vigente desde el 28 de octubre de 2026. En resumen: tus videos y tus archivos de actividad (.FIT, .GPX o .TCX) nunca salen de tu navegador; solo guardamos datos si creas una cuenta, y puedes pedir su borrado.',
         sections: [
           {
             h2: 'Responsable',
@@ -898,7 +898,7 @@ export const LEGAL: LegalEntry[] = [
           {
             h2: 'Lo que nunca sale de tu equipo',
             paragraphs: [
-              'Tus videos y tus archivos .FIT se procesan íntegramente en tu navegador con WebCodecs. El render es 100% local: esos archivos jamás se suben a nuestros servidores.',
+              'Tus videos y tus archivos de actividad (.FIT, .GPX o .TCX) se procesan íntegramente en tu navegador con WebCodecs. El render es 100% local: esos archivos jamás se suben a nuestros servidores.',
             ],
           },
           {
@@ -936,7 +936,7 @@ export const LEGAL: LegalEntry[] = [
         description:
           'What data override.studio stores (account, templates, Intervals.icu key) and what never leaves your browser. No tracking cookies.',
         h1: 'Privacy policy',
-        lede: 'Effective October 28, 2026. In short: your videos and FIT files never leave your browser; we only store data if you create an account, and you can request its deletion.',
+        lede: 'Effective October 28, 2026. In short: your videos and activity files (.FIT, .GPX or .TCX) never leave your browser; we only store data if you create an account, and you can request its deletion.',
         sections: [
           {
             h2: 'Controller',
@@ -955,7 +955,7 @@ export const LEGAL: LegalEntry[] = [
           {
             h2: 'What never leaves your machine',
             paragraphs: [
-              'Your videos and .FIT files are processed entirely in your browser with WebCodecs. Rendering is 100% local: those files are never uploaded to our servers.',
+              'Your videos and activity files (.FIT, .GPX or .TCX) are processed entirely in your browser with WebCodecs. Rendering is 100% local: those files are never uploaded to our servers.',
             ],
           },
           {
@@ -1015,7 +1015,7 @@ export const LEGAL: LegalEntry[] = [
           {
             h2: 'Tu contenido',
             paragraphs: [
-              'Tus plantillas son tuyas. Al sincronizarlas nos das permiso para alojarlas y mostrártelas. Tus videos y FIT nunca llegan a nuestros servidores, así que ni siquiera entran en este apartado.',
+              'Tus plantillas son tuyas. Al sincronizarlas nos das permiso para alojarlas y mostrártelas. Tus videos y archivos de actividad nunca llegan a nuestros servidores, así que ni siquiera entran en este apartado.',
             ],
           },
           {
@@ -1076,7 +1076,7 @@ export const LEGAL: LegalEntry[] = [
           {
             h2: 'Your content',
             paragraphs: [
-              'Your templates are yours. By syncing them you allow us to host and show them to you. Your videos and FIT files never reach our servers, so they are not even covered here.',
+              'Your templates are yours. By syncing them you allow us to host and show them to you. Your videos and activity files never reach our servers, so they are not even covered here.',
             ],
           },
           {

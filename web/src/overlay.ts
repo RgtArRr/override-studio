@@ -3,16 +3,18 @@ import {
   type MetricId,
   type PanelShape,
   type Template,
+  type TextAlign,
   type WidgetDef,
 } from '@override-studio/shared';
 import {
+  nextProfileWindow,
   sampleAt,
   widgetValue,
   type Activity,
   type TelemetrySample,
 } from './telemetry.js';
 import { formatMetric, type Units } from './format.js';
-import { mapStrokeWidths, navProject, navWindow } from './widgets.js';
+import { defaultAlignFor, mapStrokeWidths, navProject, navWindow } from './widgets.js';
 import { t } from './i18n.js';
 
 const labelFor = (metric: MetricId): string => t(`ovl.${metric}`);
@@ -50,6 +52,7 @@ interface ResolvedStyle {
   labelScale: number;
   valueFont: string;
   valueScale: number;
+  align: TextAlign;
 }
 
 function resolveStyle(template: Template, widget: WidgetDef): ResolvedStyle {
@@ -64,6 +67,7 @@ function resolveStyle(template: Template, widget: WidgetDef): ResolvedStyle {
     labelScale: s.labelScale ?? 1,
     valueFont: s.valueFont ?? template.theme.fontFamily,
     valueScale: s.valueScale ?? 1,
+    align: s.align ?? defaultAlignFor(widget.kind),
   };
 }
 
@@ -132,18 +136,21 @@ function drawStat(
   const pad = Math.min(w, h) * 0.14;
   const valueSize = h * 0.44;
   const labelSize = Math.max(9, h * 0.2);
+  const tx =
+    style.align === 'center' ? x + w / 2 : style.align === 'right' ? x + w - pad : x + pad;
 
   ctx.save();
+  ctx.textAlign = style.align;
   ctx.fillStyle = style.accent;
   ctx.font = `600 ${labelSize * style.labelScale}px ${style.labelFont}`;
   ctx.textBaseline = 'top';
-  ctx.fillText(text.label, x + pad, y + pad * 0.7, w - pad * 2);
+  ctx.fillText(text.label, tx, y + pad * 0.7, w - pad * 2);
 
   ctx.fillStyle = style.text;
   ctx.font = `700 ${valueSize * style.valueScale}px ${style.valueFont}`;
   ctx.textBaseline = 'alphabetic';
   const line = text.unit ? `${text.value} ${text.unit}` : text.value;
-  ctx.fillText(line, x + pad, y + h - pad * 0.8, w - pad * 2);
+  ctx.fillText(line, tx, y + h - pad * 0.8, w - pad * 2);
   ctx.restore();
 }
 
@@ -162,17 +169,20 @@ function drawNumber(
   const text = widgetText(widget, sample, units);
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
 
-  const cx = x + w / 2;
+  const pad = Math.min(w, h) * 0.14;
+  const cx =
+    style.align === 'left' ? x + pad : style.align === 'right' ? x + w - pad : x + w / 2;
+  const mw = style.align === 'center' ? w * 0.92 : w - pad * 2;
   ctx.save();
-  ctx.textAlign = 'center';
+  ctx.textAlign = style.align;
   ctx.fillStyle = style.text;
   ctx.font = `700 ${h * 0.52 * style.valueScale}px ${style.valueFont}`;
   ctx.textBaseline = 'middle';
-  ctx.fillText(text.value, cx, text.unit ? y + h * 0.4 : y + h * 0.52, w * 0.92);
+  ctx.fillText(text.value, cx, text.unit ? y + h * 0.4 : y + h * 0.52, mw);
   if (text.unit) {
     ctx.fillStyle = style.accent;
     ctx.font = `600 ${Math.max(9, h * 0.18) * style.labelScale}px ${style.labelFont}`;
-    ctx.fillText(text.unit, cx, y + h * 0.8, w * 0.92);
+    ctx.fillText(text.unit, cx, y + h * 0.8, mw);
   }
   ctx.restore();
 }
@@ -563,7 +573,10 @@ function drawSpark(
   ctx.restore();
 }
 
-/** Full-ride elevation profile with ridden shading + you-are-here dot. */
+/**
+ * Elevation profile: full ride ('full') or a 5-min lookahead slice ('next5')
+ * with the dot ~0.5 km ahead of the rendered start. Ridden shading + dot.
+ */
 function drawProfile(
   ctx: Ctx,
   widget: WidgetDef,
@@ -575,29 +588,53 @@ function drawProfile(
   h: number,
   units: Units,
   hist: OverlayHistory | undefined,
+  mode: 'full' | 'next5' = 'full',
 ): void {
   const style = resolveStyle(template, widget);
   const text = widgetText(widget, sample, units);
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
   const series: [number, number][] = [];
+  const useDist =
+    hist !== undefined &&
+    typeof hist.activity.samples[0]?.distance === 'number' &&
+    typeof sample.distance === 'number';
+  const nowX = useDist && typeof sample.distance === 'number' ? sample.distance : sample.t;
+  const win =
+    hist && mode === 'next5'
+      ? nextProfileWindow(hist.activity.samples, sample.t, nowX, useDist)
+      : null;
   if (hist) {
-    const useDist =
-      typeof hist.activity.samples[0]?.distance === 'number' &&
-      typeof sample.distance === 'number';
     const samples = hist.activity.samples;
-    const stride = Math.max(1, Math.floor(samples.length / 800));
-    for (let i = 0; i < samples.length; i += stride) {
-      const s = samples[i];
-      if (typeof s.elevation !== 'number') continue;
-      const xk = useDist ? s.distance : s.t;
-      if (typeof xk !== 'number') continue;
-      series.push([xk, s.elevation]);
-    }
-    const last = samples[samples.length - 1];
-    if (last && typeof last.elevation === 'number') {
-      const xk = useDist ? last.distance : last.t;
-      if (typeof xk === 'number' && (series.length === 0 || xk !== series[series.length - 1][0])) {
-        series.push([xk, last.elevation]);
+    if (mode === 'full') {
+      const stride = Math.max(1, Math.floor(samples.length / 800));
+      for (let i = 0; i < samples.length; i += stride) {
+        const s = samples[i];
+        if (typeof s.elevation !== 'number') continue;
+        const xk = useDist ? s.distance : s.t;
+        if (typeof xk !== 'number') continue;
+        series.push([xk, s.elevation]);
+      }
+      const last = samples[samples.length - 1];
+      if (last && typeof last.elevation === 'number') {
+        const xk = useDist ? last.distance : last.t;
+        if (typeof xk === 'number' && (series.length === 0 || xk !== series[series.length - 1][0])) {
+          series.push([xk, last.elevation]);
+        }
+      }
+    } else if (win) {
+      const cands: [number, number][] = [];
+      for (const s of samples) {
+        if (typeof s.elevation !== 'number') continue;
+        const xk = useDist ? s.distance : s.t;
+        if (typeof xk !== 'number') continue;
+        if (xk < win.xMin || xk > win.xMax) continue;
+        cands.push([xk, s.elevation]);
+      }
+      const stride = Math.max(1, Math.floor(cands.length / 800));
+      for (let i = 0; i < cands.length; i += stride) series.push(cands[i]);
+      const wl = cands[cands.length - 1];
+      if (wl && (series.length === 0 || wl[0] !== series[series.length - 1][0])) {
+        series.push(wl);
       }
     }
   }
@@ -617,8 +654,8 @@ function drawProfile(
     drawMissing(ctx, style, x, y + h * 0.2, w, h * 0.8);
     return;
   }
-  const xMax = series[series.length - 1][0];
-  const xMin = series[0][0];
+  const xMax = win ? win.xMax : series[series.length - 1][0];
+  const xMin = win ? win.xMin : series[0][0];
   let min = Infinity;
   let max = -Infinity;
   for (const [, v] of series) {
@@ -635,11 +672,6 @@ function drawProfile(
   const cy1 = y + h * 0.92;
   const X = (v: number): number => cx0 + ((v - xMin) / (xMax - xMin)) * (cx1 - cx0);
   const Y = (v: number): number => cy1 - ((v - min) / (max - min)) * (cy1 - cy0);
-  const nowX =
-    typeof sample.distance === 'number' &&
-    typeof hist.activity.samples[0]?.distance === 'number'
-      ? sample.distance
-      : sample.t;
   ctx.save();
   // Ahead: faint full area. Ridden: accent area + dot.
   const trace = (upto: number): void => {
@@ -666,7 +698,7 @@ function drawProfile(
   ctx.strokeStyle = style.accent;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(X(Math.min(nowX, xMax)), Y(sample.elevation ?? min), 4, 0, 2 * Math.PI);
+  ctx.arc(X(Math.min(Math.max(nowX, xMin), xMax)), Y(sample.elevation ?? min), 4, 0, 2 * Math.PI);
   ctx.fill();
   ctx.stroke();
   ctx.restore();
@@ -1069,6 +1101,9 @@ export function drawOverlay(
         break;
       case 'profile':
         drawProfile(ctx, widget, template, sample, x, y, w, h, units, hist);
+        break;
+      case 'profilenext':
+        drawProfile(ctx, widget, template, sample, x, y, w, h, units, hist, 'next5');
         break;
       case 'vam':
         drawVam(ctx, widget, template, sample, x, y, w, h, units, hist);

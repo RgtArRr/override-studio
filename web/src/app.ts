@@ -36,6 +36,7 @@ import { BUILTIN_TEMPLATES } from './templates.js';
 import {
   METRIC_IDS,
   WIDGET_KINDS,
+  defaultAlignFor,
   defaultMetricFor,
   kindLabel,
   makeWidgetDef,
@@ -115,7 +116,7 @@ const BROWSER_TZ: number = -new Date().getTimezoneOffset() / 60;
 /** A clip can sit anywhere inside a long activity, so the guard is generous. */
 const OFFSET_LIMIT = 86400;
 
-/** Representative sample so template thumbnails render before any FIT loads. */
+/** Representative sample so template thumbnails render before any activity loads. */
 const DEMO_SAMPLE: TelemetrySample = {
   t: 63,
   speed: 9.5,
@@ -174,7 +175,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   let overrideRev = 0;
   /** Selected widget shows outline + handle + the Widget inspector panel. */
   let selected: { templateId: string; widgetId: string } | null = null;
-  /** Resize handle: square at the widget's bottom-right corner, in CSS px. */
+  /** Resize handles: squares at the widget's four corners, hit slop in CSS px. */
   const HANDLE_PX = 14;
   /** Min normalized size: overlay skips boxes under 24×16 px, 0.04 stays above that at 720p+. */
   const MIN_NORM = 0.04;
@@ -274,7 +275,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   root.innerHTML = '';
   const wrap = el('main', 'app');
 
-  // Header: project-level controls (FIT, units, fixtures, render all).
+  // Header: project-level controls (activity, units, fixtures, render all).
   const header = el('header', 'app-header');
   const logo = el('img', 'header-logo');
   logo.src = '/icon.svg';
@@ -302,7 +303,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       if (units === value) return;
       units = value;
       syncUnits();
-      renderFitStats();
+      renderActivityStats();
     });
     unitBtns.push(btn);
     unitsGroup.appendChild(btn);
@@ -472,53 +473,53 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const grid = el('div', 'editor-grid');
   wrap.appendChild(grid);
 
-  // Left column: FIT block above the media bin.
+  // Left column: activity block above the media bin.
   const leftCol = el('div', 'left-col');
-  const fitBlock = el('section', 'fit-block');
-  fitBlock.append(el('h2', undefined, 'FIT'));
-  const fitDrop = el('div', 'fit-drop', t('fit.drop'));
-  fitDrop.setAttribute('role', 'button');
-  fitDrop.setAttribute('tabindex', '0');
-  const fitInput = el('input');
-  fitInput.type = 'file';
-  fitInput.accept = '.fit,.gpx,.tcx';
-  fitDrop.appendChild(fitInput);
-  fitDrop.addEventListener('click', () => fitInput.click());
-  fitDrop.addEventListener('keydown', (e) => {
+  const activityBlock = el('section', 'activity-block');
+  activityBlock.append(el('h2', undefined, t('activity.title')));
+  const activityDrop = el('div', 'activity-drop', t('activity.drop'));
+  activityDrop.setAttribute('role', 'button');
+  activityDrop.setAttribute('tabindex', '0');
+  const activityInput = el('input');
+  activityInput.type = 'file';
+  activityInput.accept = '.fit,.gpx,.tcx';
+  activityDrop.appendChild(activityInput);
+  activityDrop.addEventListener('click', () => activityInput.click());
+  activityDrop.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      fitInput.click();
+      activityInput.click();
     }
   });
   for (const type of ['dragenter', 'dragover'] as const) {
-    fitDrop.addEventListener(type, (e) => {
+    activityDrop.addEventListener(type, (e) => {
       e.preventDefault();
-      fitDrop.classList.add('over');
+      activityDrop.classList.add('over');
     });
   }
-  fitDrop.addEventListener('dragleave', () => fitDrop.classList.remove('over'));
-  fitDrop.addEventListener('drop', (e) => {
+  activityDrop.addEventListener('dragleave', () => activityDrop.classList.remove('over'));
+  activityDrop.addEventListener('drop', (e) => {
     e.preventDefault();
-    fitDrop.classList.remove('over');
+    activityDrop.classList.remove('over');
     const file = (e as DragEvent).dataTransfer?.files?.[0];
     if (file) {
       void file
         .arrayBuffer()
-        .then((buffer) => loadFitBuffer(buffer, file.name))
-        .catch(() => setStatus(t('st.fitUnreadable')));
+        .then((buffer) => loadActivityFile(buffer, file.name))
+        .catch(() => setStatus(t('st.activityUnreadable')));
     }
   });
   // A missed drop must not navigate the app away to the raw file.
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', (e) => e.preventDefault());
-  const fitPill = el('span', 'phase-badge', '');
-  fitPill.hidden = true;
-  const fitStats = el('div', 'fit-stats');
-  fitStats.hidden = true;
+  const activityPill = el('span', 'phase-badge', '');
+  activityPill.hidden = true;
+  const activityStats = el('div', 'activity-stats');
+  activityStats.hidden = true;
   const intervalsPickBtn = el('button', 'btn btn-small act-btn', t('intervals.pick'));
   intervalsPickBtn.type = 'button';
-  fitBlock.append(fitDrop, intervalsPickBtn, fitPill, fitStats);
-  // Intervals picker: API-key account source, same .fit-style load path.
+  activityBlock.append(activityDrop, intervalsPickBtn, activityPill, activityStats);
+  // Intervals picker: API-key account source, same file load path.
   const icuDialog = el('dialog', 'add-dialog icu-dialog');
   const icuTitle = el('h2', undefined, t('intervals.title'));
   const icuKeyView = el('div', 'icu-view');
@@ -726,8 +727,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         loadActivity(act, t('intervals.source', { name: a.name || a.id }));
       } catch (err) {
         activity = null;
-        fitPill.hidden = true;
-        renderFitStats();
+        activityPill.hidden = true;
+        renderActivityStats();
         setStatus(err instanceof Error ? err.message : t('intervals.error'));
       }
     } finally {
@@ -744,33 +745,33 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     showModal(icuDialog);
     void refreshIcu();
   });
-  leftCol.appendChild(fitBlock);
-  /** Basic stats of the loaded FIT, re-rendered on load and on units change. */
-  const renderFitStats = (): void => {
-    fitStats.replaceChildren();
+  leftCol.appendChild(activityBlock);
+  /** Basic stats of the loaded activity, re-rendered on load and on units change. */
+  const renderActivityStats = (): void => {
+    activityStats.replaceChildren();
     if (!activity) {
-      fitStats.hidden = true;
+      activityStats.hidden = true;
       return;
     }
     const s = summarize(activity);
     const dist = formatMetric('distance', s.distanceM, units);
     const rows: [string, string][] = [
-      [t('fit.dur'), formatSpan(s.durationSec)],
-      [t('fit.dist'), `${dist.value} ${dist.unit}`],
-      [t('fit.samples'), String(s.samples)],
+      [t('activity.dur'), formatSpan(s.durationSec)],
+      [t('activity.dist'), `${dist.value} ${dist.unit}`],
+      [t('activity.samples'), String(s.samples)],
     ];
     if (s.avgSpeed !== null) {
       const avg = formatMetric('speed', s.avgSpeed, units);
-      rows.push([t('fit.avgSpeed'), `${avg.value} ${avg.unit}`]);
+      rows.push([t('activity.avgSpeed'), `${avg.value} ${avg.unit}`]);
     }
-    if (s.avgHeartRate !== null) rows.push([t('fit.avgHr'), `${Math.round(s.avgHeartRate)} bpm`]);
-    if (s.avgPower !== null) rows.push([t('fit.avgPower'), `${Math.round(s.avgPower)} W`]);
+    if (s.avgHeartRate !== null) rows.push([t('activity.avgHr'), `${Math.round(s.avgHeartRate)} bpm`]);
+    if (s.avgPower !== null) rows.push([t('activity.avgPower'), `${Math.round(s.avgPower)} W`]);
     for (const [label, value] of rows) {
-      const row = el('div', 'fit-stat');
-      row.append(el('span', 'muted', label), el('span', 'fit-stat-v', value));
-      fitStats.appendChild(row);
+      const row = el('div', 'activity-stat');
+      row.append(el('span', 'muted', label), el('span', 'activity-stat-v', value));
+      activityStats.appendChild(row);
     }
-    fitStats.hidden = false;
+    activityStats.hidden = false;
   };
 
   // Media bin (left): the ride's clips.
@@ -1428,7 +1429,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         }),
       );
     } else {
-      setStatus(t('clip.tzNeedFit'));
+      setStatus(t('clip.tzNeedActivity'));
     }
     binMetaSig = '';
   });
@@ -1553,6 +1554,29 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     shapeBtns.push(btn);
   }
   shapeRow.appendChild(shapeSeg);
+  const alignRow = el('div', 'editor-row');
+  alignRow.append(el('span', 'muted', t('w.align')));
+  const alignSeg = el('div', 'seg-switch fill');
+  alignSeg.setAttribute('role', 'group');
+  alignSeg.setAttribute('aria-label', t('w.align'));
+  const alignBtns: HTMLButtonElement[] = [];
+  for (const [value, text] of [
+    ['left', t('w.alignLeft')],
+    ['center', t('w.alignCenter')],
+    ['right', t('w.alignRight')],
+  ]) {
+    const btn = el('button', 'seg-opt seg-icon');
+    btn.type = 'button';
+    btn.dataset.align = value;
+    btn.title = text;
+    btn.setAttribute('aria-label', text);
+    const icon = el('span', `icon icon-align-${value}`);
+    icon.setAttribute('aria-hidden', 'true');
+    btn.appendChild(icon);
+    alignSeg.appendChild(btn);
+    alignBtns.push(btn);
+  }
+  alignRow.appendChild(alignSeg);
   const colorRow = el('div', 'editor-row');
   const accentInput = mkField(colorRow, t('w.accent'), 'color', 'color-input');
   const textInput = mkField(colorRow, t('w.text'), 'color', 'color-input');
@@ -1614,6 +1638,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     sizeRow,
     bgRow,
     shapeRow,
+    alignRow,
     colorRow,
     widthRow,
     labelFontRow,
@@ -1720,6 +1745,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       writeStylePatch({ shape: btn.dataset.shape as WidgetStyle['shape'] });
     });
   }
+  for (const btn of alignBtns) {
+    btn.addEventListener('click', () => {
+      writeStylePatch({ align: btn.dataset.align as WidgetStyle['align'] });
+    });
+  }
   accentInput.addEventListener('input', () => writeStylePatch({ accent: accentInput.value }));
   textInput.addEventListener('input', () => writeStylePatch({ text: textInput.value }));
   labelFontSel.addEventListener('change', () => {
@@ -1796,6 +1826,15 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const shape = st.shape ?? 'rect';
     for (const btn of shapeBtns) {
       const active = btn.dataset.shape === shape;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    }
+    // Only stat/number lay out text lines: the row would be a dead control elsewhere.
+    const alignable = sw.widget.kind === 'stat' || sw.widget.kind === 'number';
+    alignRow.hidden = !alignable;
+    const align = st.align ?? defaultAlignFor(sw.widget.kind);
+    for (const btn of alignBtns) {
+      const active = btn.dataset.align === align;
       btn.classList.toggle('active', active);
       btn.setAttribute('aria-pressed', String(active));
     }
@@ -2152,11 +2191,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     return clip.id;
   };
 
-  /** Any parsed source (FIT file, provider streams) becomes the activity here. */
+  /** Any parsed source (file, provider streams) becomes the activity here. */
   const loadActivity = (act: Activity, name: string): void => {
     activity = act;
-    fitPill.textContent = name;
-    fitPill.hidden = false;
+    activityPill.textContent = name;
+    activityPill.hidden = false;
     overviewCache = null;
     const metric = pickOverviewMetric(activity);
     if (metric) {
@@ -2175,23 +2214,23 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const distUnit = formatMetric('distance', s.distanceM, units);
     const speedUnit = s.avgSpeed !== null ? formatMetric('speed', s.avgSpeed, units) : null;
     footer.textContent =
-      t('fit.footer1', { name, n: s.samples, dur: formatSpan(s.durationSec) }) +
+      t('activity.footer1', { name, n: s.samples, dur: formatSpan(s.durationSec) }) +
       `, ${distUnit.value} ${distUnit.unit}` +
-      (speedUnit ? t('fit.footerAvg', { v: speedUnit.value, u: speedUnit.unit }) : '') +
-      t('fit.footerSchema', { v: TEMPLATE_SCHEMA_VERSION });
+      (speedUnit ? t('activity.footerAvg', { v: speedUnit.value, u: speedUnit.unit }) : '') +
+      t('activity.footerSchema', { v: TEMPLATE_SCHEMA_VERSION });
     // One ride, many videos: every undated clip gets its auto offset now.
     for (const clip of clips) {
       if (!clip.offsetDirty) applyAutoOffset(clip);
     }
-    renderFitStats();
+    renderActivityStats();
     const clip = activeClip();
     if (clip && activity && !clip.videoCreation) tryAutoSync(clip);
     binMetaSig = '';
   };
 
-  const loadFitBuffer = (buffer: ArrayBuffer, name: string): void => {
+  const loadActivityFile = (buffer: ArrayBuffer, name: string): void => {
     try {
-      // One FIT loader, three formats: XML tracks share the telemetry builder.
+      // One file loader, three formats: XML tracks share the telemetry builder.
       const ext = name.toLowerCase().split('.').pop();
       const act =
         ext === 'gpx' || ext === 'tcx'
@@ -2200,9 +2239,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       loadActivity(act, name);
     } catch (err) {
       activity = null;
-      fitPill.hidden = true;
-      renderFitStats();
-      setStatus(err instanceof Error ? err.message : t('st.fitUnreadable'));
+      activityPill.hidden = true;
+      renderActivityStats();
+      setStatus(err instanceof Error ? err.message : t('st.activityUnreadable'));
     }
   };
 
@@ -2212,13 +2251,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     videoInput.value = '';
   });
 
-  fitInput.addEventListener('change', () => {
-    const file = fitInput.files?.[0];
+  activityInput.addEventListener('change', () => {
+    const file = activityInput.files?.[0];
     if (file) {
       void file
         .arrayBuffer()
-        .then((buffer) => loadFitBuffer(buffer, file.name))
-        .catch(() => setStatus(t('st.fitUnreadable')));
+        .then((buffer) => loadActivityFile(buffer, file.name))
+        .catch(() => setStatus(t('st.activityUnreadable')));
     }
   });
 
@@ -2241,7 +2280,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
             return res.arrayBuffer();
           })
           .then((buffer) => {
-            loadFitBuffer(buffer, 'sample.fit');
+            loadActivityFile(buffer, 'sample.fit');
             // Fixtures are synthetic: pin sync instead of trusting file dates.
             const clip = clips.find((c) => c.id === fixtureId);
             if (clip) {
@@ -2269,7 +2308,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const clip = needClip();
     if (!clip) return;
     if (!activity) {
-      setStatus(t('sync.noFit'));
+      setStatus(t('sync.noActivity'));
       return;
     }
     if (!clip.videoCreation) {
@@ -2462,6 +2501,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   interface DragState {
     widgetId: string;
     mode: 'move' | 'resize';
+    corner: 'nw' | 'ne' | 'sw' | 'se' | null;
     dx: number;
     dy: number;
     moved: boolean;
@@ -2502,19 +2542,28 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     );
   };
 
-  const onHandle = (e: { clientX: number; clientY: number; pointerType?: string }): boolean => {
+  const onCorner = (e: {
+    clientX: number;
+    clientY: number;
+    pointerType?: string;
+  }): 'nw' | 'ne' | 'sw' | 'se' | null => {
     const box = selectedBox();
-    if (!box) return false;
+    if (!box) return null;
     const rect = canvas.getBoundingClientRect();
-    const cx = rect.left + (box.x + box.w) * rect.width;
-    const cy = rect.top + (box.y + box.h) * rect.height;
     const slop = e.pointerType === 'touch' ? HANDLE_PX * 2 : HANDLE_PX;
-    return (
-      e.clientX >= cx - slop &&
-      e.clientX <= cx &&
-      e.clientY >= cy - slop &&
-      e.clientY <= cy
-    );
+    const x0 = rect.left + box.x * rect.width;
+    const x1 = rect.left + (box.x + box.w) * rect.width;
+    const y0 = rect.top + box.y * rect.height;
+    const y1 = rect.top + (box.y + box.h) * rect.height;
+    const inX0 = e.clientX >= x0 && e.clientX <= x0 + slop;
+    const inX1 = e.clientX >= x1 - slop && e.clientX <= x1;
+    const inY0 = e.clientY >= y0 && e.clientY <= y0 + slop;
+    const inY1 = e.clientY >= y1 - slop && e.clientY <= y1;
+    if (inX0 && inY0) return 'nw';
+    if (inX1 && inY0) return 'ne';
+    if (inX0 && inY1) return 'sw';
+    if (inX1 && inY1) return 'se';
+    return null;
   };
 
   canvas.addEventListener('pointerdown', (e) => {
@@ -2528,18 +2577,25 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const aspect = classifyAspect(canvas.width, canvas.height);
     const box = effectiveTemplate(template).widgets.find((w) => w.id === hit)?.layout[aspect];
     if (!box) return;
-    const resize = onHandle(e);
-    drag = resize
-      ? {
-          widgetId: hit,
-          mode: 'resize',
-          dx: box.x + box.w - nx,
-          dy: box.y + box.h - ny,
-          moved: false,
-        }
-      : { widgetId: hit, mode: 'move', dx: nx - box.x, dy: ny - box.y, moved: false };
+    const corner = onCorner(e);
+    drag =
+      corner === null
+        ? { widgetId: hit, mode: 'move', corner, dx: nx - box.x, dy: ny - box.y, moved: false }
+        : {
+            widgetId: hit,
+            mode: 'resize',
+            corner,
+            dx: corner === 'nw' || corner === 'sw' ? nx - box.x : box.x + box.w - nx,
+            dy: corner === 'nw' || corner === 'ne' ? ny - box.y : box.y + box.h - ny,
+            moved: false,
+          };
     canvas.setPointerCapture(e.pointerId);
-    canvas.style.cursor = resize ? 'nwse-resize' : 'grabbing';
+    canvas.style.cursor =
+      corner === null
+        ? 'grabbing'
+        : corner === 'nw' || corner === 'se'
+          ? 'nwse-resize'
+          : 'nesw-resize';
     e.preventDefault();
   });
 
@@ -2564,10 +2620,16 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         perTemplate = new Map();
         layoutOverrides.set(template.id, perTemplate);
       }
-      if (drag.mode === 'resize') {
-        const w = Math.min(Math.max(nx + drag.dx - box.x, MIN_NORM), 1 - box.x);
-        const h = Math.min(Math.max(ny + drag.dy - box.y, MIN_NORM), 1 - box.y);
-        perTemplate.set(drag.widgetId, { aspect, x: box.x, y: box.y, w, h });
+      if (drag.mode === 'resize' && drag.corner !== null) {
+        const x1 = box.x + box.w;
+        const y1 = box.y + box.h;
+        const west = drag.corner === 'nw' || drag.corner === 'sw';
+        const north = drag.corner === 'nw' || drag.corner === 'ne';
+        const x = west ? Math.min(Math.max(nx - drag.dx, 0), x1 - MIN_NORM) : box.x;
+        const y = north ? Math.min(Math.max(ny - drag.dy, 0), y1 - MIN_NORM) : box.y;
+        const w = west ? x1 - x : Math.min(Math.max(nx + drag.dx - x, MIN_NORM), 1 - x);
+        const h = north ? y1 - y : Math.min(Math.max(ny + drag.dy - y, MIN_NORM), 1 - y);
+        perTemplate.set(drag.widgetId, { aspect, x, y, w, h });
       } else {
         perTemplate.set(drag.widgetId, {
           aspect,
@@ -2580,7 +2642,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       bumpRev();
     } else if (e.pointerType === 'mouse' && downPos === null) {
       const { nx, ny } = toNorm(e);
-      canvas.style.cursor = onHandle(e) ? 'nwse-resize' : hitWidget(nx, ny) ? 'grab' : 'default';
+      const corner = onCorner(e);
+      if (corner !== null) {
+        canvas.style.cursor = corner === 'nw' || corner === 'se' ? 'nwse-resize' : 'nesw-resize';
+      } else {
+        canvas.style.cursor = hitWidget(nx, ny) ? 'grab' : 'default';
+      }
     }
   });
 
@@ -2681,7 +2748,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   /** Renders one clip; sequential by design (one encoder at a time). */
   const renderOne = async (clip: Clip, tag: string, save: DiskSave | null = null): Promise<void> => {
-    if (!activity) throw new Error(t('sync.noFit'));
+    if (!activity) throw new Error(t('sync.noActivity'));
     const template = selectedTemplate();
     if (!template) throw new Error(t('r.errTemplate'));
     const trimStart = Math.max(0, clip.trimStart);
@@ -2747,7 +2814,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (rendering) return;
     const clip = needClip();
     if (!clip || !activity) {
-      if (!activity) setStatus(t('sync.noFit'));
+      if (!activity) setStatus(t('sync.noActivity'));
       return;
     }
     void (async () => {
@@ -2791,7 +2858,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       return;
     }
     if (!activity) {
-      setStatus(t('sync.noFit'));
+      setStatus(t('sync.noActivity'));
       return;
     }
     void (async () => {
@@ -2980,14 +3047,27 @@ export async function renderApp(root: HTMLElement): Promise<void> {
           const sw = selBox.w * canvas.width;
           const sh = selBox.h * canvas.height;
           liveCtx.save();
+          liveCtx.lineWidth = 10;
+          liveCtx.strokeStyle = '#ffffff';
+          liveCtx.strokeRect(sx, sy, sw, sh);
           liveCtx.strokeStyle = '#0099ff';
-          liveCtx.lineWidth = 4;
-          liveCtx.setLineDash([10, 6]);
+          liveCtx.lineWidth = 5;
+          liveCtx.setLineDash([12, 7]);
           liveCtx.strokeRect(sx, sy, sw, sh);
           liveCtx.setLineDash([]);
           const hs = Math.max(14, canvas.width * 0.012);
-          liveCtx.fillStyle = '#0099ff';
-          liveCtx.fillRect(sx + sw - hs, sy + sh - hs, hs, hs);
+          liveCtx.fillStyle = '#ffffff';
+          liveCtx.strokeStyle = '#0099ff';
+          liveCtx.lineWidth = 3;
+          for (const [hx, hy] of [
+            [sx, sy],
+            [sx + sw - hs, sy],
+            [sx, sy + sh - hs],
+            [sx + sw - hs, sy + sh - hs],
+          ]) {
+            liveCtx.fillRect(hx, hy, hs, hs);
+            liveCtx.strokeRect(hx, hy, hs, hs);
+          }
           liveCtx.restore();
         }
         teleClock.textContent = t('stage.tele', {

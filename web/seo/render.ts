@@ -305,8 +305,8 @@ export function llmsTxt(
   const lines = [
     '# override.studio',
     '',
-    '> Web editor that overlays sports telemetry from .FIT files (or Intervals.icu) onto MP4/MOV clips, with a 100% local, private in-browser render: nothing is uploaded. Content in English and Spanish; every page links its Markdown mirror.',
-    '> Editor web que incrusta telemetría deportiva de archivos .FIT (o Intervals.icu) en clips MP4/MOV, con render 100% local y privado en el navegador: nada se sube.',
+    '> Web editor that overlays sports telemetry from .FIT, .GPX or .TCX files (or Intervals.icu) onto MP4/MOV clips, with a 100% local, private in-browser render: nothing is uploaded. Content in English and Spanish; every page links its Markdown mirror.',
+    '> Editor web que incrusta telemetría deportiva de archivos .FIT, .GPX o .TCX (o Intervals.icu) en clips MP4/MOV, con render 100% local y privado en el navegador: nada se sube.',
     '',
     '## Pages',
     '',

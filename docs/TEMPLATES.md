@@ -38,6 +38,7 @@ nothing more.
   "strokeWidth": 6,        // optional trail width in px (map; auto when absent)
   "style": {               // optional per-widget overrides
     "shape": "pill",       // rect|pill|none (default rect)
+    "align": "center",     // optional left|center|right (stat, number; default left, number centers)
     "background": "#000000",
     "backgroundOpacity": 0.5,
     "accent": "#ffffff",
@@ -58,8 +59,9 @@ nothing more.
 ### Kinds
 
 - `stat`: label (accent, top-left) + value + unit (bottom-left). The default workhorse.
+  Honors `align` (default left).
 - `number`: big centered value, unit small beneath. No label. Set `shape: 'none'`
-  and `showUnit: false` for a pure floating number.
+  and `showUnit: false` for a pure floating number. Honors `align` (default center).
 - `gauge`: 270° arc with background track + accent value arc, value centered,
   label on top. Scale from `range`, else the built-in default.
 - `speedo`: 180° speedometer with ticks, needle and digital readout.
@@ -69,6 +71,8 @@ nothing more.
 - `spark`: last-30 s area sparkline of any metric + current value. Needs history.
 - `profile`: full-ride elevation profile, ridden part shaded + you-are-here dot.
   Needs history.
+- `profilenext`: 5-min lookahead elevation window, dot ~0.5 km ahead of the
+  rendered start. Needs history.
 - `vam`: 60 s climb rate (`vam` metric) with trend arrow. Needs history.
 - `map`: GPS track, faint full route + accent ridden trail + current dot.
   Metric `none`. Needs history with lat/lon. Trail width from `strokeWidth`,
@@ -79,7 +83,7 @@ nothing more.
 - `compass`: GPS course dial, card rotated so course points up + degrees.
   Metric `none`. Needs history with motion.
 
-History kinds (`spark`, `profile`, `vam`, `map`, `navmap`, `compass`) receive
+History kinds (`spark`, `profile`, `profilenext`, `vam`, `map`, `navmap`, `compass`) receive
 the full series at render time; without data they show `—`.
 
 ### Gauge default ranges (raw SI)
@@ -103,7 +107,7 @@ allowed, but a distance gauge rarely makes sense.
 ## Values and units
 
 Metrics arrive in raw SI units (m/s, m, s, …) and the renderer formats them for
-the selected units (metric/imperial). `elapsedTime` is FIT elapsed seconds at the
+the selected units (metric/imperial). `elapsedTime` is activity elapsed seconds at the
 rendered moment and formats as `h:mm:ss`. If a metric is missing from the data,
 the widget shows `—`.
 

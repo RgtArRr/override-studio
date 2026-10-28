@@ -1,6 +1,7 @@
 import type {
   AspectClass,
   MetricId,
+  TextAlign,
   WidgetDef,
   WidgetKind,
   WidgetLayout,
@@ -19,6 +20,7 @@ export const WIDGET_KINDS: WidgetKind[] = [
   'gears',
   'spark',
   'profile',
+  'profilenext',
   'vam',
   'map',
   'navmap',
@@ -54,6 +56,7 @@ const DEFAULT_METRIC: Record<WidgetKind, MetricId> = {
   gears: 'gears',
   spark: 'power',
   profile: 'elevation',
+  profilenext: 'elevation',
   vam: 'vam',
   map: 'none',
   navmap: 'none',
@@ -62,6 +65,11 @@ const DEFAULT_METRIC: Record<WidgetKind, MetricId> = {
 
 export function defaultMetricFor(kind: WidgetKind): MetricId {
   return DEFAULT_METRIC[kind];
+}
+
+/** Text alignment default per kind (numbers center, the rest left). */
+export function defaultAlignFor(kind: WidgetKind): TextAlign {
+  return kind === 'number' ? 'center' : 'left';
 }
 
 /** Base (horizontal) size per kind, sized from the built-in fixtures. */
@@ -75,6 +83,7 @@ const BASE_SIZE: Record<WidgetKind, { w: number; h: number }> = {
   gears: { w: 0.2, h: 0.18 },
   spark: { w: 0.32, h: 0.18 },
   profile: { w: 0.34, h: 0.2 },
+  profilenext: { w: 0.34, h: 0.2 },
   vam: { w: 0.2, h: 0.2 },
   map: { w: 0.26, h: 0.34 },
   navmap: { w: 0.26, h: 0.34 },
