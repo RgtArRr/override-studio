@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { activityFromIntervalsStreams, fillDerivedGrade, parseFit, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
+import { activityFromIntervalsStreams, activityFromTrackPoints, buildActivity, fillDerivedGrade, parseFit, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
 import { hashPassword, needsRehash, normalizeEmail, storedIterations, validatePassword, verifyPassword } from '../api/src/password.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
 import {
@@ -97,6 +97,27 @@ assert.equal(iact.samples[3].speed, 8);
 assert.ok(typeof iact.samples[1].grade === 'number');
 assert.equal(iact.startTime.toISOString(), '2026-10-26T15:00:00.000Z');
 assert.throws(() => activityFromIntervalsStreams({}, '2026-10-26T10:00:00', null), /telemet/);
+
+// Shared XML converter (node has no DOMParser, so the DOM extraction itself
+// is browser-tested; the derivation logic lives here).
+const xmlTrack = activityFromTrackPoints([
+  { time: 0, lat: -12.0, lon: -77.0, ele: 100, hr: 120 },
+  { time: 1000, lat: -12.0, lon: -77.0001, ele: 102, hr: 125 },
+  { time: 2000, lat: -12.0, lon: -77.0002, ele: 104, hr: 130 },
+]);
+assert.equal(xmlTrack.samples.length, 3);
+assert.equal(xmlTrack.durationSec, 2);
+assert.equal(xmlTrack.startTime.toISOString(), '1970-01-01T00:00:00.000Z');
+assert.equal(xmlTrack.samples[0].heartRate, 120);
+// ~10.9m per 0.0001 lon step at lat -12: haversine accumulates, speed derives.
+assert.ok(xmlTrack.samples[2].distance > 15 && xmlTrack.samples[2].distance < 30);
+assert.ok(xmlTrack.samples[1].speed > 5 && xmlTrack.samples[1].speed < 20);
+// Non-monotonic times drop: sampleAt binary-searches on ascending t.
+const xmlMono = activityFromTrackPoints([{ time: 0 }, { time: 2000 }, { time: 1000 }]);
+assert.equal(xmlMono.samples.length, 2);
+assert.throws(() => activityFromTrackPoints([]), /(archivo|file)/);
+const built = buildActivity(new Date(0), [{ t: 0 }, { t: 5 }]);
+assert.equal(built.durationSec, 5);
 
 // Credentials policy + hashing (WebCrypto, Workers-safe).
 assert.equal(normalizeEmail('  USER@X.test  '), 'user@x.test');

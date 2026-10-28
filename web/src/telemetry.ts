@@ -85,6 +85,189 @@ export function zonedTimeToUtc(wall: string, timeZone: string): Date | null {
   }
 }
 
+/**
+ * One generic track point from any XML source (GPX trkpt, TCX Trackpoint).
+ * Times are ms epoch; every metric optional, like TelemetrySample.
+ */
+export interface TrackPoint {
+  time: number;
+  lat?: number;
+  lon?: number;
+  ele?: number;
+  dist?: number;
+  hr?: number;
+  cad?: number;
+  watts?: number;
+  speed?: number;
+}
+
+const haversineM = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const r = (d: number): number => (d * Math.PI) / 180;
+  const a =
+    Math.sin(r(lat2 - lat1) / 2) ** 2 +
+    Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(r(lon2 - lon1) / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(a));
+};
+
+/**
+ * Shared XML -> Activity converter: GPX and TCX differ only in tag names, so
+ * both extract to TrackPoint[] and meet here. Native distance wins when every
+ * point carries it (TCX); otherwise it accumulates by haversine (GPX). Speed
+ * derives from distance/time when absent. Non-monotonic times are dropped:
+ * sampleAt binary-searches on ascending t.
+ */
+export function activityFromTrackPoints(points: TrackPoint[]): Activity {
+  if (points.length === 0) throw new Error(t('err.trackInvalid'));
+  const ordered = points.filter((p, i) => i === 0 || p.time >= points[i - 1].time);
+  if (ordered.length === 0) throw new Error(t('err.trackInvalid'));
+  const t0 = ordered[0].time;
+  const nativeDist = ordered.every((p) => typeof p.dist === 'number');
+  let odo = 0;
+  let prevT = 0;
+  let prevD = 0;
+  const derived: boolean[] = [];
+  const samples: TelemetrySample[] = ordered.map((p, i) => {
+    const time = (p.time - t0) / 1000;
+    let dist: number | undefined;
+    if (nativeDist) {
+      dist = p.dist;
+    } else if (i === 0) {
+      dist = 0;
+    } else {
+      const q = ordered[i - 1];
+      if (
+        p.lat !== undefined &&
+        p.lon !== undefined &&
+        q.lat !== undefined &&
+        q.lon !== undefined
+      ) {
+        odo += haversineM(q.lat, q.lon, p.lat, p.lon);
+      }
+      dist = p.lat === undefined ? undefined : odo;
+    }
+    let speed = p.speed;
+    if (speed === undefined && i > 0 && dist !== undefined) {
+      const dt = time - prevT;
+      speed = dt > 0 ? Math.max(0, (dist - prevD) / dt) : undefined;
+    }
+    derived.push(p.speed === undefined && speed !== undefined);
+    prevT = time;
+    if (dist !== undefined) prevD = dist;
+    const s: TelemetrySample = { t: time };
+    if (dist !== undefined) s.distance = dist;
+    if (speed !== undefined) s.speed = speed;
+    if (p.hr !== undefined) s.heartRate = p.hr;
+    if (p.cad !== undefined) s.cadence = p.cad;
+    if (p.watts !== undefined) s.power = p.watts;
+    if (p.ele !== undefined) s.elevation = p.ele;
+    if (p.lat !== undefined) s.lat = p.lat;
+    if (p.lon !== undefined) s.lon = p.lon;
+    return s;
+  });
+  // Derived speeds inherit GPS jitter: light 3-point smoothing, natives untouched.
+  for (let i = 0; i < samples.length; i++) {
+    if (!derived[i]) continue;
+    const vals = [samples[i - 1]?.speed, samples[i].speed, samples[i + 1]?.speed].filter(
+      (v): v is number => typeof v === 'number',
+    );
+    if (vals.length > 0) samples[i].speed = vals.reduce((a, b) => a + b, 0) / vals.length;
+  }
+  if (samples.length > 1 && samples[0].speed === undefined && samples[1].speed !== undefined) {
+    samples[0].speed = samples[1].speed;
+  }
+  return buildActivity(new Date(t0), samples);
+}
+
+/** Direct child text by local tag name (namespace-agnostic). */
+const childText = (parent: Element, name: string): string | null => {
+  const lower = name.toLowerCase();
+  for (const child of Array.from(parent.children)) {
+    if (child.localName.toLowerCase() === lower) return child.textContent?.trim() ?? null;
+  }
+  return null;
+};
+
+/** First descendant text by local tag name, any namespace (extensions). */
+const descText = (parent: Element, name: string): string | null => {
+  const found = parent.getElementsByTagNameNS('*', name)[0];
+  return found?.textContent?.trim() ?? null;
+};
+
+const num = (value: string | null): number | undefined => {
+  if (value === null || value === '') return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+const set = <K extends 'lat' | 'lon' | 'ele' | 'dist' | 'hr' | 'cad' | 'watts' | 'speed'>(
+  p: TrackPoint,
+  key: K,
+  value: number | undefined,
+): void => {
+  if (value !== undefined) p[key] = value;
+};
+
+function extractGpx(doc: Document): TrackPoint[] {
+  const points: TrackPoint[] = [];
+  for (const el of Array.from(doc.getElementsByTagName('trkpt'))) {
+    const time = Date.parse(childText(el, 'time') ?? '');
+    if (!Number.isFinite(time)) continue;
+    const p: TrackPoint = { time };
+    set(p, 'lat', num(el.getAttribute('lat')));
+    set(p, 'lon', num(el.getAttribute('lon')));
+    set(p, 'ele', num(childText(el, 'ele')));
+    set(p, 'hr', num(descText(el, 'hr')));
+    set(p, 'cad', num(descText(el, 'cad')));
+    set(p, 'watts', num(descText(el, 'power')));
+    set(p, 'speed', num(descText(el, 'speed')));
+    points.push(p);
+  }
+  return points;
+}
+
+function extractTcx(doc: Document, halveCadence: boolean): TrackPoint[] {
+  const points: TrackPoint[] = [];
+  for (const el of Array.from(doc.getElementsByTagName('Trackpoint'))) {
+    const time = Date.parse(childText(el, 'Time') ?? '');
+    if (!Number.isFinite(time)) continue;
+    const p: TrackPoint = { time };
+    set(p, 'lat', num(descText(el, 'LatitudeDegrees')));
+    set(p, 'lon', num(descText(el, 'LongitudeDegrees')));
+    set(p, 'ele', num(childText(el, 'AltitudeMeters')));
+    set(p, 'dist', num(childText(el, 'DistanceMeters')));
+    const hrEl = Array.from(el.children).find((c) => c.localName === 'HeartRateBpm');
+    set(p, 'hr', num(hrEl ? childText(hrEl, 'Value') : null));
+    const cad = num(childText(el, 'Cadence'));
+    set(p, 'cad', cad === undefined ? undefined : halveCadence ? cad / 2 : cad);
+    set(p, 'watts', num(descText(el, 'Watts')));
+    points.push(p);
+  }
+  return points;
+}
+
+/**
+ * GPX/TCX entry: detects the root, extracts to TrackPoint[] (the only
+ * format-specific code), and shares activityFromTrackPoints + buildActivity
+ * with every other source. Throws err.trackInvalid on anything else.
+ */
+export function parseActivityXml(text: string): Activity {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length > 0) {
+    throw new Error(t('err.trackInvalid'));
+  }
+  const root = doc.documentElement?.localName;
+  let points: TrackPoint[] | null = null;
+  if (root === 'gpx') {
+    points = extractGpx(doc);
+  } else if (root === 'TrainingCenterDatabase') {
+    // TCX running cadence counts both feet; cycling-style rpm halves it.
+    const sport = doc.getElementsByTagName('Activity')[0]?.getAttribute('Sport');
+    points = extractTcx(doc, sport === 'Running');
+  }
+  if (!points || points.length === 0) throw new Error(t('err.trackInvalid'));
+  return activityFromTrackPoints(points);
+}
+
 /** Provider streams as our API serves them: stream type -> data. */
 export type StreamSet = Record<string, unknown>;
 
@@ -106,6 +289,19 @@ export function parseActivityStart(wall: string, timeZone: string | null): Date 
   }
   const native = new Date(/([zZ]|[+-]\d{2}:?\d{2})$/.test(wall) ? wall : `${wall}Z`);
   return Number.isNaN(native.getTime()) ? null : native;
+}
+
+/**
+ * Shared tail of every source (FIT, intervals, GPX/TCX): derived grade plus
+ * duration from the last sample. Callers guarantee at least one sample.
+ */
+export function buildActivity(startTime: Date, samples: TelemetrySample[]): Activity {
+  fillDerivedGrade(samples);
+  return {
+    startTime,
+    durationSec: samples.length > 0 ? samples[samples.length - 1].t : 0,
+    samples,
+  };
 }
 
 export function activityFromIntervalsStreams(
@@ -159,8 +355,7 @@ export function activityFromIntervalsStreams(
     }
     return s;
   });
-  fillDerivedGrade(samples);
-  return { startTime: start, durationSec: time[time.length - 1], samples };
+  return buildActivity(start, samples);
 }
 
 function pickRecords(messages: Record<string, unknown>): RecordMesg[] {
@@ -206,13 +401,7 @@ export function parseFit(buffer: ArrayBuffer): Activity {
     return s;
   });
 
-  fillDerivedGrade(samples);
-
-  return {
-    startTime: records[0].timestamp as Date,
-    durationSec: samples[samples.length - 1].t,
-    samples,
-  };
+  return buildActivity(records[0].timestamp as Date, samples);
 }
 
 /**

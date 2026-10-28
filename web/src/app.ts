@@ -14,6 +14,7 @@ import {
 } from '@override-studio/shared';
 import {
   activityFromIntervalsStreams,
+  parseActivityXml,
   parseFit,
   sampleAt,
   summarize,
@@ -480,7 +481,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   fitDrop.setAttribute('tabindex', '0');
   const fitInput = el('input');
   fitInput.type = 'file';
-  fitInput.accept = '.fit';
+  fitInput.accept = '.fit,.gpx,.tcx';
   fitDrop.appendChild(fitInput);
   fitDrop.addEventListener('click', () => fitInput.click());
   fitDrop.addEventListener('keydown', (e) => {
@@ -2190,7 +2191,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   const loadFitBuffer = (buffer: ArrayBuffer, name: string): void => {
     try {
-      loadActivity(parseFit(buffer), name);
+      // One FIT loader, three formats: XML tracks share the telemetry builder.
+      const ext = name.toLowerCase().split('.').pop();
+      const act =
+        ext === 'gpx' || ext === 'tcx'
+          ? parseActivityXml(new TextDecoder().decode(buffer))
+          : parseFit(buffer);
+      loadActivity(act, name);
     } catch (err) {
       activity = null;
       fitPill.hidden = true;
