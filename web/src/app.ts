@@ -1737,6 +1737,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   const footer = el('p', 'muted');
   wrap.appendChild(footer);
+  const siteFooter = el('p', 'site-footer');
+  const guidesLink = el('a', 'btn btn-small', t('ftr.guides'));
+  guidesLink.href = getLocale() === 'es' ? '/es/' : '/en/';
+  siteFooter.appendChild(guidesLink);
+  wrap.appendChild(siteFooter);
   root.appendChild(wrap);
 
   const setStatus = (text: string): void => {

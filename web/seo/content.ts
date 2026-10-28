@@ -1,0 +1,852 @@
+/** SEO/GEO manifest: single source of truth for sitemap, hubs, guides and llms.txt.
+ *
+ * Pure data: no DOM access, safe to import from node builds and checks.
+ * Hub/guide copy lands here in later phases; the sitemap grows with it.
+ */
+import type { Locale } from '../src/i18n.js';
+
+export type { Locale };
+
+/** Canonical origin for sitemap, canonicals and llms.txt. Custom-domain switch: change this one const. */
+export const SEO_BASE_URL = 'https://override-studio.pages.dev';
+
+/** A page the sitemap must list. `builtBy` tells who emits the HTML. */
+export interface SitemapPage {
+  /** Site-relative path with leading and trailing slash, e.g. `/es/`. */
+  path: string;
+  builtBy: 'vite' | 'seo';
+}
+
+export interface Faq {
+  q: string;
+  a: string;
+}
+
+export interface HubCopy {
+  title: string;
+  description: string;
+  h1: string;
+  lede: string;
+  howTitle: string;
+  how: string[];
+  fmtTitle: string;
+  formats: string[];
+  privTitle: string;
+  priv: string[];
+  guidesTitle: string;
+  faqTitle: string;
+  faqs: Faq[];
+  ctaApp: string;
+  badge: string;
+  otherLocaleLabel: string;
+}
+
+export const HUB: Record<Locale, HubCopy> = {
+  es: {
+    title: 'Telemetría deportiva en tus videos: potencia, FC, GPS | override.studio',
+    description:
+      'Incrusta potencia, frecuencia cardíaca, velocidad y GPS de tu FIT en tus clips MP4/MOV. Render 100% local en tu navegador: nada se sube y tu privacidad queda intacta. Gratis y sin instalar nada.',
+    h1: 'Incrusta la telemetría de tu FIT en tus videos',
+    lede: 'override.studio sincroniza tu actividad con tus clips y dibuja potencia, FC, velocidad y mapa sobre el video. Todo se procesa en tu navegador: tus archivos nunca salen de tu equipo.',
+    howTitle: 'Cómo funciona',
+    how: [
+      'Agrega tus clips MP4 o MOV y tu archivo .FIT (o elige una actividad de Intervals.icu).',
+      'Sincroniza cada clip: el offset automático usa la fecha de grabación del video y afinas con ← / →.',
+      'Elige una plantilla, coloca los widgets y renderiza. El video se guarda directo en tu disco.',
+    ],
+    fmtTitle: 'Formatos y compatibilidad',
+    formats: [
+      'Video: MP4 y MOV con H.264. El HEVC de iPhone no decodifica en Chrome: conviértelo a H.264 primero.',
+      'Telemetría: archivos .FIT con registros y marca temporal (Garmin y compatibles) o actividades de Intervals.icu.',
+      'Navegadores: Chrome y Edge en computadora y Android. Safari y iOS no tienen WebCodecs y no están soportados.',
+      'Plantillas: 18 incluidas en 13 tipos de widget; crea las tuyas y expórtalas como JSON.',
+    ],
+    privTitle: 'Privado por diseño',
+    priv: [
+      'El render es 100% local con WebCodecs: video y FIT no se suben a ningún servidor.',
+      'La cuenta es opcional: solo guarda tus plantillas en la nube y tu clave de Intervals.icu.',
+    ],
+    guidesTitle: 'Guías',
+    faqTitle: 'Preguntas frecuentes',
+    faqs: [
+      {
+        q: '¿Qué es override.studio?',
+        a: 'Un editor web que incrusta telemetría deportiva (potencia, frecuencia cardíaca, velocidad, GPS) de tu archivo .FIT en tus clips MP4/MOV, con plantillas y widgets configurables.',
+      },
+      {
+        q: '¿Tengo que subir mis videos a algún servidor?',
+        a: 'No. El render ocurre íntegramente en tu navegador con WebCodecs: ni el video ni el FIT salen de tu equipo.',
+      },
+      {
+        q: '¿Qué archivos acepta?',
+        a: 'Videos MP4 y MOV codificados en H.264, y telemetría en formato .FIT con registros y marca temporal. También puedes traer actividades desde Intervals.icu con tu clave API.',
+      },
+      {
+        q: '¿Cómo sincroniza el video con la actividad?',
+        a: 'Lee la fecha de grabación del video, calcula el offset contra el inicio del FIT y te deja afinar con las flechas (0.1 s, o 0.5 s con Mayús) o arrastrando sobre la vista de actividad.',
+      },
+      {
+        q: '¿Funciona en mi navegador?',
+        a: 'En Chrome y Edge, en computadora y Android. Safari y todos los navegadores en iPhone/iPad no soportan WebCodecs, así que la app detecta el caso y te lo indica.',
+      },
+      {
+        q: '¿Necesito crearme una cuenta?',
+        a: 'No. La app funciona sin cuenta. Si te registras, tus plantillas se guardan en la nube y puedes conectar Intervals.icu.',
+      },
+      {
+        q: '¿Mis videos de iPhone sirven?',
+        a: 'Si están en HEVC, Chrome no puede decodificarlos: conviértelos a H.264 antes de cargarlos. La app te avisa cuando un video no decodifica.',
+      },
+      {
+        q: '¿Puedo crear mis propias plantillas?',
+        a: 'Sí. Parte de una de las 18 incluidas, agrega, mueve y redimensiona widgets, y exporta tu plantilla como JSON para reutilizarla o compartirla.',
+      },
+      {
+        q: '¿Qué es Intervals.icu aquí?',
+        a: 'Una fuente opcional de telemetría: pegas tu clave API personal y eliges actividades sin pasar por archivos .FIT. La clave se guarda cifrada en tu cuenta.',
+      },
+      {
+        q: '¿Por qué no hay conexión con Strava?',
+        a: 'Este es un proyecto pequeño y los límites de Strava no encajan: las apps nuevas solo acceden a su propio autor, exigen revisión para crecer y las cuotas de API no dan para muchos usuarios. Con archivos .FIT o Intervals.icu por clave personal tienes la misma telemetría sin esos techos.',
+      },
+      {
+        q: '¿Por qué no puedo entrar con mi cuenta de Garmin?',
+        a: 'Garmin no ofrece un “entrar con Garmin” autogestionado: el acceso a datos pasa por su programa de desarrolladores, con solicitud y revisión pensadas para empresas. Como proyecto pequeño, la vía práctica es la misma: descarga el .FIT desde Garmin Connect o sincroniza vía Intervals.icu.',
+      },
+      {
+        q: '¿Dónde se guardan mis plantillas?',
+        a: 'En tu navegador por defecto. Con cuenta, también en la nube, y las recuperas en cualquier equipo.',
+      },
+    ],
+    ctaApp: 'Abrir la app',
+    badge: 'render 100% local',
+    otherLocaleLabel: 'English',
+  },
+  en: {
+    title: 'Sports telemetry on your videos: power, HR, GPS | override.studio',
+    description:
+      'Overlay power, heart rate, speed and GPS from your FIT onto MP4/MOV clips. 100% local render in your browser: nothing is uploaded, your privacy stays intact. Free, no install.',
+    h1: 'Overlay your FIT telemetry on your videos',
+    lede: 'override.studio syncs your activity with your clips and draws power, HR, speed and map over the video. Everything renders in your browser: your files never leave your machine.',
+    howTitle: 'How it works',
+    how: [
+      'Add your MP4 or MOV clips and your .FIT file (or pick an activity from Intervals.icu).',
+      'Sync each clip: auto offset uses the video recording date, then nudge with ← / →.',
+      'Pick a template, place the widgets and render. The video saves straight to your disk.',
+    ],
+    fmtTitle: 'Formats and compatibility',
+    formats: [
+      'Video: MP4 and MOV in H.264. iPhone HEVC does not decode in Chrome: convert to H.264 first.',
+      'Telemetry: .FIT files with timestamped records (Garmin and compatibles) or Intervals.icu activities.',
+      'Browsers: Chrome and Edge on desktop and Android. Safari and iOS lack WebCodecs and are not supported.',
+      'Templates: 18 included across 13 widget kinds; build your own and export them as JSON.',
+    ],
+    privTitle: 'Private by design',
+    priv: [
+      'Rendering is 100% local with WebCodecs: video and FIT are never uploaded anywhere.',
+      'An account is optional: it only stores your templates in the cloud and your Intervals.icu key.',
+    ],
+    guidesTitle: 'Guides',
+    faqTitle: 'Frequently asked questions',
+    faqs: [
+      {
+        q: 'What is override.studio?',
+        a: 'A web editor that overlays sports telemetry (power, heart rate, speed, GPS) from your .FIT file onto MP4/MOV clips, with configurable templates and widgets.',
+      },
+      {
+        q: 'Do I have to upload my videos to a server?',
+        a: 'No. Rendering happens entirely in your browser with WebCodecs: neither the video nor the FIT leaves your machine.',
+      },
+      {
+        q: 'Which files does it accept?',
+        a: 'MP4 and MOV video encoded in H.264, and telemetry in .FIT format with timestamped records. You can also pull activities from Intervals.icu with your API key.',
+      },
+      {
+        q: 'How does it sync the video with the activity?',
+        a: 'It reads the video recording date, computes the offset against the FIT start, and lets you nudge with the arrow keys (0.1 s, or 0.5 s with Shift) or by dragging over the activity view.',
+      },
+      {
+        q: 'Does it work in my browser?',
+        a: 'In Chrome and Edge, on desktop and Android. Safari and every browser on iPhone/iPad lack WebCodecs, so the app detects that case and tells you.',
+      },
+      {
+        q: 'Do I need an account?',
+        a: 'No. The app works without one. If you register, your templates are stored in the cloud and you can connect Intervals.icu.',
+      },
+      {
+        q: 'Do my iPhone videos work?',
+        a: 'If they are HEVC, Chrome cannot decode them: convert to H.264 before loading. The app warns you when a video fails to decode.',
+      },
+      {
+        q: 'Can I build my own templates?',
+        a: 'Yes. Start from one of the 18 included, add, move and resize widgets, and export your template as JSON to reuse or share it.',
+      },
+      {
+        q: 'What is Intervals.icu here?',
+        a: 'An optional telemetry source: paste your personal API key and pick activities without .FIT files. The key is stored encrypted on your account.',
+      },
+      {
+        q: 'Why is there no Strava connection?',
+        a: 'This is a small project and Strava’s limits don’t fit: new apps can only access their own author, require review to grow, and the API quotas can’t sync many users. With .FIT files or Intervals.icu via personal API key you get the same telemetry without those ceilings.',
+      },
+      {
+        q: 'Why can’t I sign in with my Garmin account?',
+        a: 'Garmin offers no self-service “sign in with Garmin”: data access goes through their developer program, with an application and review aimed at companies. As a small project, the practical path is the same: download the .FIT from Garmin Connect or sync via Intervals.icu.',
+      },
+      {
+        q: 'Where are my templates stored?',
+        a: 'In your browser by default. With an account, also in the cloud, and you get them back on any machine.',
+      },
+    ],
+    ctaApp: 'Open the app',
+    badge: '100% local render',
+    otherLocaleLabel: 'Español',
+  },
+};
+
+export const hubPath = (locale: Locale): string => `/${locale}/`;
+
+export interface GuideSection {
+  h2: string;
+  paragraphs: string[];
+}
+
+export interface GuideStep {
+  name: string;
+  text: string;
+}
+
+export interface GuideCopy {
+  title: string;
+  description: string;
+  h1: string;
+  lede: string;
+  sections: GuideSection[];
+  stepsTitle: string;
+  steps: GuideStep[];
+  tipsTitle: string;
+  tips: string[];
+  backLabel: string;
+  ctaApp: string;
+}
+
+export interface GuideEntry {
+  slug: Record<Locale, string>;
+  dir: Record<Locale, string>;
+  copy: Record<Locale, GuideCopy>;
+}
+
+export const GUIDES: GuideEntry[] = [
+  {
+    slug: { es: 'sincronizar-fit-con-video', en: 'sync-fit-with-video' },
+    dir: { es: 'guias', en: 'guides' },
+    copy: {
+      es: {
+        title: 'Cómo sincronizar tu FIT con tu video (GoPro, iPhone) | override.studio',
+        description:
+          'Sincroniza tu archivo .FIT con tus clips MP4/MOV: offset automático por fecha de grabación, zona horaria por clip y ajuste fino. Guía paso a paso.',
+        h1: 'Sincroniza tu FIT con tu video',
+        lede: 'La sincronía es el corazón del overlay: cada frame debe mostrar el dato del segundo exacto. override.studio propone un offset automático y te deja afinarlo a mano.',
+        sections: [
+          {
+            h2: 'Cómo funciona el offset',
+            paragraphs: [
+              'Cada clip tiene un offset en segundos que desplaza la telemetría respecto al video. Si tu video empezó 90 segundos después del inicio de la actividad, el offset es +90 s.',
+              'El botón Auto calcula ese offset restando el inicio del FIT a la fecha de grabación del video. Por eso la fecha del archivo y la zona horaria importan: si la zona está mal, el offset nace desplazado horas enteras.',
+            ],
+          },
+          {
+            h2: 'Antes de empezar',
+            paragraphs: [
+              'Carga primero el FIT: sin actividad no hay nada contra qué sincronizar. Revisa que el clip tenga fecha de grabación (el panel Clip la muestra); sin fecha, tendrás que posicionar el clip a mano sobre la vista de actividad.',
+              'Si tu video es HEVC de iPhone, conviértelo a H.264 antes: Chrome no puede decodificarlo.',
+            ],
+          },
+        ],
+        stepsTitle: 'Pasos',
+        steps: [
+          {
+            name: 'Carga el FIT',
+            text: 'Arrastra tu .FIT a la zona de actividad o haz clic para elegirlo. Verás el resumen (duración, distancia, muestras) y la gráfica de la actividad.',
+          },
+          {
+            name: 'Agrega el clip',
+            text: 'Agrega tu MP4 o MOV. El panel Clip muestra su hora de grabación y la zona horaria con que se interpreta.',
+          },
+          {
+            name: 'Fija la zona horaria',
+            text: 'Elige la zona donde grabaste el video. La app la aplica por clip: viajar con la cámara en otra zona no rompe el resto del proyecto.',
+          },
+          {
+            name: 'Pulsa Auto',
+            text: 'El botón Auto calcula el offset desde la fecha del video y el inicio del FIT. El estado te muestra el cálculo (video − FIT) para verificarlo.',
+          },
+          {
+            name: 'Afina a mano',
+            text: 'Con el clip seleccionado, usa ← / → para mover 0.1 s (0.5 s con Mayús) hasta que un esfuerzo visible —un sprint, una curva— coincida con el dato.',
+          },
+          {
+            name: 'Verifica en la previsualización',
+            text: 'Reproduce el clip con la plantilla aplicada: el número debe cambiar al ritmo del video. Repite por cada clip; cada uno guarda su propio offset.',
+          },
+        ],
+        tipsTitle: 'Consejos',
+        tips: [
+          'Sin fecha de grabación, arrastra sobre la vista de actividad para posicionar el clip a ojo y luego afina con las flechas.',
+          'Un sprint o un puerto reconocible es el mejor punto de referencia para afinar.',
+          'La zona horaria no tiene efecto si el clip no trae fecha: la app te lo indica.',
+        ],
+        backLabel: '← Guías',
+        ctaApp: 'Abrir la app',
+      },
+      en: {
+        title: 'How to sync your FIT with your video (GoPro, iPhone) | override.studio',
+        description:
+          'Sync your .FIT file with MP4/MOV clips: automatic offset from the recording date, per-clip time zone and fine nudging. Step-by-step guide.',
+        h1: 'Sync your FIT with your video',
+        lede: 'Sync is the heart of the overlay: every frame must show the data of the exact second. override.studio proposes an automatic offset and lets you fine-tune it by hand.',
+        sections: [
+          {
+            h2: 'How the offset works',
+            paragraphs: [
+              'Each clip has an offset in seconds that shifts telemetry relative to the video. If your video started 90 seconds into the activity, the offset is +90 s.',
+              'The Auto button computes that offset by subtracting the FIT start from the video recording date. That is why the file date and time zone matter: with the wrong zone, the offset is born hours off.',
+            ],
+          },
+          {
+            h2: 'Before you start',
+            paragraphs: [
+              'Load the FIT first: without an activity there is nothing to sync against. Check the clip carries a recording date (the Clip panel shows it); without one, you must place the clip by hand over the activity view.',
+              'If your video is iPhone HEVC, convert it to H.264 first: Chrome cannot decode it.',
+            ],
+          },
+        ],
+        stepsTitle: 'Steps',
+        steps: [
+          {
+            name: 'Load the FIT',
+            text: 'Drag your .FIT onto the activity area or click to pick it. You will see the summary (duration, distance, samples) and the activity chart.',
+          },
+          {
+            name: 'Add the clip',
+            text: 'Add your MP4 or MOV. The Clip panel shows its recording time and the time zone used to interpret it.',
+          },
+          {
+            name: 'Set the time zone',
+            text: 'Pick the zone where you recorded. The app applies it per clip: travelling with the camera in another zone does not break the rest.',
+          },
+          {
+            name: 'Press Auto',
+            text: 'The Auto button computes the offset from the video date and the FIT start. The status line shows the math (video − FIT) so you can verify it.',
+          },
+          {
+            name: 'Nudge by hand',
+            text: 'With the clip selected, use ← / → to move 0.1 s (0.5 s with Shift) until a visible effort —a sprint, a corner— matches the data.',
+          },
+          {
+            name: 'Check the preview',
+            text: 'Play the clip with the template on: numbers must move with the video. Repeat per clip; each keeps its own offset.',
+          },
+        ],
+        tipsTitle: 'Tips',
+        tips: [
+          'Without a recording date, drag over the activity view to place the clip by eye, then nudge with the arrows.',
+          'A recognizable sprint or climb is the best landmark for fine-tuning.',
+          'The time zone has no effect when the clip has no date: the app tells you.',
+        ],
+        backLabel: '← Guides',
+        ctaApp: 'Open the app',
+      },
+    },
+  },
+  {
+    slug: { es: 'overlay-potencia-fc-velocidad-gps', en: 'power-hr-speed-gps-overlay' },
+    dir: { es: 'guias', en: 'guides' },
+    copy: {
+      es: {
+        title: 'Overlay de potencia, FC, velocidad y GPS en tu video | override.studio',
+        description:
+          'Dibuja potencia, frecuencia cardíaca, velocidad y mapa GPS sobre tus clips: 18 plantillas, 13 tipos de widget y personalización total. Guía paso a paso.',
+        h1: 'Pon potencia, FC, velocidad y GPS sobre tu video',
+        lede: 'Los widgets leen tu FIT segundo a segundo y se dibujan sobre cada frame al renderizar. Elige una plantilla lista o construye la tuya.',
+        sections: [
+          {
+            h2: 'Plantillas y widgets',
+            paragraphs: [
+              'Hay 18 plantillas incluidas y 13 tipos de widget: dato, número grande, arco, velocímetro, anillo, inclinómetro, desarrollos, minigráfico de 30 s, perfil, VAM, mapa de ruta, navegación y brújula.',
+              'Cada widget muestra una métrica (velocidad, FC, potencia, cadencia, altitud, distancia, tiempo, pendiente, VAM, desarrollos) y se puede mover, redimensionar, dar forma de rectángulo o píldora, y teñir con acento y fondo.',
+            ],
+          },
+          {
+            h2: 'Mapa y GPS',
+            paragraphs: [
+              'Los widgets de mapa dibujan tu ruta con el trazado recorrido hasta el segundo actual; el grosor de línea es ajustable. Necesitan que el FIT traiga posiciones GPS.',
+              'Si tu actividad es de rodillo sin GPS, el mapa sale vacío: usa widgets de dato en su lugar.',
+            ],
+          },
+        ],
+        stepsTitle: 'Pasos',
+        steps: [
+          {
+            name: 'Elige una plantilla',
+            text: 'En el panel Plantilla, recorre la tira y elige la que encaje con tu video. La previsualización la aplica al instante.',
+          },
+          {
+            name: 'Agrega widgets',
+            text: 'Con “Agregar widget”, elige tipo y métrica. Aparece sobre la previsualización listo para colocar.',
+          },
+          {
+            name: 'Coloca y dimensiona',
+            text: 'Arrastra el widget para moverlo y tira de su esquina azul para redimensionarlo. Doble clic restablece posición y tamaño.',
+          },
+          {
+            name: 'Ajusta el estilo',
+            text: 'En el panel Widget cambia fondo, opacidad, forma, acento, texto y tipografías de etiqueta y número.',
+          },
+          {
+            name: 'Elimina lo que sobre',
+            text: 'Clic derecho sobre un widget (mantén presionado en táctil) para quitarlo. “Restablecer widgets” recupera la plantilla original.',
+          },
+          {
+            name: 'Guarda tu plantilla',
+            text: 'Exporta tu plantilla como JSON para reutilizarla, o créala desde cero con “Nueva plantilla”. Con cuenta, se guarda en la nube.',
+          },
+        ],
+        tipsTitle: 'Consejos',
+        tips: [
+          'Menos es más: 2–4 widgets bien colocados se leen mejor que ocho amontonados.',
+          'El minigráfico de 30 s cuenta la historia del esfuerzo mejor que un número solo.',
+          'Prueba la plantilla en un clip vertical y uno horizontal: cada aspecto guarda su propio layout.',
+        ],
+        backLabel: '← Guías',
+        ctaApp: 'Abrir la app',
+      },
+      en: {
+        title: 'Power, HR, speed and GPS overlay on your video | override.studio',
+        description:
+          'Draw power, heart rate, speed and GPS map over your clips: 18 templates, 13 widget kinds, full styling. Step-by-step guide.',
+        h1: 'Put power, HR, speed and GPS on your video',
+        lede: 'Widgets read your FIT second by second and draw over every frame at render. Pick a ready template or build your own.',
+        sections: [
+          {
+            h2: 'Templates and widgets',
+            paragraphs: [
+              'There are 18 included templates and 13 widget kinds: value, big number, arc, speedometer, ring, inclinometer, gears, 30 s sparkline, profile, VAM, route map, navigation and compass.',
+              'Each widget shows one metric (speed, HR, power, cadence, elevation, distance, time, grade, VAM, gears) and can be moved, resized, shaped as rectangle or pill, and tinted with accent and background.',
+            ],
+          },
+          {
+            h2: 'Map and GPS',
+            paragraphs: [
+              'Map widgets draw your route with the track covered up to the current second; line width is adjustable. They need GPS positions in the FIT.',
+              'If your activity is an indoor ride without GPS, the map renders empty: use value widgets instead.',
+            ],
+          },
+        ],
+        stepsTitle: 'Steps',
+        steps: [
+          {
+            name: 'Pick a template',
+            text: 'In the Template panel, browse the strip and pick one that fits your video. The preview applies it instantly.',
+          },
+          {
+            name: 'Add widgets',
+            text: 'With “Add widget”, choose kind and metric. It lands on the preview ready to place.',
+          },
+          {
+            name: 'Place and size',
+            text: 'Drag the widget to move it and pull its blue corner to resize. Double-click resets position and size.',
+          },
+          {
+            name: 'Style it',
+            text: 'In the Widget panel change background, opacity, shape, accent, text and label/number fonts.',
+          },
+          {
+            name: 'Remove the excess',
+            text: 'Right-click a widget (touch and hold on touch) to delete it. “Reset widgets” restores the original template.',
+          },
+          {
+            name: 'Save your template',
+            text: 'Export your template as JSON to reuse it, or start from scratch with “New template”. With an account, it is stored in the cloud.',
+          },
+        ],
+        tipsTitle: 'Tips',
+        tips: [
+          'Less is more: 2–4 well-placed widgets read better than eight crowded ones.',
+          'The 30 s sparkline tells the effort story better than a lone number.',
+          'Try the template on a vertical and a horizontal clip: each aspect keeps its own layout.',
+        ],
+        backLabel: '← Guides',
+        ctaApp: 'Open the app',
+      },
+    },
+  },
+  {
+    slug: { es: 'exportar-video-telemetria', en: 'export-video-with-telemetry' },
+    dir: { es: 'guias', en: 'guides' },
+    copy: {
+      es: {
+        title: 'Cómo exportar tu video con telemetría (MP4) | override.studio',
+        description:
+          'Renderiza tus clips con el overlay de telemetría y guarda el MP4 directo en tu disco. Recorte, audio, render en memoria y consejos de calidad.',
+        h1: 'Renderiza y exporta tu video con telemetría',
+        lede: 'El render dibuja los widgets sobre cada frame y produce un MP4 listo para compartir. Todo ocurre en tu navegador.',
+        sections: [
+          {
+            h2: 'Recorte y audio',
+            paragraphs: [
+              'Cada clip tiene inicio y fin: recorta antes de renderizar para no procesar de más. El fin debe ser mayor que el inicio o el render se niega con un aviso.',
+              '“Incluir audio” conserva el sonido original del clip en el MP4 exportado.',
+            ],
+          },
+          {
+            h2: 'Dónde se guarda',
+            paragraphs: [
+              'Si tu navegador lo permite, el video se escribe directo a disco mientras se renderiza (eliges la carpeta una vez). Si no, se mantiene en memoria: funciona, pero con videos largos o en alta resolución puede fallar por falta de memoria.',
+              'Renderiza por clips (“Renderizar clip”) o todo el proyecto (“Renderizar todo”) según prefieras.',
+            ],
+          },
+        ],
+        stepsTitle: 'Pasos',
+        steps: [
+          {
+            name: 'Recorta el clip',
+            text: 'Fija inicio y fin en el panel Clip. Usa los botones de cursor para llevar los bordes al punto exacto del video.',
+          },
+          {
+            name: 'Decide el audio',
+            text: 'Activa “Incluir audio” si quieres conservar el sonido ambiente o tus comentarios.',
+          },
+          {
+            name: 'Comprueba la plantilla',
+            text: 'Reproduce unos segundos: widgets visibles, números cambiando al ritmo del esfuerzo.',
+          },
+          {
+            name: 'Renderiza',
+            text: 'Pulsa “Renderizar clip” (o “Renderizar todo”). La barra muestra el progreso frame a frame.',
+          },
+          {
+            name: 'Guarda el MP4',
+            text: 'Con guardado a disco, el archivo aparece en tu carpeta al terminar. En memoria, la app te ofrece la descarga.',
+          },
+        ],
+        tipsTitle: 'Consejos',
+        tips: [
+          'Para YouTube o redes, renderiza el definitivo al final: cada render reprocesa todos los frames.',
+          'Si un render en memoria falla, prueba con un recorte más corto o menor resolución.',
+          'Verifica un render completo antes de lanzar “Renderizar todo” con muchos clips.',
+        ],
+        backLabel: '← Guías',
+        ctaApp: 'Abrir la app',
+      },
+      en: {
+        title: 'How to export your video with telemetry (MP4) | override.studio',
+        description:
+          'Render clips with the telemetry overlay and save the MP4 straight to disk. Trimming, audio, in-memory render and quality tips.',
+        h1: 'Render and export your video with telemetry',
+        lede: 'Rendering draws the widgets over every frame and produces an MP4 ready to share. It all happens in your browser.',
+        sections: [
+          {
+            h2: 'Trim and audio',
+            paragraphs: [
+              'Each clip has a start and end: trim before rendering so you process no more than needed. The end must be after the start or the render refuses with a notice.',
+              '“Include audio” keeps the original clip sound in the exported MP4.',
+            ],
+          },
+          {
+            h2: 'Where it saves',
+            paragraphs: [
+              'When the browser allows it, the video writes straight to disk while rendering (pick the folder once). Otherwise it stays in memory: it works, but long or high-resolution videos may run out of memory.',
+              'Render per clip (“Render clip”) or the whole project (“Render all”) as you prefer.',
+            ],
+          },
+        ],
+        stepsTitle: 'Steps',
+        steps: [
+          {
+            name: 'Trim the clip',
+            text: 'Set start and end in the Clip panel. Use the cursor buttons to snap edges to the exact video point.',
+          },
+          {
+            name: 'Decide on audio',
+            text: 'Enable “Include audio” to keep ambience or your commentary.',
+          },
+          {
+            name: 'Check the template',
+            text: 'Play a few seconds: widgets visible, numbers moving with the effort.',
+          },
+          {
+            name: 'Render',
+            text: 'Press “Render clip” (or “Render all”). The bar shows frame-by-frame progress.',
+          },
+          {
+            name: 'Save the MP4',
+            text: 'With disk saving, the file lands in your folder when done. In memory, the app offers the download.',
+          },
+        ],
+        tipsTitle: 'Tips',
+        tips: [
+          'For YouTube or social, render the final cut last: every render reprocesses all frames.',
+          'If an in-memory render fails, try a shorter trim or lower resolution.',
+          'Verify one full render before launching “Render all” on many clips.',
+        ],
+        backLabel: '← Guides',
+        ctaApp: 'Open the app',
+      },
+    },
+  },
+  {
+    slug: { es: 'intervals-icu-como-fuente', en: 'intervals-icu-as-source' },
+    dir: { es: 'guias', en: 'guides' },
+    copy: {
+      es: {
+        title: 'Usar Intervals.icu como fuente de telemetría | override.studio',
+        description:
+          'Conecta Intervals.icu con tu clave API y elige actividades sin archivos .FIT: lista, ventanas de 30 días y streams por segundo.',
+        h1: 'Trae tu telemetría desde Intervals.icu',
+        lede: 'Si tus actividades viven en Intervals.icu, no necesitas descargar .FIT: conecta tu clave API personal y elige la actividad dentro de la app.',
+        sections: [
+          {
+            h2: 'Cómo se conecta',
+            paragraphs: [
+              'Necesitas cuenta en override.studio y tu clave API personal, que está al final de tu página de ajustes en Intervals.icu. La app la valida contra tu atleta antes de guardarla.',
+              'La clave se guarda cifrada ligada a tu cuenta y solo se usa para pedir tus actividades y sus streams. Puedes olvidarla cuando quieras con “Desconectar”.',
+            ],
+          },
+          {
+            h2: 'Qué trae cada actividad',
+            paragraphs: [
+              'La lista muestra tus actividades en ventanas de 30 días (hasta 12 páginas atrás). Al elegir una, la app descarga sus streams por segundo: potencia, FC, velocidad, GPS y demás.',
+              'La hora de inicio se interpreta con la zona horaria de la actividad, igual que un FIT local: la sincronía con el video funciona igual.',
+            ],
+          },
+        ],
+        stepsTitle: 'Pasos',
+        steps: [
+          {
+            name: 'Inicia sesión',
+            text: 'Entra a tu cuenta (o créala): la conexión con Intervals.icu vive ligada a tu usuario.',
+          },
+          {
+            name: 'Abre “Elegir de Intervals”',
+            text: 'Junto a la zona de FIT verás el botón para elegir desde Intervals.icu.',
+          },
+          {
+            name: 'Pega tu clave API',
+            text: 'Copia tu clave personal desde el final de tus ajustes en Intervals.icu y pégala. La app la valida al momento.',
+          },
+          {
+            name: 'Elige la actividad',
+            text: 'Navega las ventanas de 30 días con Anterior/Siguiente y elige tu salida.',
+          },
+          {
+            name: 'Sincroniza y renderiza',
+            text: 'Desde aquí todo es igual que con un FIT: sincroniza el clip, elige plantilla y renderiza.',
+          },
+        ],
+        tipsTitle: 'Consejos',
+        tips: [
+          'Si cambias tu clave en Intervals.icu, la guardada deja de funcionar: la app te pedirá pegarla de nuevo.',
+          'Sin GPS (rodillo), los widgets de mapa salen vacíos: usa datos numéricos.',
+          '“Desconectar” olvida tu clave del servidor pero conserva tus plantillas.',
+        ],
+        backLabel: '← Guías',
+        ctaApp: 'Abrir la app',
+      },
+      en: {
+        title: 'Using Intervals.icu as a telemetry source | override.studio',
+        description:
+          'Connect Intervals.icu with your API key and pick activities without .FIT files: listing, 30-day windows and per-second streams.',
+        h1: 'Pull your telemetry from Intervals.icu',
+        lede: 'If your activities live in Intervals.icu, skip downloading .FIT files: connect your personal API key and pick the activity inside the app.',
+        sections: [
+          {
+            h2: 'How it connects',
+            paragraphs: [
+              'You need an override.studio account and your personal API key, at the bottom of your Intervals.icu settings page. The app validates it against your athlete before storing it.',
+              'The key is stored encrypted on your account and only fetches your activities and their streams. You can forget it anytime with “Disconnect”.',
+            ],
+          },
+          {
+            h2: 'What each activity brings',
+            paragraphs: [
+              'The list shows your activities in 30-day windows (up to 12 pages back). Picking one downloads its per-second streams: power, HR, speed, GPS and more.',
+              'Start time is interpreted with the activity time zone, just like a local FIT: syncing with video works the same.',
+            ],
+          },
+        ],
+        stepsTitle: 'Steps',
+        steps: [
+          {
+            name: 'Sign in',
+            text: 'Sign in to your account (or create it): the Intervals.icu connection lives on your user.',
+          },
+          {
+            name: 'Open “Pick from Intervals”',
+            text: 'Next to the FIT area you will find the button to pick from Intervals.icu.',
+          },
+          {
+            name: 'Paste your API key',
+            text: 'Copy your personal key from the bottom of your Intervals.icu settings and paste it. The app validates it on the spot.',
+          },
+          {
+            name: 'Pick the activity',
+            text: 'Browse the 30-day windows with Previous/Next and pick your workout.',
+          },
+          {
+            name: 'Sync and render',
+            text: 'From here everything matches the FIT flow: sync the clip, pick a template, render.',
+          },
+        ],
+        tipsTitle: 'Tips',
+        tips: [
+          'If you rotate your Intervals.icu key, the stored one stops working: the app will ask you to paste it again.',
+          'Without GPS (indoor), map widgets render empty: use numeric data.',
+          '“Disconnect” forgets your key on the server but keeps your templates.',
+        ],
+        backLabel: '← Guides',
+        ctaApp: 'Open the app',
+      },
+    },
+  },
+  {
+    slug: { es: 'alternativas-dashware-virb-edit', en: 'dashware-virb-edit-alternatives' },
+    dir: { es: 'guias', en: 'guides' },
+    copy: {
+      es: {
+        title: 'Alternativas a Dashware y VIRB Edit (gratis y de pago) | override.studio',
+        description:
+          'Dashware y VIRB Edit están descontinuados. Compara las alternativas activas: Telemetry Overlay, OVRLEY, RaceRender y override.studio, gratis y en tu navegador.',
+        h1: 'Alternativas a Dashware y VIRB Edit',
+        lede: 'Los dos gigantes gratuitos del overlay de telemetría dejaron de desarrollarse. Esto es lo que queda en pie —de pago, gratis y open source— y para quién es cada opción.',
+        sections: [
+          {
+            h2: 'Qué pasó con Dashware y VIRB Edit',
+            paragraphs: [
+              'Dashware dejó de desarrollarse hace años (GoPro lo congeló) y cada vez falla más en sistemas modernos. VIRB Edit, el editor gratuito de Garmin, también está descontinuado y siempre estuvo atado a su ecosistema.',
+              'Si vienes de alguno de los dos, tus archivos .FIT siguen valiendo: el formato no cambió y todas las alternativas de abajo los leen. Lo que cambia es la app.',
+            ],
+          },
+          {
+            h2: 'Qué queda en pie',
+            paragraphs: [
+              'Telemetry Overlay (unos $30, solo Windows) es la referencia comercial: la personalización más profunda, mantenida por un solo desarrollador. OVRLEY es gratis y open source, pero de escritorio (Windows, macOS, Linux), con más de 40 widgets. RaceRender (unos $59) está estancado y enfocado en motor. GPXrender y gpx2video cubren nichos (macOS/Linux).',
+              'Todas exigen descargar e instalar. Ninguna funciona en el navegador.',
+            ],
+          },
+          {
+            h2: 'Dónde encaja override.studio',
+            paragraphs: [
+              'Es la única opción que corre en el navegador: sin instalar, en cualquier sistema con Chrome o Edge. Gratis y open source (MIT), con FIT nativo, Intervals.icu, 18 plantillas y 13 tipos de widget.',
+              'Sus límites, con honestidad: aún no lee GPX/TCX ni telemetría embebida en el MP4 (GPMF de GoPro, SRT de DJI), y exporta el MP4 final, no un overlay transparente para tu NLE. Si necesitas eso, Telemetry Overlay u OVRLEY te sirven mejor.',
+            ],
+          },
+        ],
+        stepsTitle: 'Cómo migrar en 5 pasos',
+        steps: [
+          {
+            name: 'Rescata tus .FIT',
+            text: 'Tus actividades valen igual: reúne los .FIT que usabas en Dashware o VIRB Edit. No hay que convertir nada.',
+          },
+          {
+            name: 'Abre la app, sin instalar',
+            text: 'Abre la app en Chrome o Edge, en computadora o Android. Sin instalador y sin cuenta obligatoria.',
+          },
+          {
+            name: 'Carga y sincroniza un clip de prueba',
+            text: 'Sube un FIT y un MP4/MOV en H.264, usa el offset automático y afina con ← / → hasta que dato y video coincidan.',
+          },
+          {
+            name: 'Elige tu plantilla',
+            text: 'Recorre las 18 incluidas hasta encontrar un estilo parecido al que usabas; luego muévela a tu gusto y expórtala como JSON.',
+          },
+          {
+            name: 'Renderiza y compara',
+            text: 'Renderiza ese primer clip y míralo junto a uno viejo: mismos datos, nuevo motor. A partir de ahí, todo tu flujo vive en el navegador.',
+          },
+        ],
+        tipsTitle: 'Consejos',
+        tips: [
+          'Si tu flujo dependía de GPX o TCX, esta app aún no los lee: OVRLEY o Cyclemetry son mejor destino.',
+          'Si componías el overlay transparente en DaVinci o Premiere, aquí el render es el MP4 final: ajusta la plantilla antes, no después.',
+          'Los videos HEVC de iPhone hay que convertirlos a H.264 primero, igual que antes.',
+        ],
+        backLabel: '← Guías',
+        ctaApp: 'Abrir la app',
+      },
+      en: {
+        title: 'Dashware & VIRB Edit alternatives (free and paid) | override.studio',
+        description:
+          'Dashware and VIRB Edit are discontinued. Compare the active alternatives: Telemetry Overlay, OVRLEY, RaceRender and override.studio, free in your browser.',
+        h1: 'Dashware & VIRB Edit alternatives',
+        lede: 'The two free giants of telemetry overlay stopped development. Here is what is left standing —paid, free and open source— and who each option fits.',
+        sections: [
+          {
+            h2: 'What happened to Dashware and VIRB Edit',
+            paragraphs: [
+              'Dashware stopped development years ago (GoPro froze it) and breaks more with every modern system. VIRB Edit, Garmin’s free editor, is discontinued too and was always tied to its ecosystem.',
+              'If you come from either, your .FIT files still count: the format did not change and every alternative below reads them. What changes is the app.',
+            ],
+          },
+          {
+            h2: 'What is left standing',
+            paragraphs: [
+              'Telemetry Overlay (about $30, Windows-only) is the commercial reference: the deepest customization, maintained by a single developer. OVRLEY is free and open source, but desktop (Windows, macOS, Linux) with 40+ widgets. RaceRender (about $59) is stalled and motorsport-focused. GPXrender and gpx2video cover niches (macOS/Linux).',
+              'All of them require download and install. None runs in the browser.',
+            ],
+          },
+          {
+            h2: 'Where override.studio fits',
+            paragraphs: [
+              'It is the only option running in the browser: no install, on any system with Chrome or Edge. Free and open source (MIT), with native FIT, Intervals.icu, 18 templates and 13 widget kinds.',
+              'Its limits, honestly: it does not read GPX/TCX yet, nor telemetry embedded in the MP4 (GoPro GPMF, DJI SRT), and it exports the final MP4, not a transparent overlay for your NLE. If you need that, Telemetry Overlay or OVRLEY serve you better.',
+            ],
+          },
+        ],
+        stepsTitle: 'How to migrate in 5 steps',
+        steps: [
+          {
+            name: 'Rescue your .FITs',
+            text: 'Your activities count the same: gather the .FIT files you used in Dashware or VIRB Edit. Nothing to convert.',
+          },
+          {
+            name: 'Open the app, no install',
+            text: 'Open the app in Chrome or Edge, on desktop or Android. No installer, no mandatory account.',
+          },
+          {
+            name: 'Load and sync a test clip',
+            text: 'Upload a FIT and an H.264 MP4/MOV, use auto offset and nudge with ← / → until data and video match.',
+          },
+          {
+            name: 'Pick your template',
+            text: 'Browse the 18 included until you find a style close to your old one; then tweak it and export it as JSON.',
+          },
+          {
+            name: 'Render and compare',
+            text: 'Render that first clip and watch it next to an old one: same data, new engine. From there, your whole flow lives in the browser.',
+          },
+        ],
+        tipsTitle: 'Tips',
+        tips: [
+          'If your flow relied on GPX or TCX, this app does not read them yet: OVRLEY or Cyclemetry are a better destination.',
+          'If you composited the transparent overlay in DaVinci or Premiere, here the render is the final MP4: tune the template before, not after.',
+          'iPhone HEVC videos must be converted to H.264 first, same as before.',
+        ],
+        backLabel: '← Guides',
+        ctaApp: 'Open the app',
+      },
+    },
+  },
+];
+
+export const guidePath = (locale: Locale, g: GuideEntry): string =>
+  `/${locale}/${g.dir[locale]}/${g.slug[locale]}/`;
+
+export const SEO_PAGES: SitemapPage[] = [
+  { path: '/', builtBy: 'vite' },
+  { path: '/es/', builtBy: 'seo' },
+  { path: '/en/', builtBy: 'seo' },
+  ...(['es', 'en'] as Locale[]).flatMap((locale) =>
+    GUIDES.map((g): SitemapPage => ({ path: guidePath(locale, g), builtBy: 'seo' })),
+  ),
+];

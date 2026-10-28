@@ -1,11 +1,12 @@
 // npm run check — one small runnable check for the pure logic (no frameworks).
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { activityFromIntervalsStreams, fillDerivedGrade, parseFit, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
 import { hashPassword, normalizeEmail, validatePassword, verifyPassword } from '../api/src/password.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
+import { GUIDES, HUB, SEO_BASE_URL, SEO_PAGES, guidePath } from '../web/seo/content.ts';
 import { classifyAspect, parseTemplateJson } from '../shared/src/template.ts';
 import { formatElapsed, formatMetric } from '../web/src/format.ts';
 import {
@@ -418,4 +419,98 @@ const withFmt = parseTemplateJson(
 );
 assert.equal(withFmt.widgets[0].timeFormat, 'hm');
 
-console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + i18n + tpljson`);
+// SEO: generated dist must carry crawler head + machine files matching the manifest.
+const distDir = join(root, 'web', 'dist');
+assert.ok(existsSync(distDir), 'web/dist missing: run `npm run build --workspace=web` first');
+const distIndex = readFileSync(join(distDir, 'index.html'), 'utf8');
+assert.ok(distIndex.includes(`<link rel="canonical" href="${SEO_BASE_URL}/" />`), 'dist canonical');
+for (const prop of ['og:title', 'og:type', 'og:image', 'og:url', 'og:description', 'og:locale']) {
+  assert.ok(distIndex.includes(`property="${prop}"`), `dist ${prop}`);
+}
+const ldMatch = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(distIndex);
+assert.ok(ldMatch, 'dist has JSON-LD');
+assert.equal(JSON.parse(ldMatch[1])['@type'], 'SoftwareApplication');
+const robots = readFileSync(join(distDir, 'robots.txt'), 'utf8');
+assert.ok(robots.includes('Allow: /'), 'robots allows crawling');
+assert.ok(robots.includes(`Sitemap: ${SEO_BASE_URL}/sitemap.xml`), 'robots declares sitemap');
+const sitemap = readFileSync(join(distDir, 'sitemap.xml'), 'utf8');
+const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+assert.ok(locs.length > 0, 'sitemap lists urls');
+for (const page of SEO_PAGES) {
+  assert.ok(locs.includes(`${SEO_BASE_URL}${page.path}`), `sitemap lists ${page.path}`);
+}
+for (const loc of locs) {
+  assert.ok(loc.startsWith(`${SEO_BASE_URL}/`), `sitemap loc on host: ${loc}`);
+  const rel = loc.slice(SEO_BASE_URL.length).replace(/^\/|\/$/g, '');
+  assert.ok(existsSync(join(distDir, rel, 'index.html')), `sitemap target exists: ${loc}`);
+}
+// Hubs: reciprocal hreflang pair + x-default, FAQPage matching the manifest, no app JS.
+for (const locale of ['es', 'en']) {
+  const other = locale === 'es' ? 'en' : 'es';
+  const html = readFileSync(join(distDir, locale, 'index.html'), 'utf8');
+  assert.ok(html.includes(`<html lang="${locale}">`), `${locale} html lang`);
+  assert.ok(html.includes(`hreflang="${locale}" href="${SEO_BASE_URL}/${locale}/"`), `${locale} self hreflang`);
+  assert.ok(html.includes(`hreflang="${other}" href="${SEO_BASE_URL}/${other}/"`), `${locale} reciprocal hreflang`);
+  assert.ok(html.includes(`hreflang="x-default" href="${SEO_BASE_URL}/"`), `${locale} x-default`);
+  assert.ok(!html.includes('<script src'), `${locale} has no app JS`);
+  const hubLd = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
+  assert.ok(hubLd, `${locale} has JSON-LD`);
+  const hubData = JSON.parse(hubLd[1]);
+  assert.equal(hubData['@type'], 'FAQPage');
+  assert.equal(hubData.mainEntity.length, HUB[locale].faqs.length);
+  assert.ok(hubData.mainEntity.length >= 8, `${locale} faq depth`);
+}
+// Guides: reciprocal hreflang pairs, HowTo matching the manifest, Markdown mirrors.
+assert.equal(GUIDES.length, 5);
+const slugs = new Set();
+for (const g of GUIDES) {
+  for (const locale of ['es', 'en']) {
+    const other = locale === 'es' ? 'en' : 'es';
+    const path = guidePath(locale, g);
+    assert.ok(!slugs.has(`${locale}${path}`), `unique guide path ${path}`);
+    slugs.add(`${locale}${path}`);
+    const rel = path.replace(/^\/|\/$/g, '');
+    const html = readFileSync(join(distDir, rel, 'index.html'), 'utf8');
+    assert.ok(html.includes(`<link rel="canonical" href="${SEO_BASE_URL}${path}" />`), `${path} canonical`);
+    assert.ok(
+      html.includes(`hreflang="${locale}" href="${SEO_BASE_URL}${path}"`),
+      `${path} self hreflang`,
+    );
+    assert.ok(
+      html.includes(`hreflang="${other}" href="${SEO_BASE_URL}${guidePath(other, g)}"`),
+      `${path} reciprocal hreflang`,
+    );
+    const mdPath = `${path}index.md`;
+    assert.ok(
+      html.includes(`rel="alternate" type="text/markdown" href="${SEO_BASE_URL}${mdPath}"`),
+      `${path} md alternate`,
+    );
+    assert.ok(html.includes(`rel="describedby" href="${SEO_BASE_URL}/llms.txt"`), `${path} describedby`);
+    const guideLd = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
+    assert.ok(guideLd, `${path} has JSON-LD`);
+    const guideData = JSON.parse(guideLd[1]);
+    assert.equal(guideData['@type'], 'HowTo');
+    assert.equal(guideData.step.length, g.copy[locale].steps.length);
+    assert.ok(guideData.step.length >= 5, `${path} step depth`);
+    const md = readFileSync(join(distDir, rel, 'index.md'), 'utf8');
+    assert.ok(md.startsWith(`# ${g.copy[locale].h1}\n`), `${mdPath} H1`);
+    assert.ok(md.includes(SEO_BASE_URL), `${mdPath} absolute links`);
+  }
+}
+// llms.txt: v2 shape (H1 first, summary, sections) linking every mirror.
+const llms = readFileSync(join(distDir, 'llms.txt'), 'utf8');
+assert.ok(llms.startsWith('# override.studio\n'), 'llms H1 first');
+assert.ok(llms.includes('\n> '), 'llms summary blockquote');
+for (const locale of ['es', 'en']) {
+  assert.ok(llms.includes(`${SEO_BASE_URL}/${locale}/index.md`), `llms links ${locale} hub mirror`);
+  const hubHtml = readFileSync(join(distDir, locale, 'index.html'), 'utf8');
+  for (const g of GUIDES) {
+    assert.ok(hubHtml.includes(`href="${guidePath(locale, g)}"`), `${locale} hub links ${g.slug[locale]}`);
+    assert.ok(
+      llms.includes(`${SEO_BASE_URL}${guidePath(locale, g)}index.md`),
+      `llms links ${locale}/${g.slug[locale]} mirror`,
+    );
+  }
+}
+
+console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + i18n + tpljson + seo(${locs.length} urls)`);

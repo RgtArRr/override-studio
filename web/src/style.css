@@ -485,6 +485,10 @@ body {
   color: var(--muted);
   font-size: 14px;
 }
+.site-footer {
+  text-align: center;
+  margin: 24px 0 8px;
+}
 
 a {
   color: var(--accent);
@@ -498,6 +502,7 @@ a {
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   color: var(--graphite);
+  text-decoration: none;
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 400;

@@ -1,24 +1,23 @@
-# Auth: cuentas opcionales (clásico + Intervals.icu)
+# Auth: cuentas opcionales (login clásico)
 
-La app es login-less por defecto. Con cuenta, las plantillas propias se
-guardan en la nube y se conectan proveedores de telemetría (hoy
-Intervals.icu por API key).
-Stack: Worker + D1 (Auth.js v5 solo para la maquinaria de
-sesión/signout; login clásico propio en la misma tabla). Sin vendors
-externos.
+La app funciona sin cuenta por defecto. Con cuenta, las plantillas
+propias se guardan en la nube. Stack: Worker + D1 (Auth.js v5 solo para
+la maquinaria de sesión/signout; login clásico propio en la misma
+tabla). Sin proveedores externos.
 
-## Login clásico (sin setup)
+## Login clásico (sin configuración)
 
-Registro y entrada con correo + contraseña: `POST /api/register`,
-`POST /api/login`. Política mínima: 10+ caracteres, letra y número.
-Hash PBKDF2-HMAC-SHA256 (100k iteraciones, salt aleatorio) vía WebCrypto;
-mismo error y mismo costo para correo inexistente o clave mala.
-No hay recuperación por correo (no hay mailer): registrar pide
-confirmar la contraseña para evitar typos con bloqueo permanente.
+Registro e inicio de sesión con correo + contraseña: `POST /api/register`,
+`POST /api/login`. Política de contraseña: mínimo 10 caracteres, con
+letra y número. Hash PBKDF2-HMAC-SHA256 (100k iteraciones, salt
+aleatorio) vía WebCrypto; mismo error y mismo costo para correo
+inexistente o contraseña incorrecta. Sin recuperación por correo (no
+hay servicio de email): el registro pide confirmar la contraseña para
+evitar bloqueos por errores de escritura.
 
 ## 1. Secretos
 
-Local (`api/.dev.vars`, ya ignorado por git):
+Local (`api/.dev.vars`, excluido en `.gitignore`):
 
 ```ini
 AUTH_SECRET=cualquier-string-largo-al-azar
@@ -26,23 +25,25 @@ AUTH_URL=http://localhost:8787
 WEB_ORIGIN=http://localhost:5173,http://localhost:5174
 ```
 
-(Si el API ya estaba corriendo al crear este archivo, reinicia
-`npm run dev`: wrangler lo lee al arrancar.)
+(Si el Worker ya estaba en marcha al crear este archivo, es necesario
+reiniciar `npm run dev`: wrangler lo lee al arrancar.)
 
-(`WEB_ORIGIN` acepta lista separada por comas: los puertos dev cambian.)
+`WEB_ORIGIN` acepta una lista separada por comas (los puertos de
+desarrollo pueden variar).
 
-Producción (una vez):
+Producción (una sola vez):
 
 ```bash
 wrangler secret put AUTH_SECRET --config api/wrangler.toml
 ```
 
-`AUTH_URL` y `WEB_ORIGIN` de prod ya están en `api/wrangler.toml` ([vars]).
+`AUTH_URL` y `WEB_ORIGIN` de producción ya están en
+`api/wrangler.toml` ([vars]).
 
 ## 2. Base de datos
 
 ```bash
-# local (ya aplicada si seguiste el dev normal)
+# local (ya aplicadas en un arranque normal)
 npm run db:apply:local --workspace=api
 # producción
 wrangler d1 migrations apply override-studio-db --config api/wrangler.toml
@@ -50,7 +51,7 @@ wrangler d1 migrations apply override-studio-db --config api/wrangler.toml
 
 Migraciones: `0002_auth.sql` (tablas Auth.js + `user_templates`),
 `0003_credentials.sql` (hash local), `0004_provider_keys.sql` (API keys
-cifradas), `0005_drop_strava.sql` (purga tokens Strava retirados).
+cifradas).
 
 ## 3. Probar
 
@@ -58,9 +59,7 @@ cifradas), `0005_drop_strava.sql` (purga tokens Strava retirados).
 npm run dev   # web :5173 + api :8787
 ```
 
-- El login clásico funciona sin setup: Iniciar sesión → Crear cuenta.
-- Intervals.icu funciona con cualquier API key válida de usuario, sin
-  secretos del lado servidor.
+- El login clásico funciona sin configuración previa: Iniciar sesión → Crear cuenta.
 
 ## Endpoints
 
@@ -69,24 +68,8 @@ npm run dev   # web :5173 + api :8787
   `{user}` + cookie; errores `email|weak|taken|invalid`).
 - `GET /api/me` — usuario actual o 401.
 - `GET/POST /api/my/templates`, `PUT/DELETE /api/my/templates/:id` — CRUD con
-  sesión; el POST hace upsert por id y valida con `parseTemplateJson`.
+  sesión; el POST crea o reemplaza por id (upsert) y valida con `parseTemplateJson`.
 - `GET /api/intervals/status` — `{ connected }` (401 sin sesión).
-- `PUT/DELETE /api/intervals/key` — guarda/olvida la API key (PUT la valida).
-- `GET /api/intervals/activities?page=` — ventanas de 30 días (máx 12).
+- `PUT/DELETE /api/intervals/key` — guarda/elimina la API key (PUT la valida).
+- `GET /api/intervals/activities?page=` — ventanas de 30 días (máximo 12).
 - `GET /api/intervals/activities/:id/streams` — streams `{ tipo: datos }`.
-
-## Intervals.icu como fuente (API key por usuario)
-
-Sin OAuth: cada usuario pega su API key (final de
-[intervals.icu/settings](https://intervals.icu/settings)) en el modal
-"Elegir de Intervals". El API la valida contra `athlete/0`, la guarda
-cifrada (AES-GCM con `AUTH_SECRET`, tabla `provider_keys`) y la usa para
-listar actividades y traer streams. Notas:
-
-- Auth upstream: Basic `API_KEY:<key>`; atleta `0` = propio.
-- Streams por `streams.json?types=...` (el GET plano no existe, es solo PUT).
-- IDs de actividad son strings (`i123`); `start_date_local` se interpreta
-  con su `timezone` IANA (sin zona, hora local del navegador).
-- `velocity_smooth` se asume m/s (API métrica): verificar con una salida
-  real; si la velocidad sale mal, es ese factor.
-- Sin clave, el modal pide pegarla; si muere, pide reingresarla.

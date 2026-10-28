@@ -2,7 +2,7 @@
 
 Templates are JSON data validated against this spec (see `shared/src/template.ts`
 for the types). The renderer (`web/src/overlay.ts`) implements exactly what follows —
-nothing more. AI-generated templates must conform to it.
+nothing more.
 
 ## Shape
 
@@ -98,7 +98,7 @@ allowed, but a distance gauge rarely makes sense.
 - Boxes of visible widgets must not overlap.
 - Keep every box ≥ 24×16 px at 720p and at 512×288 (thumbnail size), or the
   renderer skips it.
-- Gauges want squarish boxes; numbers want wide boxes.
+- Gauges need squarish boxes; numbers need wide boxes.
 
 ## Values and units
 
@@ -123,7 +123,7 @@ The importer
 (`parseTemplateJson` in `shared/src/template.ts`) requires the shape above —
 name string, widgets array, one box per aspect per widget — fills a neutral
 theme when fields are missing, defaults `visible` to true, and rejects
-unknown widget kinds/metrics. Covered by `npm run check` (+ tpljson).
+unknown widget kinds/metrics. Covered by `npm run check` (section `tpljson`).
 
 ## Built-ins
 

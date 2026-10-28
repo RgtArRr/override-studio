@@ -10,9 +10,9 @@
 export type Locale = 'es' | 'en';
 
 const ES: Record<string, string> = {
-  'meta.title': 'override.studio — telemetría deportiva en tus videos, 100% local',
+  'meta.title': 'override.studio — telemetría deportiva en tus videos gratis, 100% local',
   'meta.description':
-    'Incrusta potencia, FC, velocidad y GPS de tu FIT en tus clips MP4/MOV. Render 100% local en tu navegador: nada se sube.',
+    'Incrusta potencia, FC, velocidad y GPS de tu FIT en tus clips MP4/MOV. Render 100% local en tu navegador: nada se sube y tu privacidad queda intacta. Gratis y sin instalar nada.',
   'hdr.badge': 'render 100% local',
   'hdr.fixtures': 'Fixtures',
   'hdr.renderAll': 'Renderizar todo',
@@ -132,6 +132,7 @@ const ES: Record<string, string> = {
   'auth.errMismatch': 'Las contraseñas no coinciden.',
   'auth.errNet': 'Sin conexión al servidor.',
   'auth.errCloud': 'No se pudo sincronizar con la nube.',
+  'ftr.guides': 'Guías',
   'intervals.pick': 'Elegir de Intervals',
   'intervals.title': 'Actividades de Intervals',
   'intervals.keyH': 'Conecta Intervals.icu',
@@ -242,9 +243,9 @@ const ES: Record<string, string> = {
 };
 
 const EN: Record<string, string> = {
-  'meta.title': 'override.studio — sports telemetry on your videos, 100% local',
+  'meta.title': 'override.studio — free sports telemetry on your videos, 100% local',
   'meta.description':
-    'Overlay power, HR, speed and GPS from your FIT onto MP4/MOV clips. 100% local render in your browser: nothing is uploaded.',
+    'Overlay power, HR, speed and GPS from your FIT onto MP4/MOV clips. 100% local render in your browser: nothing is uploaded, your privacy stays intact. Free, no install.',
   'hdr.badge': '100% local render',
   'hdr.fixtures': 'Fixtures',
   'hdr.renderAll': 'Render all',
@@ -364,6 +365,7 @@ const EN: Record<string, string> = {
   'auth.errMismatch': 'Passwords do not match.',
   'auth.errNet': 'Cannot connect to the server.',
   'auth.errCloud': 'Could not sync with the cloud.',
+  'ftr.guides': 'Guides',
   'intervals.pick': 'Pick from Intervals',
   'intervals.title': 'Intervals activities',
   'intervals.keyH': 'Connect Intervals.icu',
