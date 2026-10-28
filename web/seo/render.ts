@@ -74,12 +74,7 @@ ${hreflang}
     <meta property="og:locale" content="${OG_LOCALE[o.locale]}" />
     <meta property="og:locale:alternate" content="${OG_LOCALE[o.locale === 'es' ? 'en' : 'es']}" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Poppins:wght@600&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="stylesheet" href="/fonts.css" />
     <style>${CONTENT_CSS}</style>
     <script type="application/ld+json">${JSON.stringify(o.jsonLd)}</script>`;
 }

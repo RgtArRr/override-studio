@@ -901,7 +901,7 @@ export const LEGAL: LegalEntry[] = [
           {
             h2: 'Terceros',
             paragraphs: [
-              'Alojamiento y analítica sin cookies: Cloudflare. Fuentes tipográficas: Google Fonts (tu navegador las descarga de Google). Telemetría opcional: Intervals.icu, solo si conectas tu clave. No vendemos ni compartimos datos con nadie más.',
+              'Alojamiento y analítica sin cookies: Cloudflare. Fuentes tipográficas: autohospedadas, sin peticiones a terceros. Telemetría opcional: Intervals.icu, solo si conectas tu clave. No vendemos ni compartimos datos con nadie más.',
             ],
           },
           {
@@ -958,7 +958,7 @@ export const LEGAL: LegalEntry[] = [
           {
             h2: 'Third parties',
             paragraphs: [
-              'Hosting and cookieless analytics: Cloudflare. Fonts: Google Fonts (your browser downloads them from Google). Optional telemetry: Intervals.icu, only if you connect your key. We sell or share data with nobody else.',
+              'Hosting and cookieless analytics: Cloudflare. Fonts: self-hosted, no third-party requests. Optional telemetry: Intervals.icu, only if you connect your key. We sell or share data with nobody else.',
             ],
           },
           {

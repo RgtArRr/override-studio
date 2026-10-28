@@ -558,5 +558,29 @@ for (const locale of ['es', 'en']) {
   assert.ok(hubHtml.includes(`href="${nav.privacyPath}"`), `${locale} hub links privacy`);
   assert.ok(hubHtml.includes(`href="${nav.termsPath}"`), `${locale} hub links terms`);
 }
+// Fonts: self-hosted, no third-party font requests anywhere in dist.
+const fontsCss = readFileSync(join(distDir, 'fonts.css'), 'utf8');
+for (const fam of ['Inter', 'Poppins', 'Barlow Condensed', 'Oswald', 'Rajdhani']) {
+  assert.ok(fontsCss.includes(`font-family: '${fam}'`), `fonts.css has ${fam}`);
+}
+const woff2 = [...fontsCss.matchAll(/url\('([^']+\.woff2)'\)/g)].map((m) => m[1]);
+assert.ok(woff2.length >= 13, 'fonts.css lists woff2 files');
+for (const ref of woff2) {
+  assert.ok(existsSync(join(distDir, ref.replace(/^\//, ''))), `dist has ${ref}`);
+}
+const distHtml = [
+  join(distDir, 'index.html'),
+  join(distDir, 'es', 'index.html'),
+  join(distDir, 'en', 'index.html'),
+].map((p) => readFileSync(p, 'utf8'));
+for (const html of distHtml) {
+  assert.ok(!html.includes('fonts.googleapis.com'), 'no google fonts link');
+  assert.ok(!html.includes('fonts.gstatic.com'), 'no google fonts host');
+  assert.ok(html.includes('href="/fonts.css"'), 'links local fonts.css');
+}
+for (const css of readdirSync(join(distDir, 'assets')).filter((f) => f.endsWith('.css'))) {
+  const body = readFileSync(join(distDir, 'assets', css), 'utf8');
+  assert.ok(!body.includes('fonts.googleapis.com'), `no google fonts in ${css}`);
+}
 
 console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + i18n + tpljson + seo(${locs.length} urls)`);

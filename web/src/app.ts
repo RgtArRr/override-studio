@@ -1431,6 +1431,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     [t('w.themeFont'), ''],
     ['Inter', 'Inter, sans-serif'],
     ['Poppins', 'Poppins, sans-serif'],
+    ['Barlow Condensed', 'Barlow Condensed, sans-serif'],
+    ['Oswald', 'Oswald, sans-serif'],
+    ['Rajdhani', 'Rajdhani, sans-serif'],
     ['Mono', 'ui-monospace, monospace'],
   ];
   const mkFontRow = (
