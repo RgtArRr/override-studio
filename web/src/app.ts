@@ -42,6 +42,7 @@ import {
   nextWidgetId,
 } from './widgets.js';
 import { getLocale, saveLocale, t, type Locale } from './i18n.js';
+import { DONATE_URL } from '../seo/content.js';
 import {
   deleteIntervalsKey,
   fetchSession,
@@ -1742,14 +1743,19 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   wrap.appendChild(footer);
   const siteFooter = el('p', 'site-footer');
   const footerLocale = getLocale();
-  const footerLinks: [string, string][] = [
-    [t('ftr.guides'), footerLocale === 'es' ? '/es/' : '/en/'],
-    [t('ftr.privacy'), footerLocale === 'es' ? '/es/privacidad/' : '/en/privacy/'],
-    [t('ftr.terms'), footerLocale === 'es' ? '/es/terminos/' : '/en/terms/'],
+  const footerLinks: [string, string, boolean][] = [
+    [t('ftr.guides'), footerLocale === 'es' ? '/es/' : '/en/', false],
+    [t('ftr.privacy'), footerLocale === 'es' ? '/es/privacidad/' : '/en/privacy/', false],
+    [t('ftr.terms'), footerLocale === 'es' ? '/es/terminos/' : '/en/terms/', false],
+    [t('ftr.donate'), DONATE_URL, true],
   ];
-  for (const [label, href] of footerLinks) {
+  for (const [label, href, external] of footerLinks) {
     const link = el('a', 'btn btn-small', label);
     link.href = href;
+    if (external) {
+      link.target = '_blank';
+      link.rel = 'noopener';
+    }
     siteFooter.appendChild(link);
   }
   wrap.appendChild(siteFooter);

@@ -1,5 +1,5 @@
 /** Pure builders for robots.txt / sitemap.xml / static content pages. */
-import { LEGAL_CONTACT, type Faq, type GuideCopy, type HubCopy, type LegalCopy, type LegalNav, type Locale } from './content.js';
+import { LEGAL_CONTACT, type Faq, type FooterNav, type GuideCopy, type HubCopy, type LegalCopy, type Locale } from './content.js';
 
 export const escXml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -115,7 +115,7 @@ export function renderHub(
   hub: HubCopy,
   otherPath: string,
   guides: readonly GuideLink[],
-  legal: LegalNav,
+  legal: FooterNav,
 ): string {
   const items = (xs: readonly string[]): string => xs.map((x) => `          <li>${escHtml(x)}</li>`).join('\n');
   const faqs = hub.faqs
@@ -173,6 +173,7 @@ ${faqs}
         <a href="/">${escHtml(hub.ctaApp)}</a>
         <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
         <a href="${legal.termsPath}">${escHtml(legal.termsLabel)}</a>
+        <a href="${legal.donateUrl}" target="_blank" rel="noopener">${escHtml(legal.donateLabel)}</a>
       </footer>
     </div>`;
 }
@@ -192,7 +193,7 @@ export function renderGuide(
   hub: HubCopy,
   hubPathStr: string,
   otherPath: string,
-  legal: LegalNav,
+  legal: FooterNav,
 ): string {
   const sections = copy.sections
     .map(
@@ -237,6 +238,7 @@ ${copy.tips.map((t) => `            <li>${escHtml(t)}</li>`).join('\n')}
         <a href="/">${escHtml(copy.ctaApp)}</a>
         <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
         <a href="${legal.termsPath}">${escHtml(legal.termsLabel)}</a>
+        <a href="${legal.donateUrl}" target="_blank" rel="noopener">${escHtml(legal.donateLabel)}</a>
       </footer>
     </div>`;
 }
@@ -329,7 +331,7 @@ export function renderLegal(
   hub: HubCopy,
   hubPathStr: string,
   otherPath: string,
-  legal: LegalNav,
+  legal: FooterNav,
 ): string {
   const sections = copy.sections
     .map(
@@ -362,6 +364,7 @@ ${sections}
         <a href="/">${escHtml(copy.ctaApp)}</a>
         <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
         <a href="${legal.termsPath}">${escHtml(legal.termsLabel)}</a>
+        <a href="${legal.donateUrl}" target="_blank" rel="noopener">${escHtml(legal.donateLabel)}</a>
       </footer>
     </div>`;
 }

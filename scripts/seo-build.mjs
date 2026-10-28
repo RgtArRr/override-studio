@@ -14,7 +14,7 @@ import {
   SEO_PAGES,
   guidePath,
   hubPath,
-  legalNav,
+  footerNav,
   legalPath,
 } from '../web/seo/content.ts';
 import {
@@ -67,7 +67,7 @@ const emitPage = (relPath, html, md) => {
 for (const locale of LOCALES) {
   const hub = HUB[locale];
   const other = locale === 'es' ? 'en' : 'es';
-  const nav = legalNav(locale);
+  const nav = footerNav(locale);
   const guides = GUIDES.map((g) => ({
     path: guidePath(locale, g),
     h1: g.copy[locale].h1,
@@ -166,7 +166,7 @@ for (const locale of LOCALES) {
   for (const g of GUIDES) {
     assert.ok(html.includes(`href="${guidePath(locale, g)}"`), `${locale} links ${g.slug[locale]}`);
   }
-  const nav = legalNav(locale);
+  const nav = footerNav(locale);
   assert.ok(html.includes(`href="${nav.privacyPath}"`), `${locale} links privacy`);
   assert.ok(html.includes(`href="${nav.termsPath}"`), `${locale} links terms`);
 }

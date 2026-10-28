@@ -13,7 +13,7 @@ import {
   SEO_BASE_URL,
   SEO_PAGES,
   guidePath,
-  legalNav,
+  footerNav,
   legalPath,
 } from '../web/seo/content.ts';
 import { classifyAspect, parseTemplateJson } from '../shared/src/template.ts';
@@ -553,10 +553,11 @@ for (const e of LEGAL) {
   }
 }
 for (const locale of ['es', 'en']) {
-  const nav = legalNav(locale);
+  const nav = footerNav(locale);
   const hubHtml = readFileSync(join(distDir, locale, 'index.html'), 'utf8');
   assert.ok(hubHtml.includes(`href="${nav.privacyPath}"`), `${locale} hub links privacy`);
   assert.ok(hubHtml.includes(`href="${nav.termsPath}"`), `${locale} hub links terms`);
+  assert.ok(hubHtml.includes(`href="${nav.donateUrl}"`), `${locale} hub links donate`);
 }
 // Fonts: self-hosted, no third-party font requests anywhere in dist.
 const fontsCss = readFileSync(join(distDir, 'fonts.css'), 'utf8');

@@ -867,6 +867,9 @@ export interface LegalEntry {
 /** Contact channel for data requests and questions (public repo issues). */
 export const LEGAL_CONTACT = 'https://github.com/RgtArRr/override-studio/issues';
 
+/** One-time donations (Ko-fi, no account needed to donate). */
+export const DONATE_URL = 'https://ko-fi.com/rgtarrr';
+
 export const LEGAL: LegalEntry[] = [
   {
     slug: { es: 'privacidad', en: 'privacy' },
@@ -1118,14 +1121,16 @@ export const LEGAL: LegalEntry[] = [
 
 export const legalPath = (locale: Locale, e: LegalEntry): string => `/${locale}/${e.slug[locale]}/`;
 
-export interface LegalNav {
+export interface FooterNav {
   privacyLabel: string;
   privacyPath: string;
   termsLabel: string;
   termsPath: string;
+  donateLabel: string;
+  donateUrl: string;
 }
 
-export const legalNav = (locale: Locale): LegalNav => {
+export const footerNav = (locale: Locale): FooterNav => {
   const privacy = LEGAL.find((e) => e.slug.en === 'privacy') as LegalEntry;
   const terms = LEGAL.find((e) => e.slug.en === 'terms') as LegalEntry;
   return {
@@ -1133,6 +1138,8 @@ export const legalNav = (locale: Locale): LegalNav => {
     privacyPath: legalPath(locale, privacy),
     termsLabel: locale === 'es' ? 'Términos' : 'Terms',
     termsPath: legalPath(locale, terms),
+    donateLabel: locale === 'es' ? 'Donar' : 'Donate',
+    donateUrl: DONATE_URL,
   };
 };
 
