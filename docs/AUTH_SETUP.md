@@ -58,7 +58,7 @@ cifradas), `0005_drop_strava.sql` (purga tokens Strava retirados).
 npm run dev   # web :5173 + api :8787
 ```
 
-- El login clásico funciona sin setup: Entrar → Crear cuenta.
+- El login clásico funciona sin setup: Iniciar sesión → Crear cuenta.
 - Intervals.icu funciona con cualquier API key válida de usuario, sin
   secretos del lado servidor.
 

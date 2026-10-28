@@ -374,7 +374,7 @@ assert.throws(() => parseFit(new Uint8Array(8).buffer), /not a valid FIT/);
 setLocale('es');
 assert.equal(t('clip.title'), 'Clip');
 assert.equal(kindLabel('speedo'), 'Velocímetro');
-assert.equal(metricLabel('heartRate'), 'Frecuencia cardiaca');
+assert.equal(metricLabel('heartRate'), 'Frecuencia cardíaca');
 assert.throws(() => parseFit(new Uint8Array(8).buffer), /no es un FIT/);
 
 // Template export/import roundtrip: every fixture parses, and bad shapes throw.
