@@ -1,4 +1,9 @@
-import { TEMPLATE_SCHEMA_VERSION, parseTemplateJson } from '@override-studio/shared';
+import {
+  METRIC_IDS,
+  TEMPLATE_SCHEMA_VERSION,
+  WIDGET_KINDS,
+  parseTemplateJson,
+} from '@override-studio/shared';
 import {
   SESSION_MAX_AGE,
   buildSessionCookie,
@@ -10,6 +15,7 @@ import {
 import {
   dummyVerify,
   hashPassword,
+  needsRehash,
   normalizeEmail,
   validatePassword,
   verifyPassword,
@@ -62,6 +68,69 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
   }
 }
 
+/**
+ * Mutations arrive as credentialed cross-origin JSON (preflighted), so an
+ * explicit allow-list check closes CSRF beyond the preflight. Requests
+ * without Origin (same-origin, curl) pass through.
+ */
+const assertOrigin = (request: Request, env: Env): boolean => {
+  const origin = request.headers.get('origin');
+  return !origin || webOrigins(env).includes(origin);
+};
+
+/** 20 auth attempts per IP per 10 minutes. Absent IP (local dev) skips. */
+const AUTH_WINDOW_SEC = 600;
+const AUTH_MAX_ATTEMPTS = 20;
+
+async function authThrottled(
+  env: Env,
+  request: Request,
+): Promise<{ throttled: boolean; retryAfter: number }> {
+  const ip = request.headers.get('cf-connecting-ip')?.trim();
+  if (!ip) return { throttled: false, retryAfter: 0 };
+  const now = Math.floor(Date.now() / 1000);
+  await env.DB.prepare('DELETE FROM auth_attempts WHERE reset_at < ?').bind(now).run();
+  const row = await env.DB.prepare('SELECT count, reset_at FROM auth_attempts WHERE ip = ?')
+    .bind(ip)
+    .first<Record<string, unknown>>();
+  const count = typeof row?.['count'] === 'number' ? row['count'] : 0;
+  const reset = typeof row?.['reset_at'] === 'number' ? row['reset_at'] : 0;
+  if (row && now < reset && count >= AUTH_MAX_ATTEMPTS) {
+    return { throttled: true, retryAfter: reset - now };
+  }
+  const fresh = !row || now >= reset;
+  await env.DB.prepare(
+    'INSERT INTO auth_attempts (ip, count, reset_at) VALUES (?, ?, ?) ON CONFLICT (ip) DO UPDATE SET count = excluded.count, reset_at = excluded.reset_at',
+  )
+    .bind(ip, fresh ? 1 : count + 1, fresh ? now + AUTH_WINDOW_SEC : reset)
+    .run();
+  return { throttled: false, retryAfter: 0 };
+}
+
+const throttleResponse = (retryAfter: number): Response => {
+  const res = json({ error: 'rate' }, 429);
+  res.headers.set('Retry-After', String(retryAfter));
+  return res;
+};
+
+const icuFailure = (res: { auth: boolean; status: number; retryAfter: string | null }): Response => {
+  if (res.auth) return json({ error: 'intervals_reconnect' }, 401);
+  if (res.status === 429) {
+    const out = json({ error: 'intervals' }, 429);
+    if (res.retryAfter) out.headers.set('Retry-After', res.retryAfter);
+    return out;
+  }
+  return json({ error: 'intervals' }, 502);
+};
+
+/** Server-side mirror of the client's import check: no unknown kind/metric reaches the cloud. */
+const validDefinition = (definition: { widgets: { kind: string; metric: string }[] }): boolean =>
+  definition.widgets.every(
+    (w) =>
+      (WIDGET_KINDS as readonly string[]).includes(w.kind) &&
+      (METRIC_IDS as readonly string[]).includes(w.metric),
+  );
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -89,9 +158,12 @@ export default {
         }),
       );
     }
+    // Every route below touches D1 (directly or via Auth.js): fail fast when unbound.
+    if (!env.DB) return send(json({ error: 'database unavailable' }, 503));
 
+    // Reserved: public template catalog for future API consumers. The web app
+    // ships built-ins plus /api/my/templates and never calls this.
     if (url.pathname === '/api/templates' && request.method === 'GET') {
-      if (!env.DB) return send(json({ error: 'database unavailable' }, 503));
       const { results } = await env.DB.prepare(
         'SELECT id, name, schema_version, source, prompt, created_at FROM templates ORDER BY created_at DESC',
       ).all();
@@ -109,6 +181,7 @@ export default {
       }
     }
 
+    // Reserved: richer session probe for future API consumers. The web app uses /api/auth/session.
     if (url.pathname === '/api/me' && request.method === 'GET') {
       const user = await getSessionUser(request, env);
       if (!user) return send(json({ error: 'unauthorized' }, 401));
@@ -136,16 +209,34 @@ export default {
     };
 
     if (url.pathname === '/api/register' && request.method === 'POST') {
+      if (!assertOrigin(request, env)) return send(json({ error: 'origin' }, 403));
+      const limited = await authThrottled(env, request);
+      if (limited.throttled) return send(throttleResponse(limited.retryAfter));
       const body = await readJson(request);
       const email = normalizeEmail(body?.['email']);
       if (!email) return send(json({ error: 'email' }, 400));
-      if (validatePassword(body?.['password'])) return send(json({ error: 'weak' }, 400));
-      const taken = await env.DB.prepare('SELECT id FROM users WHERE email = ?')
+      const password = typeof body?.['password'] === 'string' ? body['password'] : '';
+      if (validatePassword(password)) return send(json({ error: 'weak' }, 400));
+      const existing = await env.DB.prepare(
+        'SELECT id, name, email, image, password_hash FROM users WHERE email = ?',
+      )
         .bind(email)
-        .first();
-      if (taken) return send(json({ error: 'taken' }, 409));
+        .first<Record<string, unknown>>();
+      if (existing) {
+        // No 'taken' oracle: the rightful password just logs in, anything else
+        // fails exactly like a bad login.
+        const stored = typeof existing['password_hash'] === 'string' ? existing['password_hash'] : null;
+        const okUser = stored ? await verifyPassword(password, stored) : false;
+        if (!okUser) return send(json({ error: 'invalid' }, 401));
+        return loggedIn({
+          id: existing['id'] as string,
+          name: (existing['name'] as string | null) ?? null,
+          email: (existing['email'] as string | null) ?? null,
+          image: (existing['image'] as string | null) ?? null,
+        });
+      }
       const id = crypto.randomUUID();
-      const passwordHash = await hashPassword(body?.['password'] as string);
+      const passwordHash = await hashPassword(password);
       await env.DB.prepare('INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)')
         .bind(id, email.split('@')[0], email, passwordHash)
         .run();
@@ -153,6 +244,9 @@ export default {
     }
 
     if (url.pathname === '/api/login' && request.method === 'POST') {
+      if (!assertOrigin(request, env)) return send(json({ error: 'origin' }, 403));
+      const limited = await authThrottled(env, request);
+      if (limited.throttled) return send(throttleResponse(limited.retryAfter));
       const body = await readJson(request);
       const email = normalizeEmail(body?.['email']);
       const password = typeof body?.['password'] === 'string' ? body['password'] : '';
@@ -165,6 +259,11 @@ export default {
       // Same error and same work whether the email exists or not.
       const okUser = stored ? await verifyPassword(password, stored) : await dummyVerify().then(() => false);
       if (!row || !okUser) return send(json({ error: 'invalid' }, 401));
+      if (stored && needsRehash(stored)) {
+        await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+          .bind(await hashPassword(password), row['id'] as string)
+          .run();
+      }
       return loggedIn({
         id: row['id'] as string,
         name: (row['name'] as string | null) ?? null,
@@ -180,6 +279,7 @@ export default {
     }
 
     if (url.pathname === '/api/intervals/key' && request.method === 'PUT') {
+      if (!assertOrigin(request, env)) return send(json({ error: 'origin' }, 403));
       const user = await getSessionUser(request, env);
       if (!user) return send(json({ error: 'unauthorized' }, 401));
       const body = await readJson(request);
@@ -191,6 +291,7 @@ export default {
     }
 
     if (url.pathname === '/api/intervals/key' && request.method === 'DELETE') {
+      if (!assertOrigin(request, env)) return send(json({ error: 'origin' }, 403));
       const user = await getSessionUser(request, env);
       if (!user) return send(json({ error: 'unauthorized' }, 401));
       await deleteApiKey(env, user.id);
@@ -204,11 +305,7 @@ export default {
       if (!key) return send(json({ error: 'intervals_reconnect' }, 401));
       const page = Math.min(12, Math.max(1, Number(url.searchParams.get('page')) || 1));
       const res = await listIcuActivities(key, page);
-      if (!res.ok) {
-        return res.auth
-          ? send(json({ error: 'intervals_reconnect' }, 401))
-          : send(json({ error: 'intervals' }, 502));
-      }
+      if (!res.ok) return send(icuFailure(res));
       return send(json({ activities: res.data }));
     }
 
@@ -221,11 +318,7 @@ export default {
       const key = await readApiKey(env, user.id);
       if (!key) return send(json({ error: 'intervals_reconnect' }, 401));
       const res = await getIcuStreams(key, icuStreamsMatch[1]);
-      if (!res.ok) {
-        return res.auth
-          ? send(json({ error: 'intervals_reconnect' }, 401))
-          : send(json({ error: 'intervals' }, 502));
-      }
+      if (!res.ok) return send(icuFailure(res));
       return send(json({ streams: res.data }));
     }
 
@@ -254,6 +347,7 @@ export default {
     }
 
     if (url.pathname === '/api/my/templates' && request.method === 'POST') {
+      if (!assertOrigin(request, env)) return send(json({ error: 'origin' }, 403));
       const user = await getSessionUser(request, env);
       if (!user) return send(json({ error: 'unauthorized' }, 401));
       const body = await readJson(request);
@@ -262,6 +356,7 @@ export default {
       let definition: string;
       try {
         const parsed = parseTemplateJson(JSON.stringify(body?.['definition']));
+        if (!validDefinition(parsed)) return send(json({ error: 'invalid template' }, 400));
         definition = JSON.stringify(parsed);
       } catch {
         return send(json({ error: 'invalid template' }, 400));
@@ -293,6 +388,7 @@ export default {
 
     const itemMatch = /^\/api\/my\/templates\/([A-Za-z0-9_-]{1,64})$/.exec(url.pathname);
     if (itemMatch && (request.method === 'PUT' || request.method === 'DELETE')) {
+      if (!assertOrigin(request, env)) return send(json({ error: 'origin' }, 403));
       const user = await getSessionUser(request, env);
       if (!user) return send(json({ error: 'unauthorized' }, 401));
       const id = itemMatch[1];
@@ -319,6 +415,7 @@ export default {
       if (body?.['definition'] !== undefined) {
         try {
           const parsed = parseTemplateJson(JSON.stringify(body['definition']));
+          if (!validDefinition(parsed)) return send(json({ error: 'invalid template' }, 400));
           sets.push('definition = ?');
           binds.push(JSON.stringify(parsed));
         } catch {

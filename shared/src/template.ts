@@ -34,6 +34,36 @@ export type WidgetKind =
 
 export type PanelShape = 'rect' | 'pill' | 'none';
 
+export const WIDGET_KINDS: readonly WidgetKind[] = [
+  'stat',
+  'number',
+  'gauge',
+  'speedo',
+  'ring',
+  'slope',
+  'gears',
+  'spark',
+  'profile',
+  'vam',
+  'map',
+  'navmap',
+  'compass',
+];
+
+export const METRIC_IDS: readonly MetricId[] = [
+  'speed',
+  'heartRate',
+  'power',
+  'cadence',
+  'elevation',
+  'distance',
+  'elapsedTime',
+  'grade',
+  'vam',
+  'gears',
+  'none',
+];
+
 /** Elapsed-time display: auto adapts (mm:ss under an hour, h:mm:ss above). */
 export type TimeFormat = 'auto' | 'hmm' | 'hmmss' | 'h' | 'hm';
 

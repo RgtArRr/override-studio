@@ -10,6 +10,7 @@
   --stone: #898989;
   --border: #e5e7eb;
   --accent: #0099ff;
+  --accent-ink: #0077cc;
   --info-bg: #eff6fe;
   --danger: #b42318;
   --shadow-card: rgba(34, 42, 53, 0.05) 0px 4px 8px 0px;
@@ -45,7 +46,7 @@ body {
 }
 
 .app {
-  max-width: 1440px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 32px 24px 96px;
 }
@@ -71,6 +72,7 @@ body {
 .header-actions .file-label,
 .header-actions .btn {
   padding: 8px 16px;
+  border-radius: 8px;
 }
 
 /* Resolve-style grid: media bin | viewer | inspector. */
@@ -122,7 +124,7 @@ body {
   background: var(--surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
-  padding: 16px;
+  padding: 24px;
 }
 
 .left-col {
@@ -136,7 +138,7 @@ body {
   background: var(--surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
-  padding: 16px;
+  padding: 24px;
 }
 
 .fit-drop,
@@ -302,6 +304,27 @@ body {
   background: var(--surface);
 }
 
+.clip-main {
+  grid-row: 1 / 3;
+  grid-column: 1 / 3;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "dot title"
+    "dot meta";
+  column-gap: 8px;
+  align-items: center;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .clip-dot {
   grid-area: dot;
   width: 8px;
@@ -347,7 +370,11 @@ body {
   font-size: 18px;
   line-height: 1;
   padding: 0 2px;
+  border: 0;
   border-radius: var(--radius-input);
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .clip-remove:hover {
@@ -362,6 +389,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -390,7 +418,7 @@ body {
 }
 
 .recorded-banner.warn {
-  background: #fdf1f0;
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
   border-color: var(--danger);
   color: var(--danger);
 }
@@ -451,6 +479,9 @@ body {
   border-radius: var(--radius-pill);
   padding: 5px 14px;
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .local-badge::before {
@@ -494,7 +525,7 @@ body {
 }
 
 a {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /* Buttons: secondary ghost default, ink primary. */
@@ -814,6 +845,7 @@ a {
 
 .add-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: flex-end;
   margin-top: 16px;
@@ -946,6 +978,30 @@ a {
   color: var(--ink);
 }
 
+.card-delete {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--stone);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.card-delete:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .play-btn {
   display: inline-flex;
   align-items: center;
@@ -1002,13 +1058,13 @@ a {
 }
 
 .template-card.new-template {
-  background: #fff;
-  border: 2px solid #000;
+  background: var(--surface);
+  border: 1px solid var(--ink);
   cursor: pointer;
 }
 
 .template-card.new-template:hover {
-  border-color: #000;
+  border-color: var(--ink);
 }
 
 .new-plus {

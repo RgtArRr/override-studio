@@ -82,7 +82,11 @@ function paintPanel(
   ctx.globalAlpha = opacity;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, shape === 'pill' ? Math.min(w, h) / 2 : Math.min(10, h * 0.18));
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, w, h, shape === 'pill' ? Math.min(w, h) / 2 : Math.min(10, h * 0.18));
+  } else {
+    ctx.rect(x, y, w, h);
+  }
   ctx.fill();
   ctx.restore();
 }
@@ -173,6 +177,22 @@ function drawNumber(
   ctx.restore();
 }
 
+/** Samples ascend in t (sampleAt binary-searches on it): first index with t >= fromT. */
+function windowStart(samples: { t: number }[], fromT: number): number {
+  let lo = 0;
+  let hi = samples.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (samples[mid].t < fromT) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** Fraction of [min,max]; a zero-span range draws empty instead of NaN. */
+const fracOf = (raw: number, min: number, max: number): number =>
+  max - min < 1e-9 ? 0 : Math.min(1, Math.max(0, (raw - min) / (max - min)));
+
 function drawGauge(
   ctx: Ctx,
   widget: WidgetDef,
@@ -190,11 +210,11 @@ function drawGauge(
 
   const [min, max] = widget.range ?? GAUGE_DEFAULTS[widget.metric];
   const raw = widgetValue(widget.metric, sample);
-  const frac = raw === undefined ? 0 : Math.min(1, Math.max(0, (raw - min) / (max - min)));
+  const frac = raw === undefined ? 0 : fracOf(raw, min, max);
 
   const cx = x + w / 2;
   const cy = y + h * 0.6;
-  const r = Math.min(w / 2 - 6, h * 0.42);
+  const r = Math.max(1, Math.min(w / 2 - 6, h * 0.42));
   const a0 = Math.PI * 0.75;
   const a1 = Math.PI * 2.25;
   const lw = Math.max(4, Math.min(w, h) * 0.09);
@@ -286,7 +306,7 @@ function drawSpeedo(
     return;
   }
   const [min, max] = widget.range ?? GAUGE_DEFAULTS[widget.metric];
-  const frac = Math.min(1, Math.max(0, (raw - min) / (max - min)));
+  const frac = fracOf(raw, min, max);
   const cx = x + w / 2;
   const cy = y + h * 0.74;
   const r = Math.min(w / 2 - 10, h * 0.6);
@@ -349,10 +369,10 @@ function drawRing(
     return;
   }
   const [min, max] = widget.range ?? GAUGE_DEFAULTS[widget.metric];
-  const frac = Math.min(1, Math.max(0, (raw - min) / (max - min)));
+  const frac = fracOf(raw, min, max);
   const cx = x + w / 2;
   const cy = y + h * 0.56;
-  const r = Math.min(w, h) / 2 - 10;
+  const r = Math.max(1, Math.min(w, h) / 2 - 10);
   ctx.save();
   ctx.lineWidth = Math.max(4, Math.min(w, h) * 0.09);
   ctx.lineCap = 'round';
@@ -396,7 +416,7 @@ function drawSlope(
     return;
   }
   const [min, max] = widget.range ?? GAUGE_DEFAULTS[widget.metric];
-  const frac = Math.min(1, Math.max(0, (raw - min) / (max - min)));
+  const frac = fracOf(raw, min, max);
   const pad = w * 0.08;
   const ty = y + h * 0.66;
   ctx.save();
@@ -476,8 +496,10 @@ function drawSpark(
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
   const pts: [number, number][] = [];
   if (hist) {
-    for (const s of hist.activity.samples) {
-      if (s.t < hist.t - 30 || s.t > hist.t) continue;
+    const samples = hist.activity.samples;
+    for (let i = windowStart(samples, hist.t - 30); i < samples.length; i++) {
+      const s = samples[i];
+      if (s.t > hist.t) break;
       const v = widget.metric === 'elapsedTime' ? s.t : s[widget.metric as keyof TelemetrySample];
       if (typeof v === 'number') pts.push([s.t, v]);
     }
@@ -562,11 +584,21 @@ function drawProfile(
     const useDist =
       typeof hist.activity.samples[0]?.distance === 'number' &&
       typeof sample.distance === 'number';
-    for (const s of hist.activity.samples) {
+    const samples = hist.activity.samples;
+    const stride = Math.max(1, Math.floor(samples.length / 800));
+    for (let i = 0; i < samples.length; i += stride) {
+      const s = samples[i];
       if (typeof s.elevation !== 'number') continue;
       const xk = useDist ? s.distance : s.t;
       if (typeof xk !== 'number') continue;
       series.push([xk, s.elevation]);
+    }
+    const last = samples[samples.length - 1];
+    if (last && typeof last.elevation === 'number') {
+      const xk = useDist ? last.distance : last.t;
+      if (typeof xk === 'number' && (series.length === 0 || xk !== series[series.length - 1][0])) {
+        series.push([xk, last.elevation]);
+      }
     }
   }
   ctx.save();
@@ -698,8 +730,16 @@ function drawMap(
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
   const pts: [number, number, number][] = [];
   if (hist) {
-    for (const s of hist.activity.samples) {
+    const samples = hist.activity.samples;
+    const stride = Math.max(1, Math.floor(samples.length / 1000));
+    for (let i = 0; i < samples.length; i += stride) {
+      const s = samples[i];
       if (typeof s.lat === 'number' && typeof s.lon === 'number') pts.push([s.lon, s.lat, s.t]);
+    }
+    const last = samples[samples.length - 1];
+    if (last && typeof last.lat === 'number' && typeof last.lon === 'number') {
+      const tail = pts[pts.length - 1];
+      if (!tail || tail[2] !== last.t) pts.push([last.lon, last.lat, last.t]);
     }
   }
   if (pts.length < 2 || !hist) {
@@ -787,8 +827,16 @@ function drawNavMap(
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
   const pts: [number, number, number][] = [];
   if (hist) {
-    for (const s of hist.activity.samples) {
+    const samples = hist.activity.samples;
+    const stride = Math.max(1, Math.floor(samples.length / 1000));
+    for (let i = 0; i < samples.length; i += stride) {
+      const s = samples[i];
       if (typeof s.lat === 'number' && typeof s.lon === 'number') pts.push([s.lon, s.lat, s.t]);
+    }
+    const last = samples[samples.length - 1];
+    if (last && typeof last.lat === 'number' && typeof last.lon === 'number') {
+      const tail = pts[pts.length - 1];
+      if (!tail || tail[2] !== last.t) pts.push([last.lon, last.lat, last.t]);
     }
   }
   const missing = (): void => {
@@ -860,7 +908,8 @@ function drawNavMap(
       : style.shape === 'none'
         ? 0
         : Math.min(10, h * 0.18);
-  ctx.roundRect(x, y, w, h, radius);
+  if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, w, h, radius);
+  else ctx.rect(x, y, w, h);
   ctx.clip();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';

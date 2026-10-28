@@ -60,6 +60,8 @@ const ES: Record<string, string> = {
   'tpl.newTitle': 'Crear una plantilla vacía o importar un JSON',
   'tpl.export': 'Exportar',
   'tpl.exportTitle': 'Descarga la plantilla seleccionada como JSON',
+  'tpl.delete': 'Eliminar',
+  'tpl.deleteTitle': 'Elimina esta plantilla, también de la nube',
   'tpl.createH': 'Nueva plantilla',
   'tpl.nameLabel': 'Nombre ',
   'tpl.namePh': 'Mi plantilla',
@@ -81,6 +83,7 @@ const ES: Record<string, string> = {
   'clip.tzApplied': 'Zona {tz} aplicada a “{name}”: offset {off}.',
   'clip.tzNeedFit': 'Zona aplicada. Carga un FIT para sincronizar.',
   'w.title': 'Widget',
+  'w.pickWidget': 'Editar widget: ',
   'w.bg': 'Fondo ',
   'w.opacity': 'Opacidad ',
   'w.shape': 'Forma ',
@@ -143,15 +146,19 @@ const ES: Record<string, string> = {
   'intervals.keyPh': 'Clave API',
   'intervals.keySave': 'Guardar clave',
   'intervals.keyBad': 'Esa clave no funciona.',
+  'intervals.keyShow': 'Mostrar clave',
+  'intervals.keyHide': 'Ocultar clave',
   'intervals.disconnect': 'Desconectar',
   'intervals.loading': 'Cargando…',
   'intervals.empty': 'Sin actividades.',
   'intervals.error': 'No se pudo conectar con Intervals.',
   'intervals.reconnect': 'Tu clave ya no funciona: pégala de nuevo.',
+  'intervals.loginExpired': 'Tu sesión caducó: inicia sesión de nuevo.',
   'intervals.prev': 'Anterior',
   'intervals.next': 'Siguiente',
   'intervals.source': 'Intervals: {name}',
   'err.intervalsEmpty': 'La actividad no tiene telemetría.',
+  'err.intervalsDate': 'No se pudo interpretar la fecha de la actividad.',
   'act.title': 'Actividad',
   'act.aria': 'Vista general de la actividad con la posición de los clips',
   'act.errCanvas': 'No se pudo crear el lienzo de actividad.',
@@ -296,6 +303,8 @@ const EN: Record<string, string> = {
   'tpl.newTitle': 'Create a blank template or import a JSON file',
   'tpl.export': 'Export',
   'tpl.exportTitle': 'Downloads the selected template as JSON',
+  'tpl.delete': 'Delete',
+  'tpl.deleteTitle': 'Deletes this template, from the cloud too',
   'tpl.createH': 'New template',
   'tpl.nameLabel': 'Name ',
   'tpl.namePh': 'My template',
@@ -317,6 +326,7 @@ const EN: Record<string, string> = {
   'clip.tzApplied': 'Zone {tz} applied to “{name}”: offset {off}.',
   'clip.tzNeedFit': 'Zone applied. Load a FIT to sync.',
   'w.title': 'Widget',
+  'w.pickWidget': 'Edit widget: ',
   'w.bg': 'Background ',
   'w.opacity': 'Opacity ',
   'w.shape': 'Shape ',
@@ -379,15 +389,19 @@ const EN: Record<string, string> = {
   'intervals.keyPh': 'API key',
   'intervals.keySave': 'Save key',
   'intervals.keyBad': 'That key does not work.',
+  'intervals.keyShow': 'Show key',
+  'intervals.keyHide': 'Hide key',
   'intervals.disconnect': 'Disconnect',
   'intervals.loading': 'Loading…',
   'intervals.empty': 'No activities.',
   'intervals.error': 'Could not reach Intervals.',
   'intervals.reconnect': 'Your key stopped working: paste it again.',
+  'intervals.loginExpired': 'Your session expired: sign in again.',
   'intervals.prev': 'Previous',
   'intervals.next': 'Next',
   'intervals.source': 'Intervals: {name}',
   'err.intervalsEmpty': 'The activity has no telemetry.',
+  'err.intervalsDate': 'Could not parse the activity date.',
   'act.title': 'Activity',
   'act.aria': 'Activity overview with clip positions',
   'act.errCanvas': 'Could not create the activity canvas.',
@@ -520,8 +534,10 @@ export const setLocale = (locale: Locale): void => {
   current = locale;
 };
 
+/** Literal keys autocomplete and typo-check; dynamic keys (ovl./kind./metric.) still allowed. */
+export type I18nKey = keyof typeof EN;
 /** Translated string with {placeholder} interpolation. Falls back to English, then the key. */
-export function t(key: string, vars?: Record<string, string | number>): string {
+export function t(key: I18nKey | (string & {}), vars?: Record<string, string | number>): string {
   let s: string = STRINGS[current][key] ?? EN[key] ?? key;
   if (vars) {
     for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));

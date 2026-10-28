@@ -14,17 +14,23 @@ const authHeader = (key: string): string => `Basic ${btoa(`API_KEY:${key}`)}`;
 async function icuGet(
   key: string,
   path: string,
-): Promise<{ status: number; data: unknown }> {
-  const res = await fetch(`${ICU}${path}`, {
-    headers: { Authorization: authHeader(key) },
-  });
-  let data: unknown = null;
+): Promise<{ status: number; data: unknown; retryAfter: string | null }> {
   try {
-    data = await res.json();
+    const res = await fetch(`${ICU}${path}`, {
+      headers: { Authorization: authHeader(key) },
+      signal: AbortSignal.timeout(10_000),
+    });
+    let data: unknown = null;
+    try {
+      data = await res.json();
+    } catch {
+      /* non-JSON upstream error */
+    }
+    const ra = res.headers.get('retry-after');
+    return { status: res.status, data, retryAfter: ra && /^\d+$/.test(ra) ? ra : null };
   } catch {
-    /* non-JSON upstream error */
+    return { status: 0, data: null, retryAfter: null };
   }
-  return { status: res.status, data };
 }
 
 export async function readApiKey(env: AuthEnv, userId: string): Promise<string | null> {
@@ -73,7 +79,9 @@ export interface IntervalsActivityMeta {
   distance: number;
 }
 
-export type IcuResult<T> = { ok: true; data: T } | { ok: false; auth: boolean };
+export type IcuResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; auth: boolean; status: number; retryAfter: string | null };
 
 const dayFmt = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -89,12 +97,13 @@ export async function listActivities(
   const newest = new Date(Date.now() - (page - 1) * 30 * 86400_000);
   const oldest = new Date(newest.getTime() - 30 * 86400_000);
   const fields = 'id,name,type,start_date_local,timezone,elapsed_time,distance';
-  const { status, data } = await icuGet(
+  const { status, data, retryAfter } = await icuGet(
     key,
     `/athlete/0/activities?oldest=${dayFmt(oldest)}&newest=${dayFmt(newest)}&limit=50&fields=${fields}`,
   );
-  if (status === 401 || status === 403) return { ok: false, auth: true };
-  if (status !== 200 || !Array.isArray(data)) return { ok: false, auth: false };
+  if (status === 401 || status === 403) return { ok: false, auth: true, status, retryAfter };
+  if (status !== 200 || !Array.isArray(data))
+    return { ok: false, auth: false, status, retryAfter };
   const out: IntervalsActivityMeta[] = [];
   for (const item of data) {
     if (typeof item !== 'object' || item === null) continue;
@@ -129,12 +138,13 @@ export async function getStreams(
     'latlng',
     'temp',
   ].join(',');
-  const { status, data } = await icuGet(
+  const { status, data, retryAfter } = await icuGet(
     key,
     `/activity/${encodeURIComponent(activityId)}/streams.json?types=${types}`,
   );
-  if (status === 401 || status === 403) return { ok: false, auth: true };
-  if (status !== 200 || !Array.isArray(data)) return { ok: false, auth: false };
+  if (status === 401 || status === 403) return { ok: false, auth: true, status, retryAfter };
+  if (status !== 200 || !Array.isArray(data))
+    return { ok: false, auth: false, status, retryAfter };
   const out: Record<string, unknown> = {};
   for (const item of data) {
     if (typeof item !== 'object' || item === null) continue;

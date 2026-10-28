@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { activityFromIntervalsStreams, fillDerivedGrade, parseFit, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
-import { hashPassword, normalizeEmail, validatePassword, verifyPassword } from '../api/src/password.ts';
+import { hashPassword, needsRehash, normalizeEmail, storedIterations, validatePassword, verifyPassword } from '../api/src/password.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
 import {
   GUIDES,
@@ -106,10 +106,14 @@ assert.equal(validatePassword('secretpass99'), null);
 assert.equal(validatePassword('short1'), 'weak');
 assert.equal(validatePassword('longpasswordwithoutdigit'), 'weak');
 assert.equal(validatePassword('12345678901'), 'weak');
+assert.equal(validatePassword(`${'a1'.repeat(65)}`), 'weak');
 const ph = await hashPassword('secretpass99');
-assert.ok(ph.startsWith('pbkdf2$100000$'));
+assert.ok(ph.startsWith('pbkdf2$310000$'));
 assert.equal(await verifyPassword('secretpass99', ph), true);
 assert.equal(await verifyPassword('wrongpass11', ph), false);
+assert.equal(storedIterations(ph), 310000);
+assert.equal(needsRehash(ph), false);
+assert.equal(needsRehash('pbkdf2$100000$c2FsdA$hash'), true);
 
 // Interpolation + clamp.
 const mid = sampleAt(act, 30.5);

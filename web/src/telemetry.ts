@@ -46,7 +46,7 @@ const SEMI_TO_DEG = 180 / 2 ** 31;
  * instant). Null on bad input or unknown zone.
  */
 export function zonedTimeToUtc(wall: string, timeZone: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(wall);
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(wall);
   if (!m) return null;
   const asUtc = Date.UTC(
     Number(m[1]),
@@ -93,6 +93,21 @@ export type StreamSet = Record<string, unknown>;
  * elevation+distance derive it like the FIT path. velocity_smooth is m/s
  * (metric API; verify against a real ride if speed reads off).
  */
+/**
+ * Activity start instant: IANA zone first, then native parse for offset/UTC
+ * forms, else the naive wall as UTC (deterministic across devices: a
+ * browser-tz guess would shift the same activity per device). Null when
+ * nothing parses.
+ */
+export function parseActivityStart(wall: string, timeZone: string | null): Date | null {
+  if (timeZone) {
+    const zoned = zonedTimeToUtc(wall, timeZone);
+    if (zoned) return zoned;
+  }
+  const native = new Date(/([zZ]|[+-]\d{2}:?\d{2})$/.test(wall) ? wall : `${wall}Z`);
+  return Number.isNaN(native.getTime()) ? null : native;
+}
+
 export function activityFromIntervalsStreams(
   streams: StreamSet,
   startDateLocal: string,
@@ -104,10 +119,8 @@ export function activityFromIntervalsStreams(
       : undefined;
   const time = numArr(streams['time']) ?? [];
   if (time.length === 0) throw new Error(t('err.intervalsEmpty'));
-  const start =
-    (timezone ? zonedTimeToUtc(startDateLocal, timezone) : null) ??
-    new Date(startDateLocal);
-  if (Number.isNaN(start.getTime())) throw new Error(t('err.intervalsEmpty'));
+  const start = parseActivityStart(startDateLocal, timezone);
+  if (!start) throw new Error(t('err.intervalsDate'));
   const distance = numArr(streams['distance']);
   const altitude = numArr(streams['altitude']);
   const speed = numArr(streams['velocity_smooth']);
@@ -279,7 +292,12 @@ export function summarize(activity: Activity): ActivitySummary {
     samples.map(pick).filter((v): v is number => typeof v === 'number');
   const avg = (xs: number[]): number | null =>
     xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
-  const max = (xs: number[]): number | null => (xs.length > 0 ? Math.max(...xs) : null);
+  const max = (xs: number[]): number | null => {
+    if (xs.length === 0) return null;
+    let m = xs[0];
+    for (let i = 1; i < xs.length; i++) if (xs[i] > m) m = xs[i];
+    return m;
+  };
 
   const elev = nums((s) => s.elevation);
   let gain: number | null = null;

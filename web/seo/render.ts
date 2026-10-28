@@ -8,7 +8,7 @@ export const escHtml = (s: string): string => escXml(s).replace(/"/g, '&quot;');
 
 const OG_LOCALE: Record<Locale, string> = { es: 'es_ES', en: 'en_US' };
 
-const CONTENT_CSS = `:root{--paper:#f4f4f4;--surface:#fff;--ink:#101010;--graphite:#242424;--muted:#6b7280;--border:#e5e7eb;--accent:#0099ff}
+const CONTENT_CSS = `:root{--paper:#f4f4f4;--surface:#fff;--ink:#101010;--graphite:#242424;--muted:#6b7280;--border:#e5e7eb;--accent:#0099ff;--accent-ink:#0077cc}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--graphite);font:400 17px/1.65 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
 .wrap{max-width:760px;margin:0 auto;padding:0 24px 64px}
@@ -35,8 +35,9 @@ details.faq p{margin:12px 0 4px}
 .guide-link span{color:var(--muted);font-size:15px}
 footer.site{margin-top:64px;border-top:1px solid var(--border);padding-top:20px;color:var(--muted);font-size:14px;display:flex;gap:16px;flex-wrap:wrap}
 footer.site a{color:var(--muted)}
-a{color:var(--accent)}
-a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}`;
+a{color:var(--accent-ink)}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:560px){header.site{flex-wrap:wrap;row-gap:12px}nav.site{margin-left:0;flex-wrap:wrap;gap:12px}.cta{padding:10px 18px}}`;
 
 export interface HeadOpts {
   locale: Locale;
@@ -56,6 +57,10 @@ export function contentHead(base: string, o: HeadOpts): string {
     .join('\n');
   return `    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self'; font-src 'self'; style-src 'unsafe-inline'"
+    />
     <meta name="description" content="${escHtml(o.description)}" />
     <title>${escHtml(o.title)}</title>
     <link rel="canonical" href="${url}" />

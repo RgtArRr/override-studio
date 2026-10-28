@@ -11,6 +11,15 @@ document.title = t('meta.title');
 document
   .querySelector('meta[name="description"]')
   ?.setAttribute('content', t('meta.description'));
+document
+  .querySelector('meta[property="og:title"]')
+  ?.setAttribute('content', t('meta.title'));
+document
+  .querySelector('meta[property="og:description"]')
+  ?.setAttribute('content', t('meta.description'));
+document
+  .querySelector('meta[property="og:locale"]')
+  ?.setAttribute('content', getLocale() === 'es' ? 'es_ES' : 'en_US');
 
 const root = document.getElementById('root');
 if (!root) throw new Error('missing #root');

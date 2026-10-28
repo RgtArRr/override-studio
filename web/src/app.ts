@@ -44,6 +44,7 @@ import {
 import { getLocale, saveLocale, t, type Locale } from './i18n.js';
 import { DONATE_URL } from '../seo/content.js';
 import {
+  deleteCloudTemplate,
   deleteIntervalsKey,
   fetchSession,
   getIntervalsStreams,
@@ -199,12 +200,16 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     cloudTimer = window.setTimeout(() => {
       const tpl = selectedTemplate();
       if (!account || !tpl || !cloudIds.has(tpl.id)) return;
-      void saveCloudTemplate(tpl.id, tpl.name, effectiveTemplate(tpl)).then((okSave) => {
-        if (!okSave && !cloudErrShown) {
-          cloudErrShown = true;
-          setStatus(t('auth.errCloud'));
-        } else if (okSave) {
+      void saveCloudTemplate(tpl.id, tpl.name, effectiveTemplate(tpl)).then((savedId) => {
+        if (!savedId) {
+          if (!cloudErrShown) {
+            cloudErrShown = true;
+            setStatus(t('auth.errCloud'));
+          }
+        } else {
           cloudErrShown = false;
+          cloudIds.add(savedId);
+          persistLocalCustoms();
         }
       });
     }, 2000);
@@ -421,13 +426,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       const key =
         res.error === 'invalid'
           ? 'auth.errInvalid'
-          : res.error === 'taken'
-            ? 'auth.errTaken'
-            : res.error === 'email'
-              ? 'auth.errEmail'
-              : res.error === 'weak'
-                ? 'auth.policy'
-                : 'auth.errNet';
+          : res.error === 'email'
+            ? 'auth.errEmail'
+            : res.error === 'weak'
+              ? 'auth.policy'
+              : 'auth.errNet';
       authFail(t(key));
     });
   });
@@ -438,9 +441,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       authSubmit.click();
     }
   });
+  /** showModal throws when already open: every opener goes through here. */
+  const showModal = (dialog: HTMLDialogElement): void => {
+    if (!dialog.open) dialog.showModal();
+  };
   loginBtn.addEventListener('click', () => {
     syncAuthDialog();
-    authDialog.showModal();
+    showModal(authDialog);
   });
   authCancelBtn.addEventListener('click', () => authDialog.close());
   const outsideAuthDialog = (e: { clientX: number; clientY: number }): boolean => {
@@ -493,7 +500,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     e.preventDefault();
     fitDrop.classList.remove('over');
     const file = (e as DragEvent).dataTransfer?.files?.[0];
-    if (file) void file.arrayBuffer().then((buffer) => loadFitBuffer(buffer, file.name));
+    if (file) {
+      void file
+        .arrayBuffer()
+        .then((buffer) => loadFitBuffer(buffer, file.name))
+        .catch(() => setStatus(t('st.fitUnreadable')));
+    }
   });
   // A missed drop must not navigate the app away to the raw file.
   window.addEventListener('dragover', (e) => e.preventDefault());
@@ -510,7 +522,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const icuTitle = el('h2', undefined, t('intervals.title'));
   const icuKeyView = el('div', 'icu-view');
   const icuKeyInput = el('input', 'name-input auth-field');
-  icuKeyInput.type = 'text';
+  icuKeyInput.type = 'password';
   icuKeyInput.placeholder = t('intervals.keyPh');
   icuKeyInput.autocomplete = 'off';
   icuKeyInput.spellcheck = false;
@@ -518,9 +530,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   icuKeyErr.hidden = true;
   const icuKeySave = el('button', 'btn btn-primary provider-btn', t('intervals.keySave'));
   icuKeySave.type = 'button';
+  const icuKeyToggle = el('button', 'btn btn-small', t('intervals.keyShow'));
+  icuKeyToggle.type = 'button';
+  icuKeyToggle.addEventListener('click', () => {
+    const show = icuKeyInput.type === 'password';
+    icuKeyInput.type = show ? 'text' : 'password';
+    icuKeyToggle.textContent = show ? t('intervals.keyHide') : t('intervals.keyShow');
+  });
   icuKeyView.append(
     el('p', 'muted', t('intervals.keyHelp')),
     icuKeyInput,
+    icuKeyToggle,
     icuKeyErr,
     icuKeySave,
   );
@@ -579,6 +599,15 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     icuKeyErr.textContent = message;
     icuKeyErr.hidden = message === '';
   };
+  /** The API said the login (not the ICU key) expired: drop the account and prompt sign-in. */
+  const icuLoginExpired = (): void => {
+    account = null;
+    syncAccountUI();
+    icuDialog.close();
+    syncAuthDialog();
+    showModal(authDialog);
+    setStatus(t('intervals.loginExpired'));
+  };
   const renderIcuPage = async (): Promise<void> => {
     icuState.textContent = t('intervals.loading');
     icuList.replaceChildren();
@@ -586,6 +615,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     icuNext.disabled = true;
     const res = await listIntervalsActivities(icuPage);
     if ('error' in res) {
+      if (res.error === 'login') {
+        icuLoginExpired();
+        return;
+      }
       if (res.error === 'reconnect') showIcuKey(t('intervals.reconnect'));
       else icuState.textContent = t('intervals.error');
       return;
@@ -612,8 +645,22 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     icuNext.disabled = icuPage >= ICU_MAX_PAGE;
   };
   const refreshIcu = async (): Promise<void> => {
-    const connected = await intervalsStatus();
-    if (!connected) {
+    const status = await intervalsStatus();
+    if (status === 'login') {
+      icuLoginExpired();
+      return;
+    }
+    if (status === 'net') {
+      icuTitle.textContent = t('intervals.title');
+      icuKeyView.hidden = true;
+      icuListView.hidden = false;
+      icuList.replaceChildren();
+      icuState.textContent = t('intervals.error');
+      icuPrev.disabled = true;
+      icuNext.disabled = true;
+      return;
+    }
+    if (status === 'disconnected') {
       showIcuKey('');
       return;
     }
@@ -664,6 +711,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       icuState.textContent = t('intervals.loading');
       const res = await getIntervalsStreams(a.id);
       if ('error' in res) {
+        if (res.error === 'login') {
+          icuLoginExpired();
+          return;
+        }
         if (res.error === 'reconnect') showIcuKey(t('intervals.reconnect'));
         else icuState.textContent = t('intervals.error');
         return;
@@ -684,11 +735,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
   intervalsPickBtn.addEventListener('click', () => {
     if (!account) {
-      authDialog.showModal();
+      syncAuthDialog();
+      showModal(authDialog);
       return;
     }
     icuPage = 1;
-    icuDialog.showModal();
+    showModal(icuDialog);
     void refreshIcu();
   });
   leftCol.appendChild(fitBlock);
@@ -779,6 +831,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const video = el('video', 'source-video');
   video.preload = 'auto';
   video.setAttribute('aria-hidden', 'true');
+  /** Which clip the current video src belongs to (loadedmetadata may land after a switch). */
+  let srcClipId: number | null = null;
   const canvas = el('canvas', 'live-preview');
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', t('stage.ariaPreview'));
@@ -910,7 +964,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     addDialog.close();
     bumpRev();
   });
-  addOpenBtn.addEventListener('click', () => addDialog.showModal());
+  addOpenBtn.addEventListener('click', () => showModal(addDialog));
   /** Export downloads a template with its current widget setup. */
   const downloadTemplate = (template: Template): void => {
     const slug = template.name
@@ -992,6 +1046,15 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     icon.setAttribute('aria-hidden', 'true');
     exportBtn.appendChild(icon);
     exportBtn.addEventListener('click', () => downloadTemplate(tpl));
+    if (custom) {
+      const delBtn = el('button', 'card-delete');
+      delBtn.type = 'button';
+      delBtn.textContent = '×';
+      delBtn.title = t('tpl.deleteTitle');
+      delBtn.setAttribute('aria-label', t('tpl.delete'));
+      delBtn.addEventListener('click', () => deleteCustom(tpl.id));
+      card.appendChild(delBtn);
+    }
     card.append(openBtn, exportBtn);
     cardsBox.appendChild(card);
     thumbs.push({
@@ -1101,6 +1164,24 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const ci = customTemplates.findIndex((c) => c.id === id);
     if (ci >= 0) customTemplates.splice(ci, 1);
   };
+  /** User deletes a custom: drop it locally and from the cloud. No confirm (matches widget delete). */
+  const deleteCustom = (id: string): void => {
+    if (cloudIds.has(id)) {
+      cloudIds.delete(id);
+      void deleteCloudTemplate(id).then((ok) => {
+        if (!ok) setStatus(t('auth.errCloud'));
+      });
+    }
+    const wasSelected = selectedTemplateId === id;
+    removeCustom(id);
+    if (wasSelected) {
+      selectedTemplateId = allTemplates()[0]?.id ?? '';
+      selected = null;
+    }
+    syncCards();
+    sizeThumbs();
+    bumpRev();
+  };
   /** Custom templates land right after the + card, selected and ready. */
   const insertCustom = (tpl: Template, silent = false): void => {
     removeCustom(tpl.id);
@@ -1116,8 +1197,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     sizeThumbs();
     bumpRev();
     if (account && !cloudIds.has(tpl.id)) {
-      void saveCloudTemplate(tpl.id, tpl.name, effectiveTemplate(tpl)).then((okSave) => {
-        if (okSave) cloudIds.add(tpl.id);
+      void saveCloudTemplate(tpl.id, tpl.name, effectiveTemplate(tpl)).then((savedId) => {
+        // Adopt whatever id the server stored (it round-trips ours today).
+        if (savedId) cloudIds.add(savedId);
         else setStatus(t('auth.errCloud'));
       });
     }
@@ -1170,15 +1252,20 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     nameInput.value = '';
     fileInput.value = '';
     importErr.hidden = true;
-    newDialog.showModal();
+    showModal(newDialog);
   });
   wrap.appendChild(newDialog);
-  /** Session customs survive reloads (flattened); the cloud wins on id clash. */
+  /** Session customs survive reloads (flattened); the cloud wins on id clash unless local is newer. */
   const CUSTOMS_KEY = 'override.customs';
+  let localCustomsSavedAt: string | null = null;
   const persistLocalCustoms = (): void => {
     try {
       const flat = customTemplates.map((c) => effectiveTemplate(c));
-      localStorage.setItem(CUSTOMS_KEY, JSON.stringify(flat));
+      localCustomsSavedAt = new Date().toISOString();
+      localStorage.setItem(
+        CUSTOMS_KEY,
+        JSON.stringify({ savedAt: localCustomsSavedAt, templates: flat }),
+      );
     } catch {
       /* quota/private mode: session-only */
     }
@@ -1192,7 +1279,14 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
     if (!raw) return;
     try {
-      const list: unknown = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
+      // Legacy shape was a bare array (no timestamp: cloud always wins for it).
+      const rec = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as {
+        savedAt?: unknown;
+        templates?: unknown;
+      };
+      const list: unknown = Array.isArray(parsed) ? parsed : rec.templates;
+      if (typeof rec.savedAt === 'string') localCustomsSavedAt = rec.savedAt;
       if (!Array.isArray(list)) return;
       for (const item of [...list].reverse()) {
         try {
@@ -1204,6 +1298,14 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     } catch {
       /* ignore */
     }
+  };
+  /** Local snapshot wins only when clearly newer (60s grace for clock skew); else cloud wins. */
+  const localNewerThanCloud = (cloudUpdatedAt: string): boolean => {
+    if (!localCustomsSavedAt) return false;
+    const local = Date.parse(localCustomsSavedAt);
+    const cloud = Date.parse(cloudUpdatedAt);
+    if (!Number.isFinite(local) || !Number.isFinite(cloud)) return false;
+    return local > cloud + 60_000;
   };
   /** Login-less by default: customs restore locally, cloud loads only on session. */
   const bootAccount = async (): Promise<void> => {
@@ -1220,6 +1322,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       try {
         const tpl = parseTemplateJson(JSON.stringify(ct.definition));
         cloudIds.add(ct.id);
+        const local = customTemplates.find((c) => c.id === ct.id);
+        if (local && localNewerThanCloud(ct.updatedAt)) {
+          // Edited here while offline: push local up instead of clobbering it.
+          const savedId = await saveCloudTemplate(local.id, local.name, effectiveTemplate(local));
+          if (savedId) cloudIds.add(savedId);
+          continue;
+        }
         insertCustom({ ...tpl, id: ct.id, name: ct.name }, true);
       } catch {
         /* skip corrupt */
@@ -1227,8 +1336,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
     for (const tpl of customTemplates) {
       if (cloudIds.has(tpl.id)) continue;
-      const okSave = await saveCloudTemplate(tpl.id, tpl.name, effectiveTemplate(tpl));
-      if (okSave) cloudIds.add(tpl.id);
+      const savedId = await saveCloudTemplate(tpl.id, tpl.name, effectiveTemplate(tpl));
+      if (savedId) cloudIds.add(savedId);
     }
   };
   // Templates sit above the viewer: one strip, no scroll to pick one.
@@ -1323,6 +1432,39 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     binMetaSig = '';
   });
   clipPanel.appendChild(tzRow);
+  // Keyboard path to widget selection (the canvas itself is pointer-only).
+  const widgetPickRow = el('div', 'editor-row');
+  const widgetPickLabel = el('label', undefined, t('w.pickWidget'));
+  const widgetPick = el('select');
+  widgetPickLabel.appendChild(widgetPick);
+  widgetPickRow.appendChild(widgetPickLabel);
+  clipPanel.appendChild(widgetPickRow);
+  let widgetPickSig = '';
+  const syncWidgetPick = (): void => {
+    const tpl = selectedTemplate();
+    const widgets = tpl ? effectiveTemplate(tpl).widgets : [];
+    const sig = `${tpl?.id ?? ''}|${widgets.map((w) => w.id).join(',')}|${selected?.widgetId ?? ''}`;
+    if (sig === widgetPickSig) return;
+    widgetPickSig = sig;
+    widgetPick.replaceChildren();
+    const none = el('option', undefined, '—');
+    none.value = '';
+    widgetPick.appendChild(none);
+    for (const w of widgets) {
+      const opt = el(
+        'option',
+        undefined,
+        w.label || `${kindLabel(w.kind)} · ${metricLabel(w.metric)}`,
+      );
+      opt.value = w.id;
+      widgetPick.appendChild(opt);
+    }
+    widgetPick.value = selected?.templateId === tpl?.id ? (selected?.widgetId ?? '') : '';
+  };
+  widgetPick.addEventListener('change', () => {
+    const tpl = selectedTemplate();
+    selected = tpl && widgetPick.value ? { templateId: tpl.id, widgetId: widgetPick.value } : null;
+  });
   inspector.appendChild(clipPanel);
 
   // Widget panel: every option of the selected widget.
@@ -1691,6 +1833,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     widgetPanel.hidden = !showWidget;
     renderPanel.hidden = showWidget;
     if (showWidget) fillWidgetPanel();
+    else syncWidgetPick();
   };
   // Render lives in its own panel so the Widget panel can hide it.
   const renderPanel = el('div', 'render-panel');
@@ -1707,6 +1850,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   progress.setAttribute('aria-label', t('r.progress'));
   const progressLabel = el('p', 'muted', '');
   const result = el('div', 'result');
+  let renderUrls: string[] = [];
   renderPanel.append(progress, progressLabel, result);
   inspector.appendChild(renderPanel);
   grid.appendChild(inspector);
@@ -1805,7 +1949,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     return [start, Math.max(end, start)];
   };
 
-  const binRows = new Map<number, { row: HTMLButtonElement; meta: HTMLSpanElement }>();
+  const binRows = new Map<number, { row: HTMLDivElement; meta: HTMLSpanElement }>();
 
   const syncBin = (): void => {
     binCount.textContent = String(clips.length);
@@ -1814,22 +1958,24 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     binList.innerHTML = '';
     binRows.clear();
     for (const clip of clips) {
-      const row = el('button', 'clip-row');
-      row.type = 'button';
+      const row = el('div', 'clip-row');
       if (clip.id === selectedClipId) row.classList.add('selected');
+      const main = el('button', 'clip-main');
+      main.type = 'button';
+      main.setAttribute('aria-label', clip.name);
       const dot = el('span', `clip-dot clip-dot-${clip.status}`);
+      dot.setAttribute('aria-hidden', 'true');
       const name = el('span', 'clip-title', clip.name);
       name.title = clip.name;
       const meta = el('span', 'clip-meta');
-      const remove = el('span', 'clip-remove', '×');
+      main.append(dot, name, meta);
+      const remove = el('button', 'clip-remove', '×');
+      remove.type = 'button';
       remove.title = t('bin.remove');
-      remove.setAttribute('role', 'button');
-      remove.addEventListener('click', (e) => {
-        e.stopPropagation();
-        removeClip(clip.id);
-      });
-      row.append(dot, name, meta, remove);
-      row.addEventListener('click', () => selectClip(clip.id));
+      remove.setAttribute('aria-label', `${t('bin.remove')}: ${clip.name}`);
+      remove.addEventListener('click', () => removeClip(clip.id));
+      row.append(main, remove);
+      main.addEventListener('click', () => selectClip(clip.id));
       binList.appendChild(row);
       binRows.set(clip.id, { row, meta });
     }
@@ -1882,6 +2028,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     selectedClipId = id;
     if (video.src !== clip.url) {
       video.src = clip.url;
+      srcClipId = clip.id;
       video.currentTime = 0;
     }
     trimStartInput.value = clip.trimStart > 0 ? String(clip.trimStart) : '';
@@ -2061,7 +2208,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   fitInput.addEventListener('change', () => {
     const file = fitInput.files?.[0];
     if (file) {
-      void file.arrayBuffer().then((buffer) => loadFitBuffer(buffer, file.name));
+      void file
+        .arrayBuffer()
+        .then((buffer) => loadFitBuffer(buffer, file.name))
+        .catch(() => setStatus(t('st.fitUnreadable')));
     }
   });
 
@@ -2168,7 +2318,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     return null;
   };
 
+  let lastOverviewSig = '';
   const paintOverview = (tt: number): void => {
+    const sig = `${tt.toFixed(2)}|${activity?.durationSec ?? -1}|${overviewCache ? `${overviewCache.metric}|${overviewCache.min}|${overviewCache.max}` : ''}|${clips.map((c) => `${c.id}:${c.offsetSec}:${c.trimStart}:${c.trimEnd ?? ''}:${c.status}`).join(',')}|${selectedClipId}|${activityCanvas.width}x${activityCanvas.height}`;
+    if (sig === lastOverviewSig) return;
+    lastOverviewSig = sig;
     const W = activityCanvas.width;
     const H = activityCanvas.height;
     activityCtx.fillStyle = '#ffffff';
@@ -2507,7 +2661,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const confirmMemoryRender = (): Promise<boolean> =>
     new Promise((resolve) => {
       memResolve = resolve;
-      memDialog.showModal();
+      showModal(memDialog);
     });
   /** Best effort: discard the partial temp file (rejects when still locked). */
   const abortSave = async (save: DiskSave): Promise<void> => {
@@ -2557,6 +2711,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       return;
     }
     const url = URL.createObjectURL(blob);
+    renderUrls.push(url);
     const mb = (blob.size / 1024 / 1024).toFixed(2);
     const line = el('p', 'result-line');
     const link = el('a', undefined, `${outputName(clip)} (${mb} MB)`);
@@ -2575,6 +2730,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     progress.hidden = !on;
     if (on) {
       progress.value = 0;
+      for (const u of renderUrls) URL.revokeObjectURL(u);
+      renderUrls = [];
       result.innerHTML = '';
     }
   };
@@ -2701,7 +2858,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     playBtn.disabled = false;
     canvas.width = video.videoWidth || 1280;
     canvas.height = video.videoHeight || 720;
-    const clip = activeClip();
+    // The event may land after the user switched clips: tag the clip this src belongs to.
+    const clip = srcClipId !== null ? (clips.find((c) => c.id === srcClipId) ?? null) : activeClip();
     if (clip) {
       clip.duration = Number.isFinite(video.duration) ? video.duration : 0;
       binMetaSig = '';
@@ -2712,7 +2870,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       sizeThumbs();
       repaintThumbs(lastThumbSample);
     }
-    if (clip && trimEndInput.value.trim() === '' && Number.isFinite(video.duration)) {
+    if (
+      clip &&
+      clip.id === selectedClipId &&
+      trimEndInput.value.trim() === '' &&
+      Number.isFinite(video.duration)
+    ) {
       trimEndInput.value = video.duration.toFixed(1);
       clip.trimEnd = Number.isFinite(video.duration) ? video.duration : null;
     }
@@ -2759,6 +2922,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
   paintPlaceholder();
 
+  let lastLiveSig = '';
   const tick = (): void => {
     const clip = activeClip();
     const offsetSec = clip?.offsetSec ?? 0;
@@ -2779,13 +2943,18 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       }
       // The video element applies rotation metadata and the canvas tracks the
       // rotation-adjusted videoWidth/videoHeight, so preview stays correct.
-      liveCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Paused video repaints only when something actually changed.
+      const playing = !video.paused && !video.ended;
+      const liveSig = `${vt}|${offsetSec}|${overrideRev}|${units}|${selectedTemplateId}|${selected?.templateId ?? ''}:${selected?.widgetId ?? ''}|${activity?.durationSec ?? -1}|${canvas.width}x${canvas.height}`;
+      const drawLive = playing || liveSig !== lastLiveSig;
+      if (drawLive) lastLiveSig = liveSig;
+      if (drawLive) liveCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
       if (activity) {
         const tt = vt + offsetSec;
         const inRange = tt >= 0 && tt <= activity.durationSec;
         const sample = sampleAt(activity, tt);
         const template = selectedTemplate();
-        if (template) {
+        if (template && drawLive) {
           drawOverlay(
             liveCtx,
             effectiveTemplate(template),
@@ -2798,7 +2967,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         }
         // Selection chrome is preview-only: render.ts never sees it.
         const selBox = selectedBox();
-        if (selBox) {
+        if (drawLive && selBox) {
           const sx = selBox.x * canvas.width;
           const sy = selBox.y * canvas.height;
           const sw = selBox.w * canvas.width;
@@ -2836,5 +3005,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
   syncBin();
   void bootAccount();
+  // Late webfonts would otherwise stick on fallback glyphs behind the paint gates.
+  void document.fonts?.ready.then(() => {
+    lastLiveSig = '';
+    lastOverviewSig = '';
+    for (const th of thumbs) th.sig = '';
+  });
   requestAnimationFrame(tick);
 }

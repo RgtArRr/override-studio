@@ -127,6 +127,7 @@ Mapeo a `web/src/style.css`:
 
 Notas:
 
-- Fuentes servidas desde Google Fonts: Poppins 600 (display, fallback de Cal Sans) + Inter 300–500 (cuerpo/UI).
-- Se añade un único token fuera del sistema, `--danger: #b42318`, solo para el estado "fuera de rango"
-  de telemetría. Todo lo demás usa la paleta del sistema.
+- Fuentes autoservidas (ver `web/public/fonts.css`): Poppins 600 (display, fallback de Cal Sans) + Inter 300–500 (cuerpo/UI). Sin Google Fonts ni rastreo de terceros.
+- Se añade un único token fuera del sistema, `--danger: #b42318`, solo para estados de error
+  (errores de formulario, acciones destructivas, banner de aviso) y "fuera de rango" de telemetría.
+  Todo lo demás usa la paleta del sistema.

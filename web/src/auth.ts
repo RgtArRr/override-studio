@@ -14,9 +14,45 @@ export interface AccountUser {
   image: string | null;
 }
 
-export type CredsError = 'email' | 'weak' | 'taken' | 'invalid' | 'net';
+export type CredsError = 'email' | 'weak' | 'invalid' | 'net';
 
-const KNOWN_CREDS_ERRORS: readonly string[] = ['email', 'weak', 'taken', 'invalid'];
+const KNOWN_CREDS_ERRORS: readonly string[] = ['email', 'weak', 'invalid'];
+
+const API_TIMEOUT_MS = 15_000;
+const RETRY_DELAY_MS = 800;
+
+/** Credentialed fetch with a timeout; idempotent GETs may retry once on 502/429/timeout. */
+async function apiFetch(path: string, init?: RequestInit, retries = 0): Promise<Response> {
+  const attempt = (): Promise<Response> =>
+    fetch(`${API_URL}${path}`, {
+      ...init,
+      credentials: 'include',
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    });
+  try {
+    const res = await attempt();
+    if (retries > 0 && (res.status === 502 || res.status === 429)) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      return attempt();
+    }
+    return res;
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      return attempt();
+    }
+    throw err;
+  }
+}
+
+const readErrorBody = async (res: Response): Promise<string | null> => {
+  try {
+    const data = (await res.json()) as { error?: unknown } | null;
+    return typeof data?.error === 'string' ? data.error : null;
+  } catch {
+    return null;
+  }
+};
 
 async function creds(
   path: '/api/login' | '/api/register',
@@ -24,13 +60,12 @@ async function creds(
   password: string,
 ): Promise<{ user: AccountUser } | { error: CredsError }> {
   try {
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await apiFetch(path, {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    // Error bodies matter here (email|weak|taken|invalid): parse any status.
+    // Error bodies matter here (email|weak|invalid): parse any status.
     let data: unknown = null;
     try {
       data = (await res.json()) as unknown;
@@ -54,14 +89,14 @@ async function creds(
 export const login = (email: string, password: string): Promise<{ user: AccountUser } | { error: CredsError }> =>
   creds('/api/login', email, password);
 
-/** Classic registration (also logs in on success). */
+/** Classic registration (also logs in on success; existing email + right password logs in). */
 export const register = (email: string, password: string): Promise<{ user: AccountUser } | { error: CredsError }> =>
   creds('/api/register', email, password);
 
 /** Current session user, or null when logged out or unreachable. */
 export async function fetchSession(): Promise<AccountUser | null> {
   try {
-    const res = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
+    const res = await apiFetch('/api/auth/session', undefined, 1);
     if (!res.ok) return null;
     const data: unknown = await res.json();
     if (typeof data !== 'object' || data === null) return null;
@@ -73,13 +108,10 @@ export async function fetchSession(): Promise<AccountUser | null> {
   }
 }
 
-/** Ends the API session (no CSRF token: the API skips the origin check). */
+/** Ends the API session (no CSRF token: the API skips the origin check for Auth.js signout). */
 export async function logout(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_URL}/api/auth/signout`, {
-      method: 'POST',
-      credentials: 'include',
-    });
+    const res = await apiFetch('/api/auth/signout', { method: 'POST' });
     return res.ok;
   } catch {
     return false;
@@ -102,13 +134,25 @@ const okJson = async (res: Response): Promise<unknown | null> => {
   }
 };
 
+const isCloudTemplate = (value: unknown): value is CloudTemplate => {
+  if (typeof value !== 'object' || value === null) return false;
+  const rec = value as Record<string, unknown>;
+  return (
+    typeof rec['id'] === 'string' &&
+    typeof rec['name'] === 'string' &&
+    typeof rec['definition'] === 'object' &&
+    rec['definition'] !== null &&
+    typeof rec['updatedAt'] === 'string'
+  );
+};
+
 /** Account templates, newest first; null when logged out or unreachable. */
 export async function listCloudTemplates(): Promise<CloudTemplate[] | null> {
   try {
-    const res = await fetch(`${API_URL}/api/my/templates`, { credentials: 'include' });
+    const res = await apiFetch('/api/my/templates', undefined, 1);
     const data = await okJson(res);
     const list = (data as { templates?: unknown } | null)?.templates;
-    return Array.isArray(list) ? (list as CloudTemplate[]) : null;
+    return Array.isArray(list) ? list.filter(isCloudTemplate) : null;
   } catch {
     return null;
   }
@@ -124,27 +168,30 @@ export interface IntervalsActivity {
   distance: number;
 }
 
-export type IntervalsFailure = 'reconnect' | 'intervals';
+export type IntervalsFailure = 'reconnect' | 'intervals' | 'login';
 
-/** Whether the account has an intervals.icu key (null when logged out). */
-export async function intervalsStatus(): Promise<boolean | null> {
+export type IntervalsStatus = 'connected' | 'disconnected' | 'login' | 'net';
+
+/** Whether the account has an intervals.icu key, the session state, or a network failure. */
+export async function intervalsStatus(): Promise<IntervalsStatus> {
   try {
-    const res = await fetch(`${API_URL}/api/intervals/status`, { credentials: 'include' });
-    if (res.status === 401) return null;
+    const res = await apiFetch('/api/intervals/status', undefined, 1);
+    if (res.status === 401) return 'login';
+    if (!res.ok) return 'net';
     const data = await okJson(res);
     const connected = (data as { connected?: unknown } | null)?.connected;
-    return typeof connected === 'boolean' ? connected : null;
+    if (typeof connected !== 'boolean') return 'net';
+    return connected ? 'connected' : 'disconnected';
   } catch {
-    return null;
+    return 'net';
   }
 }
 
 /** Stores the intervals.icu API key (server validates it first). */
 export async function saveIntervalsKey(apiKey: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_URL}/api/intervals/key`, {
+    const res = await apiFetch('/api/intervals/key', {
       method: 'PUT',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey }),
     });
@@ -156,29 +203,33 @@ export async function saveIntervalsKey(apiKey: string): Promise<boolean> {
 
 export async function deleteIntervalsKey(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_URL}/api/intervals/key`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
+    const res = await apiFetch('/api/intervals/key', { method: 'DELETE' });
     return res.ok;
   } catch {
     return false;
   }
 }
 
+const isIntervalsActivity = (value: unknown): value is IntervalsActivity => {
+  if (typeof value !== 'object' || value === null) return false;
+  const rec = value as Record<string, unknown>;
+  return typeof rec['id'] === 'string' && typeof rec['start_date_local'] === 'string';
+};
+
 /** Newest-first activities page (30-day windows), or why it failed. */
 export async function listIntervalsActivities(
   page: number,
 ): Promise<{ activities: IntervalsActivity[] } | { error: IntervalsFailure }> {
   try {
-    const res = await fetch(`${API_URL}/api/intervals/activities?page=${page}`, {
-      credentials: 'include',
-    });
-    if (res.status === 401) return { error: 'reconnect' };
+    const res = await apiFetch(`/api/intervals/activities?page=${page}`, undefined, 1);
+    // The server distinguishes an expired login (unauthorized) from a dead ICU key.
+    if (res.status === 401) {
+      return { error: (await readErrorBody(res)) === 'unauthorized' ? 'login' : 'reconnect' };
+    }
     const data = await okJson(res);
     const list = (data as { activities?: unknown } | null)?.activities;
     if (!Array.isArray(list)) return { error: 'intervals' };
-    return { activities: list as IntervalsActivity[] };
+    return { activities: list.filter(isIntervalsActivity) };
   } catch {
     return { error: 'intervals' };
   }
@@ -189,11 +240,14 @@ export async function getIntervalsStreams(
   id: string,
 ): Promise<{ streams: Record<string, unknown> } | { error: IntervalsFailure }> {
   try {
-    const res = await fetch(
-      `${API_URL}/api/intervals/activities/${encodeURIComponent(id)}/streams`,
-      { credentials: 'include' },
+    const res = await apiFetch(
+      `/api/intervals/activities/${encodeURIComponent(id)}/streams`,
+      undefined,
+      1,
     );
-    if (res.status === 401) return { error: 'reconnect' };
+    if (res.status === 401) {
+      return { error: (await readErrorBody(res)) === 'unauthorized' ? 'login' : 'reconnect' };
+    }
     const data = await okJson(res);
     const streams = (data as { streams?: unknown } | null)?.streams;
     if (typeof streams !== 'object' || streams === null) return { error: 'intervals' };
@@ -203,18 +257,35 @@ export async function getIntervalsStreams(
   }
 }
 
-/** Creates or replaces the account template with this id (server upserts). */
+/**
+ * Creates or replaces the account template with this id (server upserts).
+ * Returns the stored id, or null on failure.
+ */
 export async function saveCloudTemplate(
   id: string,
   name: string,
   definition: Template,
-): Promise<boolean> {
+): Promise<string | null> {
   try {
-    const res = await fetch(`${API_URL}/api/my/templates`, {
+    const res = await apiFetch('/api/my/templates', {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, name, definition }),
+    });
+    if (!res.ok) return null;
+    const data = await okJson(res);
+    const savedId = (data as { id?: unknown } | null)?.id;
+    return typeof savedId === 'string' && savedId ? savedId : id;
+  } catch {
+    return null;
+  }
+}
+
+/** Deletes one account template by id. */
+export async function deleteCloudTemplate(id: string): Promise<boolean> {
+  try {
+    const res = await apiFetch(`/api/my/templates/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
     });
     return res.ok;
   } catch {

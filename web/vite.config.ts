@@ -5,7 +5,7 @@ export default defineConfig({
     port: 5173,
     fs: {
       // Serve repo fixtures (video + fit) via ?url imports in dev.
-      allow: ['..'],
+      allow: ['../fixtures'],
     },
     proxy: {
       '/api': 'http://127.0.0.1:8787',

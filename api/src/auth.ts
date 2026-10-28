@@ -15,9 +15,9 @@ export const isSecureAuth = (env: AuthEnv): boolean => env.AUTH_URL.startsWith('
 /** Session lifetime, shared by Auth.js config and classic login. */
 export const SESSION_MAX_AGE = 30 * 24 * 3600;
 
-/** WEB_ORIGIN holds a comma-separated allow-list (dev ports shift around). */
+/** WEB_ORIGIN holds a comma-separated allow-list (dev ports shift around). Unset fails closed to []. */
 export const webOrigins = (env: AuthEnv): string[] =>
-  env.WEB_ORIGIN.split(',')
+  (env.WEB_ORIGIN ?? '').split(',')
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 
@@ -91,7 +91,11 @@ function getCookie(header: string | null, name: string): string | null {
     const idx = part.indexOf('=');
     if (idx < 0) continue;
     if (part.slice(0, idx).trim() === name) {
-      return decodeURIComponent(part.slice(idx + 1).trim());
+      try {
+        return decodeURIComponent(part.slice(idx + 1).trim());
+      } catch {
+        return null;
+      }
     }
   }
   return null;

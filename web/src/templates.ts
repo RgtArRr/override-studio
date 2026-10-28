@@ -16,10 +16,10 @@ import vam from '../../fixtures/templates/vam.json';
 import routemap from '../../fixtures/templates/routemap.json';
 import navmap from '../../fixtures/templates/navmap.json';
 import compass from '../../fixtures/templates/compass.json';
-import type { Template } from '@override-studio/shared';
+import { parseTemplateJson, type Template } from '@override-studio/shared';
 
 /** Built-in catalog. Fase 6+ adds generated ones. */
-export const BUILTIN_TEMPLATES: Template[] = [
+const RAW_TEMPLATES: unknown[] = [
   broadcast as Template,
   minimal as Template,
   climb as Template,
@@ -39,3 +39,12 @@ export const BUILTIN_TEMPLATES: Template[] = [
   navmap as Template,
   compass as Template,
 ];
+
+/** Build-time fixtures are trusted, but a corrupt JSON must fail loud, never silent. */
+export const BUILTIN_TEMPLATES: Template[] = RAW_TEMPLATES.map((raw, i) => {
+  try {
+    return parseTemplateJson(JSON.stringify(raw));
+  } catch {
+    throw new Error(`builtin template #${i} is not a valid Template`);
+  }
+});
