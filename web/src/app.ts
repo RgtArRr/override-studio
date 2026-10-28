@@ -1738,9 +1738,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const footer = el('p', 'muted');
   wrap.appendChild(footer);
   const siteFooter = el('p', 'site-footer');
-  const guidesLink = el('a', 'btn btn-small', t('ftr.guides'));
-  guidesLink.href = getLocale() === 'es' ? '/es/' : '/en/';
-  siteFooter.appendChild(guidesLink);
+  const footerLocale = getLocale();
+  const footerLinks: [string, string][] = [
+    [t('ftr.guides'), footerLocale === 'es' ? '/es/' : '/en/'],
+    [t('ftr.privacy'), footerLocale === 'es' ? '/es/privacidad/' : '/en/privacy/'],
+    [t('ftr.terms'), footerLocale === 'es' ? '/es/terminos/' : '/en/terms/'],
+  ];
+  for (const [label, href] of footerLinks) {
+    const link = el('a', 'btn btn-small', label);
+    link.href = href;
+    siteFooter.appendChild(link);
+  }
   wrap.appendChild(siteFooter);
   root.appendChild(wrap);
 

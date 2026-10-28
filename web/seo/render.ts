@@ -1,5 +1,5 @@
 /** Pure builders for robots.txt / sitemap.xml / static content pages. */
-import type { Faq, GuideCopy, HubCopy, Locale } from './content.js';
+import { LEGAL_CONTACT, type Faq, type GuideCopy, type HubCopy, type LegalCopy, type LegalNav, type Locale } from './content.js';
 
 export const escXml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -120,6 +120,7 @@ export function renderHub(
   hub: HubCopy,
   otherPath: string,
   guides: readonly GuideLink[],
+  legal: LegalNav,
 ): string {
   const items = (xs: readonly string[]): string => xs.map((x) => `          <li>${escHtml(x)}</li>`).join('\n');
   const faqs = hub.faqs
@@ -175,6 +176,8 @@ ${faqs}
         <span>override.studio — ${escHtml(hub.badge)}</span>
         <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
         <a href="/">${escHtml(hub.ctaApp)}</a>
+        <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
+        <a href="${legal.termsPath}">${escHtml(legal.termsLabel)}</a>
       </footer>
     </div>`;
 }
@@ -194,6 +197,7 @@ export function renderGuide(
   hub: HubCopy,
   hubPathStr: string,
   otherPath: string,
+  legal: LegalNav,
 ): string {
   const sections = copy.sections
     .map(
@@ -236,6 +240,8 @@ ${copy.tips.map((t) => `            <li>${escHtml(t)}</li>`).join('\n')}
         <a href="${hubPathStr}">${escHtml(copy.backLabel)}</a>
         <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
         <a href="/">${escHtml(copy.ctaApp)}</a>
+        <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
+        <a href="${legal.termsPath}">${escHtml(legal.termsLabel)}</a>
       </footer>
     </div>`;
 }
@@ -312,6 +318,65 @@ export function llmsTxt(
   }
   lines.push('## App', '', `- [Open the app](${base}/): the editor itself (needs Chrome/Edge with WebCodecs).`, '');
   return lines.join('\n');
+}
+
+export function legalJsonLd(copy: LegalCopy): unknown {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: copy.h1,
+    description: copy.lede,
+  };
+}
+
+export function renderLegal(
+  copy: LegalCopy,
+  hub: HubCopy,
+  hubPathStr: string,
+  otherPath: string,
+  legal: LegalNav,
+): string {
+  const sections = copy.sections
+    .map(
+      (s) =>
+        `        <section class="block">\n          <h2>${escHtml(s.h2)}</h2>\n${s.paragraphs.map((p) => `          <p>${escHtml(p)}</p>`).join('\n')}\n        </section>`,
+    )
+    .join('\n');
+  return `    <div class="wrap">
+      <header class="site">
+        <a class="brand" href="/"><img src="/icon.svg" alt="" />override.studio</a>
+        <nav class="site">
+          <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
+          <a class="cta" href="/">${escHtml(copy.ctaApp)}</a>
+        </nav>
+      </header>
+      <main>
+        <p><a href="${hubPathStr}">${escHtml(copy.backLabel)}</a></p>
+        <h1>${escHtml(copy.h1)}</h1>
+        <p class="lede">${escHtml(copy.lede)}</p>
+${sections}
+        <section class="block">
+          <h2>${escHtml(copy.contactTitle)}</h2>
+          <p><a href="${LEGAL_CONTACT}">${escHtml(copy.contactLabel)}</a></p>
+        </section>
+      </main>
+      <footer class="site">
+        <span>override.studio — ${escHtml(hub.badge)}</span>
+        <a href="${hubPathStr}">${escHtml(copy.backLabel)}</a>
+        <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
+        <a href="/">${escHtml(copy.ctaApp)}</a>
+        <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
+        <a href="${legal.termsPath}">${escHtml(legal.termsLabel)}</a>
+      </footer>
+    </div>`;
+}
+
+export function legalMarkdown(base: string, page: MdPage, copy: LegalCopy, hubPathStr: string): string {
+  const lines = [`# ${copy.h1}`, '', `> ${copy.lede}`, '', `Canonical: ${page.htmlUrl}`, ''];
+  for (const s of copy.sections) lines.push(`## ${s.h2}`, '', ...s.paragraphs, '');
+  lines.push(`## ${copy.contactTitle}`, '', `[${copy.contactLabel}](${LEGAL_CONTACT})`, '');
+  lines.push(`[← ${base}${hubPathStr}](${base}${hubPathStr}) · [Open the app](${base}/)`);
+  return lines.join('\n') + '\n';
 }
 
 

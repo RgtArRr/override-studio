@@ -1,4 +1,4 @@
-// Emits robots.txt + sitemap.xml + static hubs/guides + Markdown mirrors +
+// Emits robots.txt + sitemap.xml + static hubs/guides/legal + Markdown mirrors +
 // llms.txt into web/dist, then self-verifies the output.
 // Runs as the tail of `npm run build --workspace=web`:
 //   vite build && node --import ../scripts/register-ts.mjs ../scripts/seo-build.mjs
@@ -9,10 +9,13 @@ import { fileURLToPath } from 'node:url';
 import {
   GUIDES,
   HUB,
+  LEGAL,
   SEO_BASE_URL,
   SEO_PAGES,
   guidePath,
   hubPath,
+  legalNav,
+  legalPath,
 } from '../web/seo/content.ts';
 import {
   contentHead,
@@ -21,9 +24,12 @@ import {
   guideMarkdown,
   hubJsonLd,
   hubMarkdown,
+  legalJsonLd,
+  legalMarkdown,
   llmsTxt,
   renderGuide,
   renderHub,
+  renderLegal,
   robotsTxt,
   sitemapXml,
 } from '../web/seo/render.ts';
@@ -51,9 +57,17 @@ const mdUrl = (path) => `${SEO_BASE_URL}${path}index.md`;
 const llmsHubs = [];
 const llmsGuides = [];
 
+const emitPage = (relPath, html, md) => {
+  const dir = join(dist, ...relPath.split('/').filter(Boolean));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), html);
+  writeFileSync(join(dir, 'index.md'), md);
+};
+
 for (const locale of LOCALES) {
   const hub = HUB[locale];
   const other = locale === 'es' ? 'en' : 'es';
+  const nav = legalNav(locale);
   const guides = GUIDES.map((g) => ({
     path: guidePath(locale, g),
     h1: g.copy[locale].h1,
@@ -68,12 +82,15 @@ for (const locale of LOCALES) {
     jsonLd: hubJsonLd(hub.faqs),
     mdPath: `${hubPath(locale)}index.md`,
   });
-  const dir = join(dist, locale);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'index.html'), contentShell(locale, head, renderHub(locale, hub, hubPath(other), guides)));
-  writeFileSync(
-    join(dir, 'index.md'),
-    hubMarkdown(SEO_BASE_URL, { mdUrl: mdUrl(hubPath(locale)), htmlUrl: SEO_BASE_URL + hubPath(locale) }, hub, guides),
+  emitPage(
+    hubPath(locale),
+    contentShell(locale, head, renderHub(locale, hub, hubPath(other), guides, nav)),
+    hubMarkdown(
+      SEO_BASE_URL,
+      { mdUrl: mdUrl(hubPath(locale)), htmlUrl: SEO_BASE_URL + hubPath(locale) },
+      hub,
+      guides,
+    ),
   );
   llmsHubs.push({ locale, mdUrl: mdUrl(hubPath(locale)), h1: hub.h1, lede: hub.lede });
 
@@ -89,17 +106,31 @@ for (const locale of LOCALES) {
       jsonLd: guideJsonLd(copy),
       mdPath: `${path}index.md`,
     });
-    const gdir = join(dist, ...path.split('/').filter(Boolean));
-    mkdirSync(gdir, { recursive: true });
-    writeFileSync(
-      join(gdir, 'index.html'),
-      contentShell(locale, ghead, renderGuide(copy, hub, hubPath(locale), guidePath(other, g))),
-    );
-    writeFileSync(
-      join(gdir, 'index.md'),
+    emitPage(
+      path,
+      contentShell(locale, ghead, renderGuide(copy, hub, hubPath(locale), guidePath(other, g), nav)),
       guideMarkdown(SEO_BASE_URL, { mdUrl: mdUrl(path), htmlUrl: SEO_BASE_URL + path }, copy, hubPath(locale)),
     );
     llmsGuides.push({ locale, mdUrl: mdUrl(path), h1: copy.h1, lede: copy.lede });
+  }
+
+  for (const e of LEGAL) {
+    const copy = e.copy[locale];
+    const path = legalPath(locale, e);
+    const lhead = contentHead(SEO_BASE_URL, {
+      locale,
+      path,
+      title: copy.title,
+      description: copy.description,
+      alternates: LOCALES.map((l) => ({ locale: l, path: legalPath(l, e) })),
+      jsonLd: legalJsonLd(copy),
+      mdPath: `${path}index.md`,
+    });
+    emitPage(
+      path,
+      contentShell(locale, lhead, renderLegal(copy, hub, hubPath(locale), legalPath(other, e), nav)),
+      legalMarkdown(SEO_BASE_URL, { mdUrl: mdUrl(path), htmlUrl: SEO_BASE_URL + path }, copy, hubPath(locale)),
+    );
   }
 }
 writeFileSync(join(dist, 'llms.txt'), llmsTxt(SEO_BASE_URL, llmsHubs, llmsGuides));
@@ -119,8 +150,9 @@ const readLd = (html, label) => {
   assert.ok(m, `${label} has JSON-LD`);
   return JSON.parse(m[1]);
 };
+const readPage = (path) => readFileSync(join(dist, ...path.split('/').filter(Boolean), 'index.html'), 'utf8');
 for (const locale of LOCALES) {
-  const html = readFileSync(join(dist, locale, 'index.html'), 'utf8');
+  const html = readPage(hubPath(locale));
   assert.ok(html.includes(`<link rel="canonical" href="${SEO_BASE_URL}${hubPath(locale)}" />`), `${locale} canonical`);
   for (const l of LOCALES) {
     assert.ok(html.includes(`hreflang="${l}" href="${SEO_BASE_URL}${hubPath(l)}"`), `${locale} hreflang ${l}`);
@@ -134,11 +166,14 @@ for (const locale of LOCALES) {
   for (const g of GUIDES) {
     assert.ok(html.includes(`href="${guidePath(locale, g)}"`), `${locale} links ${g.slug[locale]}`);
   }
+  const nav = legalNav(locale);
+  assert.ok(html.includes(`href="${nav.privacyPath}"`), `${locale} links privacy`);
+  assert.ok(html.includes(`href="${nav.termsPath}"`), `${locale} links terms`);
 }
 for (const g of GUIDES) {
   for (const locale of LOCALES) {
     const path = guidePath(locale, g);
-    const html = readFileSync(join(dist, ...path.split('/').filter(Boolean), 'index.html'), 'utf8');
+    const html = readPage(path);
     assert.ok(html.includes(`<link rel="canonical" href="${SEO_BASE_URL}${path}" />`), `${path} canonical`);
     for (const l of LOCALES) {
       assert.ok(
@@ -151,11 +186,29 @@ for (const g of GUIDES) {
     assert.equal(data.step.length, g.copy[locale].steps.length);
   }
 }
+for (const e of LEGAL) {
+  for (const locale of LOCALES) {
+    const path = legalPath(locale, e);
+    const html = readPage(path);
+    assert.ok(html.includes(`<link rel="canonical" href="${SEO_BASE_URL}${path}" />`), `${path} canonical`);
+    for (const l of LOCALES) {
+      assert.ok(
+        html.includes(`hreflang="${l}" href="${SEO_BASE_URL}${legalPath(l, e)}"`),
+        `${path} hreflang ${l}`,
+      );
+    }
+    assert.ok(html.includes(`hreflang="x-default" href="${SEO_BASE_URL}/"`), `${path} x-default`);
+    assert.ok(!html.includes('<script src'), `${path} has no app JS`);
+    const data = readLd(html, path);
+    assert.equal(data['@type'], 'WebPage');
+    assert.equal(data.name, e.copy[locale].h1);
+  }
+}
 const llms = readFileSync(join(dist, 'llms.txt'), 'utf8');
 assert.ok(llms.startsWith('# override.studio\n'), 'llms H1 first');
 for (const entry of [...llmsHubs, ...llmsGuides]) {
   assert.ok(llms.includes(entry.mdUrl), `llms links ${entry.mdUrl}`);
 }
 console.log(
-  `seo-build ok: robots.txt + sitemap.xml (${SEO_PAGES.length} urls) + hubs + ${GUIDES.length * 2} guides + llms.txt -> web/dist`,
+  `seo-build ok: robots.txt + sitemap.xml (${SEO_PAGES.length} urls) + hubs + ${GUIDES.length * 2} guides + ${LEGAL.length * 2} legal + llms.txt -> web/dist`,
 );

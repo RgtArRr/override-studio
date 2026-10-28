@@ -842,11 +842,306 @@ export const GUIDES: GuideEntry[] = [
 export const guidePath = (locale: Locale, g: GuideEntry): string =>
   `/${locale}/${g.dir[locale]}/${g.slug[locale]}/`;
 
+export interface LegalSection {
+  h2: string;
+  paragraphs: string[];
+}
+
+export interface LegalCopy {
+  title: string;
+  description: string;
+  h1: string;
+  lede: string;
+  sections: LegalSection[];
+  backLabel: string;
+  ctaApp: string;
+  contactTitle: string;
+  contactLabel: string;
+}
+
+export interface LegalEntry {
+  slug: Record<Locale, string>;
+  copy: Record<Locale, LegalCopy>;
+}
+
+/** Contact channel for data requests and questions (public repo issues). */
+export const LEGAL_CONTACT = 'https://github.com/RgtArRr/override-studio/issues';
+
+export const LEGAL: LegalEntry[] = [
+  {
+    slug: { es: 'privacidad', en: 'privacy' },
+    copy: {
+      es: {
+        title: 'Política de privacidad | override.studio',
+        description:
+          'Qué datos guarda override.studio (cuenta, plantillas, clave de Intervals.icu) y qué nunca sale de tu navegador. Sin cookies de rastreo.',
+        h1: 'Política de privacidad',
+        lede: 'Vigente desde el 28 de octubre de 2026. En resumen: tus videos y tus FIT nunca salen de tu navegador; solo guardamos datos si creas una cuenta, y puedes pedir su borrado.',
+        sections: [
+          {
+            h2: 'Responsable',
+            paragraphs: [
+              'override.studio es un proyecto personal. Para cualquier solicitud sobre tus datos (acceso, rectificación, borrado), abre un issue en el repositorio del proyecto.',
+            ],
+          },
+          {
+            h2: 'Datos que guardamos',
+            paragraphs: [
+              'Si navegas sin cuenta, no guardamos nada sobre ti.',
+              'Si creas una cuenta, guardamos tu correo, un hash de tu contraseña (nunca en claro), tus sesiones (caducan a los 30 días) y las plantillas que sincronices en la nube.',
+              'Si conectas Intervals.icu, guardamos tu clave API cifrada y la usamos solo para pedir tus actividades y sus datos.',
+            ],
+          },
+          {
+            h2: 'Lo que nunca sale de tu equipo',
+            paragraphs: [
+              'Tus videos y tus archivos .FIT se procesan íntegramente en tu navegador con WebCodecs. El render es 100% local: esos archivos jamás se suben a nuestros servidores.',
+            ],
+          },
+          {
+            h2: 'Terceros',
+            paragraphs: [
+              'Alojamiento y analítica sin cookies: Cloudflare. Fuentes tipográficas: Google Fonts (tu navegador las descarga de Google). Telemetría opcional: Intervals.icu, solo si conectas tu clave. No vendemos ni compartimos datos con nadie más.',
+            ],
+          },
+          {
+            h2: 'Cookies',
+            paragraphs: [
+              'Solo la cookie de sesión, imprescindible para mantenerte dentro de tu cuenta. No hay cookies de rastreo ni banner de consentimiento porque no hace falta.',
+            ],
+          },
+          {
+            h2: 'Tus derechos',
+            paragraphs: [
+              'Puedes desconectar Intervals.icu en cualquier momento desde la app. Para acceder, rectificar o borrar tus datos de cuenta, abre un issue y lo gestionamos. Conservamos los datos de cuenta mientras exista la cuenta; las sesiones caducan a los 30 días.',
+            ],
+          },
+          {
+            h2: 'Cambios',
+            paragraphs: [
+              'Si esta política cambia de forma relevante, actualizaremos la fecha de vigencia en esta página.',
+            ],
+          },
+        ],
+        backLabel: '← Inicio',
+        ctaApp: 'Abrir la app',
+        contactTitle: 'Contacto',
+        contactLabel: 'Abrir un issue en GitHub',
+      },
+      en: {
+        title: 'Privacy policy | override.studio',
+        description:
+          'What data override.studio stores (account, templates, Intervals.icu key) and what never leaves your browser. No tracking cookies.',
+        h1: 'Privacy policy',
+        lede: 'Effective October 28, 2026. In short: your videos and FIT files never leave your browser; we only store data if you create an account, and you can request its deletion.',
+        sections: [
+          {
+            h2: 'Controller',
+            paragraphs: [
+              'override.studio is a personal project. For any request about your data (access, rectification, erasure), open an issue in the project repository.',
+            ],
+          },
+          {
+            h2: 'Data we store',
+            paragraphs: [
+              'If you browse without an account, we store nothing about you.',
+              'If you create an account, we store your email, a hash of your password (never plaintext), your sessions (they expire after 30 days) and the templates you sync to the cloud.',
+              'If you connect Intervals.icu, we store your API key encrypted and use it only to fetch your activities and their data.',
+            ],
+          },
+          {
+            h2: 'What never leaves your machine',
+            paragraphs: [
+              'Your videos and .FIT files are processed entirely in your browser with WebCodecs. Rendering is 100% local: those files are never uploaded to our servers.',
+            ],
+          },
+          {
+            h2: 'Third parties',
+            paragraphs: [
+              'Hosting and cookieless analytics: Cloudflare. Fonts: Google Fonts (your browser downloads them from Google). Optional telemetry: Intervals.icu, only if you connect your key. We sell or share data with nobody else.',
+            ],
+          },
+          {
+            h2: 'Cookies',
+            paragraphs: [
+              'Only the session cookie, strictly necessary to keep you signed in. No tracking cookies and no consent banner, because none is needed.',
+            ],
+          },
+          {
+            h2: 'Your rights',
+            paragraphs: [
+              'You can disconnect Intervals.icu anytime from the app. To access, rectify or erase your account data, open an issue and we will handle it. We keep account data while the account exists; sessions expire after 30 days.',
+            ],
+          },
+          {
+            h2: 'Changes',
+            paragraphs: [
+              'If this policy changes materially, we will update the effective date on this page.',
+            ],
+          },
+        ],
+        backLabel: '← Home',
+        ctaApp: 'Open the app',
+        contactTitle: 'Contact',
+        contactLabel: 'Open a GitHub issue',
+      },
+    },
+  },
+  {
+    slug: { es: 'terminos', en: 'terms' },
+    copy: {
+      es: {
+        title: 'Términos del servicio | override.studio',
+        description:
+          'Condiciones de uso de override.studio: servicio tal cual, uso aceptable, tu contenido y el código abierto MIT.',
+        h1: 'Términos del servicio',
+        lede: 'Vigentes desde el 28 de octubre de 2026. Al usar override.studio aceptas estas condiciones.',
+        sections: [
+          {
+            h2: 'El servicio',
+            paragraphs: [
+              'override.studio es un editor web gratuito que incrusta telemetría en tus videos, con render 100% local en tu navegador. La cuenta es opcional y sirve para sincronizar plantillas y conectar Intervals.icu.',
+            ],
+          },
+          {
+            h2: 'Uso aceptable',
+            paragraphs: [
+              'No abuses del servicio: nada de ataques, spam, sobrecarga deliberada del API ni uso ilegal. Podemos cerrar cuentas que lo incumplan.',
+            ],
+          },
+          {
+            h2: 'Tu contenido',
+            paragraphs: [
+              'Tus plantillas son tuyas. Al sincronizarlas nos das permiso para alojarlas y mostrártelas. Tus videos y FIT nunca llegan a nuestros servidores, así que ni siquiera entran en este apartado.',
+            ],
+          },
+          {
+            h2: 'Disponibilidad',
+            paragraphs: [
+              'El servicio se ofrece “tal cual”, sin garantías ni SLA. Es un proyecto personal: puede fallar, cambiar o cerrarse, y haremos lo razonable para avisarlo.',
+            ],
+          },
+          {
+            h2: 'Cuentas',
+            paragraphs: [
+              'Guarda bien tu contraseña: no hay recuperación por correo. Si la pierdes, tendrás que crear una cuenta nueva. Puedes dejar de usar el servicio cuando quieras.',
+            ],
+          },
+          {
+            h2: 'Código abierto',
+            paragraphs: [
+              'El código de la app es open source bajo licencia MIT. Estos términos cubren el servicio alojado, no el código.',
+            ],
+          },
+          {
+            h2: 'Responsabilidad',
+            paragraphs: [
+              'En la medida que permita la ley, no respondemos por daños derivados del uso o la indisponibilidad del servicio.',
+            ],
+          },
+          {
+            h2: 'Cambios',
+            paragraphs: [
+              'Si estos términos cambian de forma relevante, actualizaremos la fecha de vigencia en esta página.',
+            ],
+          },
+        ],
+        backLabel: '← Inicio',
+        ctaApp: 'Abrir la app',
+        contactTitle: 'Contacto',
+        contactLabel: 'Abrir un issue en GitHub',
+      },
+      en: {
+        title: 'Terms of service | override.studio',
+        description:
+          'override.studio terms of use: as-is service, acceptable use, your content and the MIT open-source code.',
+        h1: 'Terms of service',
+        lede: 'Effective October 28, 2026. By using override.studio you accept these terms.',
+        sections: [
+          {
+            h2: 'The service',
+            paragraphs: [
+              'override.studio is a free web editor that overlays telemetry on your videos, with a 100% local render in your browser. An account is optional and serves to sync templates and connect Intervals.icu.',
+            ],
+          },
+          {
+            h2: 'Acceptable use',
+            paragraphs: [
+              'Do not abuse the service: no attacks, spam, deliberate API overload or unlawful use. We may close accounts that breach this.',
+            ],
+          },
+          {
+            h2: 'Your content',
+            paragraphs: [
+              'Your templates are yours. By syncing them you allow us to host and show them to you. Your videos and FIT files never reach our servers, so they are not even covered here.',
+            ],
+          },
+          {
+            h2: 'Availability',
+            paragraphs: [
+              'The service is provided “as is”, without warranties or SLA. It is a personal project: it may fail, change or shut down, and we will do what is reasonable to announce it.',
+            ],
+          },
+          {
+            h2: 'Accounts',
+            paragraphs: [
+              'Keep your password safe: there is no email recovery. If you lose it, you will need a new account. You can stop using the service anytime.',
+            ],
+          },
+          {
+            h2: 'Open source',
+            paragraphs: [
+              'The app code is open source under the MIT license. These terms cover the hosted service, not the code.',
+            ],
+          },
+          {
+            h2: 'Liability',
+            paragraphs: [
+              'To the extent permitted by law, we are not liable for damages arising from the use or unavailability of the service.',
+            ],
+          },
+          {
+            h2: 'Changes',
+            paragraphs: [
+              'If these terms change materially, we will update the effective date on this page.',
+            ],
+          },
+        ],
+        backLabel: '← Home',
+        ctaApp: 'Open the app',
+        contactTitle: 'Contact',
+        contactLabel: 'Open a GitHub issue',
+      },
+    },
+  },
+];
+
+export const legalPath = (locale: Locale, e: LegalEntry): string => `/${locale}/${e.slug[locale]}/`;
+
+export interface LegalNav {
+  privacyLabel: string;
+  privacyPath: string;
+  termsLabel: string;
+  termsPath: string;
+}
+
+export const legalNav = (locale: Locale): LegalNav => {
+  const privacy = LEGAL.find((e) => e.slug.en === 'privacy') as LegalEntry;
+  const terms = LEGAL.find((e) => e.slug.en === 'terms') as LegalEntry;
+  return {
+    privacyLabel: locale === 'es' ? 'Privacidad' : 'Privacy',
+    privacyPath: legalPath(locale, privacy),
+    termsLabel: locale === 'es' ? 'Términos' : 'Terms',
+    termsPath: legalPath(locale, terms),
+  };
+};
+
 export const SEO_PAGES: SitemapPage[] = [
   { path: '/', builtBy: 'vite' },
   { path: '/es/', builtBy: 'seo' },
   { path: '/en/', builtBy: 'seo' },
-  ...(['es', 'en'] as Locale[]).flatMap((locale) =>
-    GUIDES.map((g): SitemapPage => ({ path: guidePath(locale, g), builtBy: 'seo' })),
-  ),
+  ...(['es', 'en'] as Locale[]).flatMap((locale) => [
+    ...GUIDES.map((g): SitemapPage => ({ path: guidePath(locale, g), builtBy: 'seo' })),
+    ...LEGAL.map((e): SitemapPage => ({ path: legalPath(locale, e), builtBy: 'seo' })),
+  ]),
 ];

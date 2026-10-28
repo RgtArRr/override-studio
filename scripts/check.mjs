@@ -6,7 +6,16 @@ import { fileURLToPath } from 'node:url';
 import { activityFromIntervalsStreams, fillDerivedGrade, parseFit, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
 import { hashPassword, normalizeEmail, validatePassword, verifyPassword } from '../api/src/password.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
-import { GUIDES, HUB, SEO_BASE_URL, SEO_PAGES, guidePath } from '../web/seo/content.ts';
+import {
+  GUIDES,
+  HUB,
+  LEGAL,
+  SEO_BASE_URL,
+  SEO_PAGES,
+  guidePath,
+  legalNav,
+  legalPath,
+} from '../web/seo/content.ts';
 import { classifyAspect, parseTemplateJson } from '../shared/src/template.ts';
 import { formatElapsed, formatMetric } from '../web/src/format.ts';
 import {
@@ -511,6 +520,43 @@ for (const locale of ['es', 'en']) {
       `llms links ${locale}/${g.slug[locale]} mirror`,
     );
   }
+}
+// Legal: reciprocal hreflang pairs, WebPage matching the manifest, Markdown mirrors.
+assert.equal(LEGAL.length, 2);
+for (const e of LEGAL) {
+  for (const locale of ['es', 'en']) {
+    const other = locale === 'es' ? 'en' : 'es';
+    const path = legalPath(locale, e);
+    const rel = path.replace(/^\/|\/$/g, '');
+    const html = readFileSync(join(distDir, rel, 'index.html'), 'utf8');
+    assert.ok(html.includes(`<link rel="canonical" href="${SEO_BASE_URL}${path}" />`), `${path} canonical`);
+    assert.ok(
+      html.includes(`hreflang="${locale}" href="${SEO_BASE_URL}${path}"`),
+      `${path} self hreflang`,
+    );
+    assert.ok(
+      html.includes(`hreflang="${other}" href="${SEO_BASE_URL}${legalPath(other, e)}"`),
+      `${path} reciprocal hreflang`,
+    );
+    assert.ok(
+      html.includes(`rel="alternate" type="text/markdown" href="${SEO_BASE_URL}${path}index.md"`),
+      `${path} md alternate`,
+    );
+    const legalLd = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
+    assert.ok(legalLd, `${path} has JSON-LD`);
+    const legalData = JSON.parse(legalLd[1]);
+    assert.equal(legalData['@type'], 'WebPage');
+    assert.equal(legalData.name, e.copy[locale].h1);
+    const md = readFileSync(join(distDir, rel, 'index.md'), 'utf8');
+    assert.ok(md.startsWith(`# ${e.copy[locale].h1}\n`), `${path}index.md H1`);
+    assert.ok(e.copy[locale].sections.length >= 6, `${path} section depth`);
+  }
+}
+for (const locale of ['es', 'en']) {
+  const nav = legalNav(locale);
+  const hubHtml = readFileSync(join(distDir, locale, 'index.html'), 'utf8');
+  assert.ok(hubHtml.includes(`href="${nav.privacyPath}"`), `${locale} hub links privacy`);
+  assert.ok(hubHtml.includes(`href="${nav.termsPath}"`), `${locale} hub links terms`);
 }
 
 console.log(`check passed: fit(120 samples) + aspects + ${files.length} templates + mvhd + widgets + catalog(${kindValues.length} kinds) + i18n + tpljson + seo(${locs.length} urls)`);
