@@ -3,8 +3,9 @@
  * Stored shape: `pbkdf2$<iterations>$<base64 salt>$<base64 hash>`.
  */
 
-const ITERATIONS = 310_000;
-const LEGACY_ITERATIONS = 100_000;
+// Workers WebCrypto caps PBKDF2 at 100k iterations (NotSupportedError above;
+// local workerd does NOT enforce this, so never raise without a prod probe).
+const ITERATIONS = 100_000;
 const SALT_BYTES = 16;
 const HASH_BYTES = 32;
 
@@ -81,7 +82,7 @@ export const needsRehash = (stored: string): boolean =>
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const iterations = storedIterations(stored);
-  if (iterations !== ITERATIONS && iterations !== LEGACY_ITERATIONS) {
+  if (iterations !== ITERATIONS) {
     return false;
   }
   try {
