@@ -1065,6 +1065,33 @@ a {
   mask: url('/icons/align-right.svg') no-repeat center / contain;
 }
 
+.icon-btn {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--graphite);
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+  opacity: 0.6;
+}
+
+.icon-btn:hover {
+  opacity: 1;
+}
+
+.icon-btn .icon {
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+}
+
+.icon-btn .icon-edit {
+  -webkit-mask: url('/icons/edit.svg') no-repeat center / contain;
+  mask: url('/icons/edit.svg') no-repeat center / contain;
+}
+
 .template-card:hover {
   border-color: var(--border);
 }

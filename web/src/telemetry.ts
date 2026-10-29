@@ -603,3 +603,78 @@ export function parseGotoTime(text: string): number | null {
   const [h, m, s] = nums.length === 3 ? nums : [0, nums[0], nums[1]];
   return h * 3600 + m * 60 + s;
 }
+
+/** 'YYYY-MM-DD HH:mm:ss UTC' for activity start/end stamps ('—' when unknown). */
+export function formatUtc(date: Date): string {
+  if (!Number.isFinite(date.getTime())) return '—';
+  const iso = date.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 19)} UTC`;
+}
+
+/** Wall reading of an instant in an IANA zone, or null on bad input/zone. */
+function zonedWall(date: Date, timeZone: string): { text: string; wallMs: number } | null {
+  if (!Number.isFinite(date.getTime())) return null;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).formatToParts(date);
+    const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? '';
+    const y = Number(get('year'));
+    const mo = Number(get('month'));
+    const d = Number(get('day'));
+    let h = get('hour');
+    const mi = Number(get('minute'));
+    const s = Number(get('second'));
+    if (!y || !mo || !d || !h || !Number.isFinite(mi) || !Number.isFinite(s)) return null;
+    if (h === '24') h = '00';
+    const wallMs = Date.UTC(y, mo - 1, d, Number(h), mi, s);
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return { text: `${y}-${pad(mo)}-${pad(d)} ${pad(Number(h))}:${pad(mi)}:${pad(s)}`, wallMs };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 'YYYY-MM-DD HH:mm:ss' wall reading of an instant in an IANA zone
+ * (local-time tooltips). Null on bad input or unknown zone.
+ */
+export function formatInZone(date: Date, timeZone: string): string | null {
+  return zonedWall(date, timeZone)?.text ?? null;
+}
+
+/**
+ * 'UTC-5' style offset of an IANA zone at an instant (local-time tooltips).
+ * Null on bad input or unknown zone.
+ */
+export function zoneOffsetName(date: Date, timeZone: string): string | null {
+  const w = zonedWall(date, timeZone);
+  if (!w) return null;
+  const offMin = Math.round((w.wallMs - date.getTime()) / 60000);
+  const sign = offMin < 0 ? '-' : '+';
+  const abs = Math.abs(offMin);
+  const hh = Math.floor(abs / 60);
+  const mm = abs % 60;
+  return `UTC${sign}${hh}${mm > 0 ? `:${String(mm).padStart(2, '0')}` : ''}`;
+}
+
+/**
+ * 'YYYY-MM-DD HH:mm:ss' wall reading of an instant under a fixed UTC offset
+ * in hours (clip local-time tooltips; fractional zones supported).
+ */
+export function formatFixedZone(date: Date, tzHours: number): string {
+  if (!Number.isFinite(date.getTime()) || !Number.isFinite(tzHours)) return '—';
+  const shifted = new Date(date.getTime() + tzHours * 3600e3);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return (
+    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())} ` +
+    `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())}`
+  );
+}

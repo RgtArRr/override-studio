@@ -69,6 +69,17 @@ export async function validateKey(key: string): Promise<boolean> {
   return status === 200;
 }
 
+/**
+ * Athlete IANA zone (activities carry no timezone of their own, so this is
+ * the fallback that anchors start_date_local). Null when missing/unreadable.
+ */
+export async function getAthleteTimezone(key: string): Promise<string | null> {
+  const { status, data } = await icuGet(key, '/athlete/0');
+  if (status !== 200 || typeof data !== 'object' || data === null) return null;
+  const tz = (data as Record<string, unknown>)['timezone'];
+  return typeof tz === 'string' && tz ? tz : null;
+}
+
 export interface IntervalsActivityMeta {
   id: string;
   name: string;
@@ -118,6 +129,11 @@ export async function listActivities(
       elapsed_time: typeof a['elapsed_time'] === 'number' ? a['elapsed_time'] : 0,
       distance: typeof a['distance'] === 'number' ? a['distance'] : 0,
     });
+  }
+  // Upstream omits per-activity zones: one athlete call anchors the whole page.
+  if (out.some((a) => !a.timezone)) {
+    const fallback = await getAthleteTimezone(key);
+    if (fallback) for (const a of out) a.timezone ??= fallback;
   }
   return { ok: true, data: out };
 }

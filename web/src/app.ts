@@ -14,13 +14,18 @@ import {
 } from '@override-studio/shared';
 import {
   activityFromIntervalsStreams,
+  formatFixedZone,
+  formatInZone,
+  parseActivityStart,
   parseActivityXml,
+  zoneOffsetName,
   parseFit,
   parseGotoTime,
   sampleAt,
   summarize,
   formatClock,
   formatSpan,
+  formatUtc,
   type Activity,
   type TelemetrySample,
 } from './telemetry.js';
@@ -163,6 +168,9 @@ interface Clip {
 
 export async function renderApp(root: HTMLElement): Promise<void> {
   let activity: Activity | null = null;
+  /** Re-anchor data for intervals activities (files carry absolute UTC): wall + current zone. */
+  let activityTz: { wall: string; timeZone: string } | null = null;
+  let activityTzEditing = false;
   const clips: Clip[] = [];
   let selectedClipId: number | null = null;
   let nextClipId = 1;
@@ -535,6 +543,54 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const intervalsPickBtn = el('button', 'btn btn-small act-btn', t('intervals.pick'));
   intervalsPickBtn.type = 'button';
   activityBlock.append(activityDrop, intervalsPickBtn, activityPill, activityStats);
+  // Activity zone, intervals-only: files carry absolute UTC, provider walls need a zone.
+  const ianaZones: string[] = (
+    Intl as unknown as { supportedValuesOf?: (k: string) => string[] }
+  ).supportedValuesOf?.('timeZone') ?? [];
+  const activityTzRow = el('div', 'editor-row');
+  activityTzRow.append(el('span', 'muted', t('activity.tz')));
+  const activityTzSelect = el('select', 'font-select tz-select activity-tz-select');
+  activityTzSelect.title = t('activity.tzTitle');
+  activityTzRow.appendChild(activityTzSelect);
+  activityTzRow.hidden = true;
+  activityBlock.appendChild(activityTzRow);
+  const syncActivityTzRow = (): void => {
+    const show = activityTz !== null && activityTzEditing && ianaZones.length > 0;
+    activityTzRow.hidden = !show;
+    if (!show || !activityTz) return;
+    if (activityTzSelect.options.length === 0) {
+      for (const z of ianaZones) {
+        const opt = el('option', undefined, z);
+        opt.value = z;
+        activityTzSelect.appendChild(opt);
+      }
+    }
+    if (!ianaZones.includes(activityTz.timeZone)) {
+      const opt = el('option', undefined, activityTz.timeZone);
+      opt.value = activityTz.timeZone;
+      activityTzSelect.appendChild(opt);
+    }
+    activityTzSelect.value = activityTz.timeZone;
+  };
+  activityTzSelect.addEventListener('change', () => {
+    if (!activity || !activityTz) return;
+    const next = parseActivityStart(activityTz.wall, activityTzSelect.value);
+    if (!next) {
+      setStatus(t('activity.tzInvalid'));
+      activityTzSelect.value = activityTz.timeZone;
+      return;
+    }
+    activityTz.timeZone = activityTzSelect.value;
+    activity.startTime = next;
+    renderActivityStats();
+    for (const clip of clips) {
+      if (!clip.offsetDirty) applyAutoOffset(clip);
+    }
+    setStatus(t('activity.tzApplied', { tz: activityTz.timeZone }));
+    activityTzEditing = false;
+    syncActivityTzRow();
+    binMetaSig = '';
+  });
   // Intervals picker: API-key account source, same file load path.
   const icuDialog = el('dialog', 'add-dialog icu-dialog');
   const icuTitle = el('h2', undefined, t('intervals.title'));
@@ -740,11 +796,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       try {
         const act = activityFromIntervalsStreams(res.streams, a.start_date_local, a.timezone);
         icuDialog.close();
-        loadActivity(act, t('intervals.source', { name: a.name || a.id }));
+        loadActivity(act, t('intervals.source', { name: a.name || a.id }), {
+          wall: a.start_date_local,
+          timeZone: a.timezone ?? 'UTC',
+        });
       } catch (err) {
         activity = null;
+        activityTz = null;
+        activityTzEditing = false;
         activityPill.hidden = true;
         renderActivityStats();
+        syncActivityTzRow();
         setStatus(err instanceof Error ? err.message : t('intervals.error'));
       }
     } finally {
@@ -771,6 +833,33 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
     const s = summarize(activity);
     const dist = formatMetric('distance', s.distanceM, units);
+    const localZone =
+      activityTz?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const endDate = new Date(activity.startTime.getTime() + s.durationSec * 1000);
+    const mkStampRow = (label: string, date: Date, editable: boolean): void => {
+      const row = el('div', 'activity-stat');
+      const value = el('span', 'activity-stat-v', formatUtc(date));
+      const local = formatInZone(date, localZone);
+      const off = zoneOffsetName(date, localZone);
+      if (local && off) value.title = t('activity.localTip', { time: local, off });
+      if (editable) {
+        const editBtn = el('button', 'icon-btn');
+        editBtn.type = 'button';
+        editBtn.title = t('activity.tzEdit');
+        editBtn.setAttribute('aria-label', t('activity.tzEdit'));
+        editBtn.appendChild(el('span', 'icon icon-edit'));
+        editBtn.addEventListener('click', () => {
+          activityTzEditing = true;
+          syncActivityTzRow();
+          activityTzSelect.focus();
+        });
+        value.append(' ', editBtn);
+      }
+      row.append(el('span', 'muted', label), value);
+      activityStats.appendChild(row);
+    };
+    mkStampRow(t('activity.start'), activity.startTime, activityTz !== null);
+    mkStampRow(t('activity.end'), endDate, false);
     const rows: [string, string][] = [
       [t('activity.dur'), formatSpan(s.durationSec)],
       [t('activity.dist'), `${dist.value} ${dist.unit}`],
@@ -2098,8 +2187,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       recordedBanner.textContent = t('clip.recorded', {
         date: fmtRecorded(clip.videoCreation),
       });
+      recordedBanner.title = t('activity.localTip', {
+        time: formatFixedZone(clip.videoCreation, clip.tz),
+        off: tzName(clip.tz),
+      });
     } else {
       recordedBanner.textContent = t('clip.recordedNone');
+      recordedBanner.title = '';
     }
     recordedBanner.classList.toggle('warn', !clip?.videoCreation);
   };
@@ -2244,8 +2338,14 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
 
   /** Any parsed source (file, provider streams) becomes the activity here. */
-  const loadActivity = (act: Activity, name: string): void => {
+  const loadActivity = (
+    act: Activity,
+    name: string,
+    tzMeta?: { wall: string; timeZone: string } | null,
+  ): void => {
     activity = act;
+    activityTz = tzMeta ?? null;
+    activityTzEditing = false;
     activityPill.textContent = name;
     activityPill.hidden = false;
     overviewCache = null;
@@ -2275,6 +2375,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       if (!clip.offsetDirty) applyAutoOffset(clip);
     }
     renderActivityStats();
+    syncActivityTzRow();
     const clip = activeClip();
     if (clip && activity && !clip.videoCreation) tryAutoSync(clip);
     binMetaSig = '';
@@ -2291,8 +2392,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       loadActivity(act, name);
     } catch (err) {
       activity = null;
+      activityTz = null;
+      activityTzEditing = false;
       activityPill.hidden = true;
       renderActivityStats();
+      syncActivityTzRow();
       setStatus(err instanceof Error ? err.message : t('st.activityUnreadable'));
     }
   };

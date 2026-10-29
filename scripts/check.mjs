@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { activityFromIntervalsStreams, activityFromTrackPoints, buildActivity, fillDerivedGrade, nextProfileWindow, parseFit, parseGotoTime, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
+import { activityFromIntervalsStreams, activityFromTrackPoints, buildActivity, fillDerivedGrade, formatFixedZone, formatInZone, formatUtc, parseActivityStart, zoneOffsetName, nextProfileWindow, parseFit, parseGotoTime, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
 import { hashPassword, needsRehash, normalizeEmail, storedIterations, validatePassword, verifyPassword } from '../api/src/password.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
 import {
@@ -441,6 +441,40 @@ assert.equal(parseGotoTime(''), null);
 assert.equal(parseGotoTime('1:2:3:4'), null);
 assert.equal(parseGotoTime('-5'), null);
 assert.equal(parseGotoTime('1::2'), null);
+
+// formatUtc: UTC stamps for activity start/end.
+assert.equal(formatUtc(new Date('2026-10-28T14:05:06.789Z')), '2026-10-28 14:05:06 UTC');
+assert.equal(formatUtc(new Date(NaN)), '—');
+
+// parseActivityStart: intervals local wall + athlete zone anchors UTC.
+assert.equal(
+  parseActivityStart('2026-10-23T18:29:27', 'America/Lima')?.toISOString(),
+  '2026-10-23T23:29:27.000Z',
+);
+assert.equal(parseActivityStart('2026-10-23T18:29:27', null)?.toISOString(), '2026-10-23T18:29:27.000Z');
+// Re-anchor math behind the activity zone selector (New York is on DST here).
+assert.equal(
+  parseActivityStart('2026-10-23T18:29:27', 'America/New_York')?.toISOString(),
+  '2026-10-23T22:29:27.000Z',
+);
+
+// formatInZone: local-time tooltips in an IANA zone.
+assert.equal(formatInZone(new Date('2026-10-23T23:29:27.000Z'), 'America/Lima'), '2026-10-23 18:29:27');
+assert.equal(formatInZone(new Date('2026-10-23T23:29:27.000Z'), 'Pacific/Auckland'), '2026-10-24 12:29:27');
+assert.equal(formatInZone(new Date('2026-10-23T23:29:27.000Z'), 'Nope/Nowhere'), null);
+assert.equal(formatInZone(new Date(NaN), 'America/Lima'), null);
+
+// zoneOffsetName: UTC offset label of a zone at an instant.
+assert.equal(zoneOffsetName(new Date('2026-10-23T23:29:27.000Z'), 'America/Lima'), 'UTC-5');
+assert.equal(zoneOffsetName(new Date('2026-10-23T23:29:27.000Z'), 'Pacific/Auckland'), 'UTC+13');
+assert.equal(zoneOffsetName(new Date('2026-10-23T23:29:27.000Z'), 'Asia/Kathmandu'), 'UTC+5:45');
+assert.equal(zoneOffsetName(new Date('2026-10-23T23:29:27.000Z'), 'Nope/Nowhere'), null);
+
+// formatFixedZone: clip tooltip wall under the selected fixed offset.
+assert.equal(formatFixedZone(new Date('2026-10-29T01:56:08.000Z'), -5), '2026-10-28 20:56:08');
+assert.equal(formatFixedZone(new Date('2026-10-29T01:56:08.000Z'), 5.75), '2026-10-29 07:41:08');
+assert.equal(formatFixedZone(new Date('2026-10-29T01:56:08.000Z'), 0), '2026-10-29 01:56:08');
+assert.equal(formatFixedZone(new Date(NaN), -5), '—');
 
 // i18n: stored preference wins, else navigator autodetect, else English.
 assert.equal(resolveLocale('en', ['es-ES']), 'en');
