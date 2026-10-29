@@ -563,6 +563,18 @@ const distDir = join(root, 'web', 'dist');
 assert.ok(existsSync(distDir), 'web/dist missing: run `npm run build --workspace=web` first');
 const distIndex = readFileSync(join(distDir, 'index.html'), 'utf8');
 assert.ok(distIndex.includes(`<link rel="canonical" href="${SEO_BASE_URL}/" />`), 'dist canonical');
+// CSP: Cloudflare Web Analytics beacon allowed (app + static pages).
+const cspOf = (html) => html.match(/Content-Security-Policy"\s+content="([^"]+)"/)?.[1] ?? '';
+const appCsp = cspOf(distIndex);
+assert.ok(appCsp.includes("script-src 'self' https://static.cloudflareinsights.com"), 'app csp beacon script');
+assert.ok(appCsp.includes('https://cloudflareinsights.com'), 'app csp beacon connect');
+const firstGuideHtml = readFileSync(
+  join(distDir, guidePath('es', GUIDES[0]).replace(/^\/|\/$/g, ''), 'index.html'),
+  'utf8',
+);
+const staticCsp = cspOf(firstGuideHtml);
+assert.ok(staticCsp.includes('script-src https://static.cloudflareinsights.com'), 'static csp beacon script');
+assert.ok(staticCsp.includes('https://cloudflareinsights.com'), 'static csp beacon connect');
 for (const prop of ['og:title', 'og:type', 'og:image', 'og:url', 'og:description', 'og:locale']) {
   assert.ok(distIndex.includes(`property="${prop}"`), `dist ${prop}`);
 }

@@ -59,7 +59,7 @@ export function contentHead(base: string, o: HeadOpts): string {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; img-src 'self'; font-src 'self'; style-src 'unsafe-inline'"
+      content="default-src 'none'; script-src https://static.cloudflareinsights.com; img-src 'self'; font-src 'self'; style-src 'unsafe-inline'; connect-src https://cloudflareinsights.com https://static.cloudflareinsights.com"
     />
     <meta name="description" content="${escHtml(o.description)}" />
     <title>${escHtml(o.title)}</title>
