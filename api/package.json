@@ -1,5 +1,5 @@
 {
-  "name": "@override-studio/api",
+  "name": "@velohud/api",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,13 +7,13 @@
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "db:create": "wrangler d1 create override-studio-db",
-    "db:apply:local": "wrangler d1 migrations apply override-studio-db --local"
+    "db:create": "wrangler d1 create velohud-db",
+    "db:apply:local": "wrangler d1 migrations apply velohud-db --local"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",
     "@auth/d1-adapter": "^1.11.3",
-    "@override-studio/shared": "*"
+    "@velohud/shared": "*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",

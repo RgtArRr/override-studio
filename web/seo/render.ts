@@ -1,5 +1,8 @@
 /** Pure builders for robots.txt / sitemap.xml / static content pages. */
-import { LEGAL_CONTACT, type Faq, type FooterNav, type GuideCopy, type HubCopy, type LegalCopy, type Locale } from './content.js';
+import { DONATE_URL, LEGAL_CONTACT, type Faq, type FooterNav, type GuideCopy, type HubCopy, type LegalCopy, type Locale } from './content.js';
+
+/** Editor URL: every content CTA points here, never at the locale gateway. */
+const APP_PATH = '/app/';
 
 export const escXml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -35,6 +38,14 @@ details.faq p{margin:12px 0 4px}
 .guide-link span{color:var(--muted);font-size:15px}
 footer.site{margin-top:64px;border-top:1px solid var(--border);padding-top:20px;color:var(--muted);font-size:14px;display:flex;gap:16px;flex-wrap:wrap}
 footer.site a{color:var(--muted)}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:8px}
+.feature{background:var(--surface);border-radius:12px;box-shadow:rgba(34,42,53,.05) 0 4px 8px 0;padding:16px 20px}
+.feature strong{display:block;color:var(--ink);margin-bottom:4px}
+.feature p{margin:0;font-size:15px;color:var(--muted)}
+.example{margin:24px 0}
+.example img{display:block;width:100%;height:auto;border-radius:12px;box-shadow:rgba(34,42,53,.08) 0 8px 24px 0}
+.example figcaption{color:var(--muted);font-size:14px;margin-top:8px}
+.donate{background:var(--surface);border-radius:12px;box-shadow:rgba(34,42,53,.05) 0 4px 8px 0;padding:8px 20px 20px;margin-top:8px}
 a{color:var(--accent-ink)}
 a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:560px){header.site{flex-wrap:wrap;row-gap:12px}nav.site{margin-left:0;flex-wrap:wrap;gap:12px}.cta{padding:10px 18px}}`;
@@ -97,16 +108,28 @@ ${body}
 `;
 }
 
-export function hubJsonLd(faqs: readonly Faq[]): unknown {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: faqs.map((f) => ({
-      '@type': 'Question',
-      name: f.q,
-      acceptedAnswer: { '@type': 'Answer', text: f.a },
-    })),
-  };
+export function hubJsonLd(base: string, path: string, locale: Locale, faqs: readonly Faq[]): unknown {
+  return [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'velohud',
+      url: base + path,
+      applicationCategory: 'Multimedia',
+      operatingSystem: 'Web',
+      inLanguage: [locale],
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faqs.map((f) => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    },
+  ];
 }
 
 export interface GuideLink {
@@ -135,18 +158,37 @@ export function renderHub(
         `        <a class="guide-link" href="${g.path}"><strong>${escHtml(g.h1)}</strong><span>${escHtml(g.lede)}</span></a>`,
     )
     .join('\n');
+  const features = hub.features
+    .map((f) => `            <div class="feature"><strong>${escHtml(f.title)}</strong><p>${escHtml(f.text)}</p></div>`)
+    .join('\n');
+  const examples = hub.examples
+    .map(
+      (e) =>
+        `          <figure class="example"><img src="${e.img}" alt="${escHtml(e.alt)}" loading="lazy" /><figcaption>${escHtml(e.caption)}</figcaption></figure>`,
+    )
+    .join('\n');
   return `    <div class="wrap">
       <header class="site">
-        <a class="brand" href="/"><img src="/icon.svg" alt="" />velohud</a>
+        <a class="brand" href="/${locale}/"><img src="/icon.svg" alt="" />velohud</a>
         <nav class="site">
           <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
-          <a class="cta" href="/">${escHtml(hub.ctaApp)}</a>
+          <a class="cta" href="${APP_PATH}">${escHtml(hub.ctaApp)}</a>
         </nav>
       </header>
       <main>
         <h1>${escHtml(hub.h1)}</h1>
         <p class="lede">${escHtml(hub.lede)}</p>
-        <a class="cta" href="/">${escHtml(hub.ctaApp)}</a>
+        <a class="cta" href="${APP_PATH}">${escHtml(hub.ctaApp)}</a>
+        <section class="block">
+          <h2>${escHtml(hub.examplesTitle)}</h2>
+${examples}
+        </section>
+        <section class="block">
+          <h2>${escHtml(hub.featuresTitle)}</h2>
+          <div class="feature-grid">
+${features}
+          </div>
+        </section>
         <section class="block">
           <h2>${escHtml(hub.howTitle)}</h2>
           <ol class="steps">
@@ -171,11 +213,18 @@ ${
           <h2>${escHtml(hub.faqTitle)}</h2>
 ${faqs}
         </section>
+        <section class="block">
+          <h2>${escHtml(hub.donateTitle)}</h2>
+          <div class="donate">
+            <p>${escHtml(hub.donateText)}</p>
+            <p><a class="cta" href="${DONATE_URL}" target="_blank" rel="noopener">${escHtml(hub.donateCta)}</a></p>
+          </div>
+        </section>
       </main>
       <footer class="site">
         <span>velohud — ${escHtml(hub.badge)}</span>
         <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
-        <a href="/">${escHtml(hub.ctaApp)}</a>
+        <a href="${APP_PATH}">${escHtml(hub.ctaApp)}</a>
         <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
         <a href="${legal.termsPath}">${escHtml(legal.termsLabel)}</a>
         <a href="${legal.donateUrl}" target="_blank" rel="noopener">${escHtml(legal.donateLabel)}</a>
@@ -211,10 +260,10 @@ export function renderGuide(
     .join('\n');
   return `    <div class="wrap">
       <header class="site">
-        <a class="brand" href="/"><img src="/icon.svg" alt="" />velohud</a>
+        <a class="brand" href="${hubPathStr}"><img src="/icon.svg" alt="" />velohud</a>
         <nav class="site">
           <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
-          <a class="cta" href="/">${escHtml(copy.ctaApp)}</a>
+          <a class="cta" href="${APP_PATH}">${escHtml(copy.ctaApp)}</a>
         </nav>
       </header>
       <main>
@@ -234,13 +283,13 @@ ${steps}
 ${copy.tips.map((t) => `            <li>${escHtml(t)}</li>`).join('\n')}
           </ul>
         </section>
-        <p><a class="cta" href="/">${escHtml(copy.ctaApp)}</a></p>
+        <p><a class="cta" href="${APP_PATH}">${escHtml(copy.ctaApp)}</a></p>
       </main>
       <footer class="site">
         <span>velohud — ${escHtml(hub.badge)}</span>
         <a href="${hubPathStr}">${escHtml(copy.backLabel)}</a>
         <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
-        <a href="/">${escHtml(copy.ctaApp)}</a>
+        <a href="${APP_PATH}">${escHtml(copy.ctaApp)}</a>
         <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
         <a href="${legal.termsPath}">${escHtml(legal.termsLabel)}</a>
         <a href="${legal.donateUrl}" target="_blank" rel="noopener">${escHtml(legal.donateLabel)}</a>
@@ -276,6 +325,11 @@ export function hubMarkdown(base: string, page: MdPage, hub: HubCopy, guides: re
     ...hub.priv,
     '',
   ];
+  lines.push(`## ${hub.featuresTitle}`, '');
+  for (const f of hub.features) lines.push(`### ${f.title}`, '', f.text, '');
+  lines.push(`## ${hub.examplesTitle}`, '');
+  for (const e of hub.examples) lines.push(`![${e.alt}](${base}${e.img})`, '', e.caption, '');
+  lines.push(`## ${hub.donateTitle}`, '', hub.donateText, '', `[${hub.donateCta}](${DONATE_URL})`, '');
   if (guides.length > 0) {
     lines.push(`## ${hub.guidesTitle}`, '');
     for (const g of guides) lines.push(`- [${g.h1}](${base + g.path}index.md): ${g.lede}`);
@@ -283,7 +337,7 @@ export function hubMarkdown(base: string, page: MdPage, hub: HubCopy, guides: re
   }
   lines.push(`## ${hub.faqTitle}`, '');
   for (const f of hub.faqs) lines.push(`### ${f.q}`, '', f.a, '');
-  lines.push(`[Open the app](${base}/)`);
+  lines.push(`[Open the app](${base}/app/)`);
   return lines.join('\n') + '\n';
 }
 
@@ -293,7 +347,7 @@ export function guideMarkdown(base: string, page: MdPage, copy: GuideCopy, hubPa
   lines.push(`## ${copy.stepsTitle}`, '');
   copy.steps.forEach((s, i) => lines.push(`${i + 1}. **${s.name}.** ${s.text}`));
   lines.push('', `## ${copy.tipsTitle}`, '', ...copy.tips.map((t) => `- ${t}`), '');
-  lines.push(`[← ${base}${hubPathStr}](${base}${hubPathStr}) · [Open the app](${base}/)`);
+  lines.push(`[← ${base}${hubPathStr}](${base}${hubPathStr}) · [Open the app](${base}/app/)`);
   return lines.join('\n') + '\n';
 }
 
@@ -318,7 +372,7 @@ export function llmsTxt(
     for (const g of guides.filter((x) => x.locale === locale)) lines.push(`- [${g.h1}](${g.mdUrl}): ${g.lede}`);
     lines.push('');
   }
-  lines.push('## App', '', `- [Open the app](${base}/): the editor itself (needs Chrome/Edge with WebCodecs).`, '');
+  lines.push('## App', '', `- [Open the app](${base}/app/): the editor itself (needs Chrome/Edge with WebCodecs).`, '');
   return lines.join('\n');
 }
 
@@ -346,10 +400,10 @@ export function renderLegal(
     .join('\n');
   return `    <div class="wrap">
       <header class="site">
-        <a class="brand" href="/"><img src="/icon.svg" alt="" />velohud</a>
+        <a class="brand" href="${hubPathStr}"><img src="/icon.svg" alt="" />velohud</a>
         <nav class="site">
           <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
-          <a class="cta" href="/">${escHtml(copy.ctaApp)}</a>
+          <a class="cta" href="${APP_PATH}">${escHtml(copy.ctaApp)}</a>
         </nav>
       </header>
       <main>
@@ -366,7 +420,7 @@ ${sections}
         <span>velohud — ${escHtml(hub.badge)}</span>
         <a href="${hubPathStr}">${escHtml(copy.backLabel)}</a>
         <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
-        <a href="/">${escHtml(copy.ctaApp)}</a>
+        <a href="${APP_PATH}">${escHtml(copy.ctaApp)}</a>
         <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
         <a href="${legal.termsPath}">${escHtml(legal.termsLabel)}</a>
         <a href="${legal.donateUrl}" target="_blank" rel="noopener">${escHtml(legal.donateLabel)}</a>
@@ -378,7 +432,7 @@ export function legalMarkdown(base: string, page: MdPage, copy: LegalCopy, hubPa
   const lines = [`# ${copy.h1}`, '', `> ${copy.lede}`, '', `Canonical: ${page.htmlUrl}`, ''];
   for (const s of copy.sections) lines.push(`## ${s.h2}`, '', ...s.paragraphs, '');
   lines.push(`## ${copy.contactTitle}`, '', `[${copy.contactLabel}](${LEGAL_CONTACT})`, '');
-  lines.push(`[← ${base}${hubPathStr}](${base}${hubPathStr}) · [Open the app](${base}/)`);
+  lines.push(`[← ${base}${hubPathStr}](${base}${hubPathStr}) · [Open the app](${base}/app/)`);
   return lines.join('\n') + '\n';
 }
 

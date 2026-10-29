@@ -46,7 +46,7 @@ wrangler secret put AUTH_SECRET --config api/wrangler.toml
 # local (ya aplicadas en un arranque normal)
 npm run db:apply:local --workspace=api
 # producción
-wrangler d1 migrations apply override-studio-db --config api/wrangler.toml
+wrangler d1 migrations apply velohud-db --config api/wrangler.toml
 ```
 
 Migraciones: `0002_auth.sql` (tablas Auth.js + `user_templates`),

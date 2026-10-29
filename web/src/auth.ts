@@ -1,11 +1,11 @@
-import type { Template } from '@override-studio/shared';
+import type { Template } from '@velohud/shared';
 
 /**
  * Optional account, backed by the API (Auth.js, cookie session). Everything
  * degrades to null/false offline or logged-out: the app stays fully local.
  */
 const API_URL =
-  import.meta.env.VITE_API_URL ?? 'https://override-studio-api.koga262.workers.dev';
+  import.meta.env.VITE_API_URL ?? 'https://velohud-api.koga262.workers.dev';
 
 export interface AccountUser {
   id: string;
@@ -26,7 +26,7 @@ const RETRY_DELAY_MS = 800;
  * the cross-site session cookie, so the token rides back as a bearer header
  * instead (the cookie stays primary where the browser accepts it).
  */
-const TOKEN_KEY = 'override-studio.session';
+const TOKEN_KEY = 'velohud.session';
 const loadSessionToken = (): string | null => {
   try {
     return localStorage.getItem(TOKEN_KEY);

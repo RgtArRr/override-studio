@@ -11,7 +11,7 @@ import {
   type WidgetKind,
   type WidgetLayout,
   type WidgetStyle,
-} from '@override-studio/shared';
+} from '@velohud/shared';
 import {
   activityFromIntervalsStreams,
   activityStartFromOffset,
@@ -309,7 +309,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const logo = el('img', 'header-logo');
   logo.src = '/icon.svg';
   logo.alt = '';
-  header.append(logo, el('h1', undefined, 'velohud'));
+  const homeLink = el('a', 'brand');
+  homeLink.href = '/';
+  homeLink.append(logo, el('h1', undefined, 'velohud'));
+  header.append(homeLink);
   header.append(el('span', 'local-badge', t('hdr.badge')));
   const headerSpacer = el('span', 'header-spacer');
   const headerActions = el('div', 'header-actions');
@@ -1466,8 +1469,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // Templates sit above the viewer: one strip, no scroll to pick one.
   center.prepend(templateBox);
 
-  // Inspector (right): Clip panel swaps for the Widget panel on selection.
+  // Inspector (right): always visible; empty state when no clip is loaded.
   const inspector = el('aside', 'inspector');
+  const emptyPanel = el('div', 'empty-panel');
+  emptyPanel.append(el('h2', undefined, t('clip.title')));
+  emptyPanel.append(el('p', 'muted', t('clip.none')));
+  inspector.appendChild(emptyPanel);
   const clipPanel = el('div', 'clip-panel');
   clipPanel.append(el('h2', undefined, t('clip.title')));
   const clipName = el('p', 'clip-name', t('clip.none'));
@@ -1986,13 +1993,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
   const syncInspector = (): void => {
     const clip = activeClip();
-    inspector.hidden = clip === null;
-    grid.classList.toggle('no-inspector', clip === null);
-    if (!clip) return;
-    const showWidget = selectedWidget() !== null;
-    clipPanel.hidden = showWidget;
-    widgetPanel.hidden = !showWidget;
-    renderPanel.hidden = showWidget;
+    emptyPanel.hidden = clip !== null;
+    const showWidget = clip !== null && selectedWidget() !== null;
+    clipPanel.hidden = clip === null || showWidget;
+    widgetPanel.hidden = !showWidget || clip === null;
+    renderPanel.hidden = clip === null || showWidget;
     if (showWidget) fillWidgetPanel();
   };
   // Render lives in its own panel so the Widget panel can hide it.

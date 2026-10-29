@@ -84,15 +84,8 @@ body {
   margin-bottom: 32px;
 }
 
-.editor-grid.no-inspector {
-  grid-template-columns: 272px minmax(0, 1fr);
-}
-
 @media (max-width: 1024px) {
   .editor-grid {
-    grid-template-columns: 1fr;
-  }
-  .editor-grid.no-inspector {
     grid-template-columns: 1fr;
   }
 }
@@ -444,6 +437,14 @@ body {
 .header-logo {
   width: 30px;
   height: 30px;
+}
+
+.app-header a.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .app-header h1 {

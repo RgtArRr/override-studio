@@ -1,5 +1,5 @@
 {
-  "name": "@override-studio/web",
+  "name": "@velohud/web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@garmin/fitsdk": "^21.218.0",
-    "@override-studio/shared": "*",
+    "@velohud/shared": "*",
     "mediabunny": "^1.62.1"
   },
   "devDependencies": {

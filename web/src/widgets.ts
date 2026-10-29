@@ -5,7 +5,7 @@ import type {
   WidgetDef,
   WidgetKind,
   WidgetLayout,
-} from '@override-studio/shared';
+} from '@velohud/shared';
 import { t } from './i18n.js';
 
 /** Pure, DOM-free widget catalog + factory for the right panel. No side effects. */

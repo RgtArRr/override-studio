@@ -1,4 +1,4 @@
-import type { MetricId, TimeFormat } from '@override-studio/shared';
+import type { MetricId, TimeFormat } from '@velohud/shared';
 import { formatSpan } from './telemetry.js';
 
 export type Units = 'metric' | 'imperial';

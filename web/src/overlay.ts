@@ -5,7 +5,7 @@ import {
   type Template,
   type TextAlign,
   type WidgetDef,
-} from '@override-studio/shared';
+} from '@velohud/shared';
 import {
   nextProfileWindow,
   sampleAt,

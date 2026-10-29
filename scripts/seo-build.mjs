@@ -79,7 +79,7 @@ for (const locale of LOCALES) {
     title: hub.title,
     description: hub.description,
     alternates: LOCALES.map((l) => ({ locale: l, path: hubPath(l) })),
-    jsonLd: hubJsonLd(hub.faqs),
+    jsonLd: hubJsonLd(SEO_BASE_URL, hubPath(locale), locale, hub.faqs),
     mdPath: `${hubPath(locale)}index.md`,
   });
   emitPage(
@@ -161,8 +161,12 @@ for (const locale of LOCALES) {
   assert.ok(!html.includes('<script src'), `${locale} has no app JS`);
   assert.ok(!html.includes('type="module"'), `${locale} has no modules`);
   const data = readLd(html, locale);
-  assert.equal(data['@type'], 'FAQPage');
-  assert.equal(data.mainEntity.length, HUB[locale].faqs.length);
+  assert.ok(Array.isArray(data), `${locale} json-ld graph`);
+  const [soft, faq] = data;
+  assert.equal(soft['@type'], 'SoftwareApplication');
+  assert.equal(soft.url, `${SEO_BASE_URL}${hubPath(locale)}`);
+  assert.equal(faq['@type'], 'FAQPage');
+  assert.equal(faq.mainEntity.length, HUB[locale].faqs.length);
   for (const g of GUIDES) {
     assert.ok(html.includes(`href="${guidePath(locale, g)}"`), `${locale} links ${g.slug[locale]}`);
   }

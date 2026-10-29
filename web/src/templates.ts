@@ -16,7 +16,7 @@ import vam from '../../fixtures/templates/vam.json';
 import routemap from '../../fixtures/templates/routemap.json';
 import navmap from '../../fixtures/templates/navmap.json';
 import compass from '../../fixtures/templates/compass.json';
-import { parseTemplateJson, type Template } from '@override-studio/shared';
+import { parseTemplateJson, type Template } from '@velohud/shared';
 
 /** Built-in catalog. Fase 6+ adds generated ones. */
 const RAW_TEMPLATES: unknown[] = [

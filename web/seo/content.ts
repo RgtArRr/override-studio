@@ -22,11 +22,26 @@ export interface Faq {
   a: string;
 }
 
+export interface HubFeature {
+  title: string;
+  text: string;
+}
+
+export interface HubExample {
+  img: string;
+  alt: string;
+  caption: string;
+}
+
 export interface HubCopy {
   title: string;
   description: string;
   h1: string;
   lede: string;
+  featuresTitle: string;
+  features: HubFeature[];
+  examplesTitle: string;
+  examples: HubExample[];
   howTitle: string;
   how: string[];
   fmtTitle: string;
@@ -34,6 +49,9 @@ export interface HubCopy {
   privTitle: string;
   priv: string[];
   guidesTitle: string;
+  donateTitle: string;
+  donateText: string;
+  donateCta: string;
   faqTitle: string;
   faqs: Faq[];
   ctaApp: string;
@@ -118,6 +136,50 @@ export const HUB: Record<Locale, HubCopy> = {
         a: 'En tu navegador por defecto. Con cuenta, también en la nube, y las recuperas en cualquier equipo.',
       },
     ],
+    featuresTitle: 'Por qué velohud',
+    features: [
+      {
+        title: 'Salida directa en MP4',
+        text: 'Sin videos intermedios ni editores externos: el overlay se quema en tu clip y se guarda directo en tu disco.',
+      },
+      {
+        title: 'FIT, GPX y TCX nativos',
+        text: 'Lee los tres formatos sin conversiones, o trae actividades desde Intervals.icu con tu clave API.',
+      },
+      {
+        title: 'Plantillas estilo broadcast',
+        text: '18 plantillas con 14 tipos de widget: números grandes, velocímetros, perfil de elevación, pendiente, mapas y brújula.',
+      },
+      {
+        title: 'Sincronización automática',
+        text: 'Lee la fecha de grabación de cada video y lo alinea con la actividad; afinas a 0,1 s con las flechas.',
+      },
+      {
+        title: 'Varios clips, una actividad',
+        text: 'Sincroniza varios videos contra la misma salida, cada uno con su offset y plantilla.',
+      },
+      {
+        title: 'Gratis, sin marca de agua',
+        text: 'Sin planes ni suscripciones: se sostiene con donaciones puntuales en Ko-fi.',
+      },
+    ],
+    examplesTitle: 'Hecho con velohud',
+    examples: [
+      {
+        img: '/examples/home-hz.jpg',
+        alt: 'Video horizontal con overlay de potencia, FC y velocidad',
+        caption: 'Plantilla Broadcast en video horizontal',
+      },
+      {
+        img: '/examples/home-vt.jpg',
+        alt: 'Video vertical con overlay de telemetría deportiva',
+        caption: 'Plantilla Broadcast en vertical',
+      },
+    ],
+    donateTitle: 'Sostén el proyecto',
+    donateText:
+      'velohud es gratis y de código abierto. Si te sirve, una donación puntual en Ko-fi ayuda a pagar el dominio y seguir mejorándolo.',
+    donateCta: 'Donar en Ko-fi',
     ctaApp: 'Abrir la app',
     badge: 'render 100% local',
     otherLocaleLabel: 'English',
@@ -198,6 +260,50 @@ export const HUB: Record<Locale, HubCopy> = {
         a: 'In your browser by default. With an account, also in the cloud, and you get them back on any machine.',
       },
     ],
+    featuresTitle: 'Why velohud',
+    features: [
+      {
+        title: 'Direct MP4 output',
+        text: 'No intermediate videos or external editors: the overlay is burned into your clip and saved straight to disk.',
+      },
+      {
+        title: 'Native FIT, GPX and TCX',
+        text: 'Reads all three formats with no conversion, or pulls activities from Intervals.icu with your API key.',
+      },
+      {
+        title: 'Broadcast-style templates',
+        text: '18 templates with 14 widget kinds: big numbers, gauges, elevation profile, grade, maps and compass.',
+      },
+      {
+        title: 'Automatic sync',
+        text: 'Reads each video recording date and aligns it with the activity; fine-tune to 0.1 s with the arrows.',
+      },
+      {
+        title: 'Many clips, one activity',
+        text: 'Sync several videos against a single ride, each with its own offset and template.',
+      },
+      {
+        title: 'Free, no watermark',
+        text: 'No plans or subscriptions: supported by one-time Ko-fi donations.',
+      },
+    ],
+    examplesTitle: 'Made with velohud',
+    examples: [
+      {
+        img: '/examples/home-hz.jpg',
+        alt: 'Horizontal video with power, HR and speed overlay',
+        caption: 'Broadcast template on horizontal video',
+      },
+      {
+        img: '/examples/home-vt.jpg',
+        alt: 'Vertical video with sports telemetry overlay',
+        caption: 'Broadcast template on vertical video',
+      },
+    ],
+    donateTitle: 'Support the project',
+    donateText:
+      'velohud is free and open source. If it helps you, a one-time Ko-fi donation helps pay for the domain and keep improving it.',
+    donateCta: 'Donate on Ko-fi',
     ctaApp: 'Open the app',
     badge: '100% local render',
     otherLocaleLabel: 'Español',

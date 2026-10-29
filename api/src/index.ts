@@ -3,7 +3,7 @@ import {
   TEMPLATE_SCHEMA_VERSION,
   WIDGET_KINDS,
   parseTemplateJson,
-} from '@override-studio/shared';
+} from '@velohud/shared';
 import {
   SESSION_MAX_AGE,
   buildSessionCookie,

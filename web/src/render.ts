@@ -14,7 +14,7 @@ import {
   VideoSampleSink,
   type VideoSample,
 } from 'mediabunny';
-import type { Template } from '@override-studio/shared';
+import type { Template } from '@velohud/shared';
 import { sampleAt, type Activity } from './telemetry.js';
 import { drawOverlay } from './overlay.js';
 import { t } from './i18n.js';

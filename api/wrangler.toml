@@ -1,13 +1,13 @@
-name = "override-studio-api"
+name = "velohud-api"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
 [vars]
-AUTH_URL = "https://override-studio-api.koga262.workers.dev"
-WEB_ORIGIN = "https://velohud.pages.dev,https://override-studio.pages.dev"
+AUTH_URL = "https://velohud-api.koga262.workers.dev"
+WEB_ORIGIN = "https://velohud.pages.dev"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "override-studio-db"
-database_id = "68d11f5e-5be3-412b-83bc-17b7b73c056c"
+database_name = "velohud-db"
+database_id = "f4564631-3118-4ac4-9adf-fddc8a82ea20"
 migrations_dir = "migrations"

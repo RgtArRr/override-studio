@@ -1,7 +1,7 @@
 import { Decoder, Stream } from '@garmin/fitsdk';
 import { t } from './i18n.js';
 import type { RecordMesg } from '@garmin/fitsdk';
-import type { MetricId } from '@override-studio/shared';
+import type { MetricId } from '@velohud/shared';
 
 /** One normalized telemetry point. `t` is seconds since activity start. */
 export interface TelemetrySample {

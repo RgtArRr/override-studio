@@ -561,11 +561,23 @@ assert.equal(withFmt.widgets[0].timeFormat, 'hm');
 // SEO: generated dist must carry crawler head + machine files matching the manifest.
 const distDir = join(root, 'web', 'dist');
 assert.ok(existsSync(distDir), 'web/dist missing: run `npm run build --workspace=web` first');
+// Root is a locale gateway: instant JS redirect + crawler-followable links.
 const distIndex = readFileSync(join(distDir, 'index.html'), 'utf8');
-assert.ok(distIndex.includes(`<link rel="canonical" href="${SEO_BASE_URL}/" />`), 'dist canonical');
-// CSP: Cloudflare Web Analytics beacon allowed (app + static pages).
+assert.ok(distIndex.includes(`<link rel="canonical" href="${SEO_BASE_URL}/" />`), 'gateway canonical');
+assert.ok(distIndex.includes('<script src="/redirect.js"'), 'gateway redirect script');
+assert.ok(distIndex.includes('<a href="/es/">') && distIndex.includes('<a href="/en/"'), 'gateway locale links');
+// CSP: Cloudflare Web Analytics beacon allowed (gateway + app + static pages).
 const cspOf = (html) => html.match(/Content-Security-Policy"\s+content="([^"]+)"/)?.[1] ?? '';
-const appCsp = cspOf(distIndex);
+const gatewayCsp = cspOf(distIndex);
+assert.ok(gatewayCsp.includes("script-src 'self' https://static.cloudflareinsights.com"), 'gateway csp beacon script');
+assert.ok(gatewayCsp.includes('https://cloudflareinsights.com'), 'gateway csp beacon connect');
+// Editor lives at /app/, uncrawled: noindex, no entity JSON-LD.
+const appIndex = readFileSync(join(distDir, 'app', 'index.html'), 'utf8');
+assert.ok(appIndex.includes(`<link rel="canonical" href="${SEO_BASE_URL}/app/" />`), 'app canonical');
+assert.ok(appIndex.includes('<meta name="robots" content="noindex"'), 'app noindex');
+assert.ok(!appIndex.includes('application/ld+json'), 'app has no JSON-LD');
+assert.ok(appIndex.includes('type="module"'), 'app boots JS');
+const appCsp = cspOf(appIndex);
 assert.ok(appCsp.includes("script-src 'self' https://static.cloudflareinsights.com"), 'app csp beacon script');
 assert.ok(appCsp.includes('https://cloudflareinsights.com'), 'app csp beacon connect');
 const firstGuideHtml = readFileSync(
@@ -576,11 +588,8 @@ const staticCsp = cspOf(firstGuideHtml);
 assert.ok(staticCsp.includes('script-src https://static.cloudflareinsights.com'), 'static csp beacon script');
 assert.ok(staticCsp.includes('https://cloudflareinsights.com'), 'static csp beacon connect');
 for (const prop of ['og:title', 'og:type', 'og:image', 'og:url', 'og:description', 'og:locale']) {
-  assert.ok(distIndex.includes(`property="${prop}"`), `dist ${prop}`);
+  assert.ok(distIndex.includes(`property="${prop}"`), `gateway ${prop}`);
 }
-const ldMatch = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(distIndex);
-assert.ok(ldMatch, 'dist has JSON-LD');
-assert.equal(JSON.parse(ldMatch[1])['@type'], 'SoftwareApplication');
 const robots = readFileSync(join(distDir, 'robots.txt'), 'utf8');
 assert.ok(robots.includes('Allow: /'), 'robots allows crawling');
 assert.ok(robots.includes(`Sitemap: ${SEO_BASE_URL}/sitemap.xml`), 'robots declares sitemap');
@@ -607,9 +616,16 @@ for (const locale of ['es', 'en']) {
   const hubLd = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
   assert.ok(hubLd, `${locale} has JSON-LD`);
   const hubData = JSON.parse(hubLd[1]);
-  assert.equal(hubData['@type'], 'FAQPage');
-  assert.equal(hubData.mainEntity.length, HUB[locale].faqs.length);
-  assert.ok(hubData.mainEntity.length >= 8, `${locale} faq depth`);
+  assert.ok(Array.isArray(hubData), `${locale} json-ld graph`);
+  const [soft, faq] = hubData;
+  assert.equal(soft['@type'], 'SoftwareApplication');
+  assert.equal(soft.name, 'velohud');
+  assert.equal(soft.url, `${SEO_BASE_URL}/${locale}/`);
+  assert.equal(faq['@type'], 'FAQPage');
+  assert.equal(faq.mainEntity.length, HUB[locale].faqs.length);
+  assert.ok(faq.mainEntity.length >= 8, `${locale} faq depth`);
+  assert.ok(html.includes('href="/app/"'), `${locale} cta to app`);
+  assert.ok(!html.includes('href="/"'), `${locale} no stale root links`);
 }
 // Guides: reciprocal hreflang pairs, HowTo matching the manifest, Markdown mirrors.
 assert.equal(GUIDES.length, 5);
