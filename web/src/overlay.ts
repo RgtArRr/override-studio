@@ -737,7 +737,8 @@ function drawVam(
   ctx.textBaseline = 'middle';
   ctx.fillStyle = style.text;
   ctx.font = `700 ${h * 0.34 * style.valueScale}px ${style.valueFont}`;
-  ctx.fillText(`${fmt.value} ${fmt.unit}`, x + w / 2, y + h * 0.52, w * 0.92);
+  const vamLine = widget.showUnit === false ? fmt.value : `${fmt.value} ${fmt.unit}`;
+  ctx.fillText(vamLine, x + w / 2, y + h * 0.52, w * 0.92);
   ctx.fillStyle = vam >= 0 ? style.accent : style.text;
   ctx.font = `600 ${Math.max(8, h * 0.12) * style.labelScale}px ${style.labelFont}`;
   ctx.fillText(`${arrow} 60 s`, x + w / 2, y + h * 0.8, w * 0.9);

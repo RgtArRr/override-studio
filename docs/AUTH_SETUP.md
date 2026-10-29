@@ -65,8 +65,10 @@ npm run dev   # web :5173 + api :8787
 
 - `GET /api/auth/*` — Auth.js (signin, callback, signout, session).
 - `POST /api/register`, `POST /api/login` — clásico (`{email, password}` →
-  `{user}` + cookie; errores `email|weak|taken|invalid`).
-- `GET /api/me` — usuario actual o 401.
+  `{user, token}` + cookie; errores `email|weak|invalid`). El token se
+  reenvía como `Authorization: Bearer` (iOS bloquea la cookie cross-site).
+- `GET /api/me` — usuario actual o 401 (cookie o bearer).
+- `POST /api/logout` — cierra la sesión (cookie y/o bearer).
 - `GET/POST /api/my/templates`, `PUT/DELETE /api/my/templates/:id` — CRUD con
   sesión; el POST crea o reemplaza por id (upsert) y valida con `parseTemplateJson`.
 - `GET /api/intervals/status` — `{ connected }` (401 sin sesión).

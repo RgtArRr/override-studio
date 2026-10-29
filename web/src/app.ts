@@ -16,6 +16,7 @@ import {
   activityFromIntervalsStreams,
   parseActivityXml,
   parseFit,
+  parseGotoTime,
   sampleAt,
   summarize,
   formatClock,
@@ -39,6 +40,7 @@ import {
   defaultAlignFor,
   defaultMetricFor,
   kindLabel,
+  kindShowsUnit,
   makeWidgetDef,
   metricLabel,
   nextWidgetId,
@@ -92,7 +94,12 @@ function mkSelectRow(
 
 function formatOffset(sec: number): string {
   const sign = sec < 0 ? '−' : '+';
-  return `${sign}${Math.abs(sec).toFixed(1)} s`;
+  const tenths = Math.round(Math.abs(sec) * 10);
+  const h = Math.floor(tenths / 36000);
+  const m = Math.floor((tenths % 36000) / 600);
+  const s10 = tenths % 600;
+  const ss = `${String(Math.floor(s10 / 10)).padStart(2, '0')}.${s10 % 10}`;
+  return `${sign}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${ss}`;
 }
 
 const tzName = (h: number): string => {
@@ -169,8 +176,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const addedWidgets = new Map<string, WidgetDef[]>();
   const defOverrides = new Map<
     string,
-    Map<string, { metric?: MetricId; kind?: WidgetKind; timeFormat?: TimeFormat }>
+    Map<string, { metric?: MetricId; kind?: WidgetKind; timeFormat?: TimeFormat; showUnit?: boolean }>
   >();
+  /** Session-removed widget ids per template ("Restablecer widgets" brings them back). */
+  const removedWidgets = new Map<string, Set<string>>();
   /** Bumped on any override change so thumbnails repaint (see repaintThumbs sig). */
   let overrideRev = 0;
   /** Selected widget shows outline + handle + the Widget inspector panel. */
@@ -239,7 +248,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const wid = widthOverrides.get(template.id);
     const def = defOverrides.get(template.id);
     const added = addedWidgets.get(template.id);
-    if (!vis && !lay && !sty && !wid && !def && !added) return template;
+    const removed = removedWidgets.get(template.id);
+    if (!vis && !lay && !sty && !wid && !def && !added && !removed) return template;
     const apply = (w: WidgetDef): WidgetDef => {
       const pos = lay?.get(w.id);
       const style = sty?.get(w.id);
@@ -249,6 +259,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         metric: patch?.metric ?? w.metric,
         kind: patch?.kind ?? w.kind,
         timeFormat: patch?.timeFormat ?? w.timeFormat,
+        showUnit: patch?.showUnit ?? w.showUnit,
         visible: vis?.get(w.id) ?? w.visible,
         strokeWidth: wid?.get(w.id) ?? w.strokeWidth,
         style: style ? { ...w.style, ...style } : w.style,
@@ -268,7 +279,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     };
     return {
       ...template,
-      widgets: [...template.widgets.map(apply), ...(added ?? []).map(apply)],
+      widgets: [
+        ...template.widgets.filter((w) => !removed?.has(w.id)).map(apply),
+        ...(added ?? []).map(apply),
+      ],
     };
   };
 
@@ -331,8 +345,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
   mkLocale('es', 'ES');
   mkLocale('en', 'EN');
-  const fixtureBtn = el('button', 'btn', t('hdr.fixtures'));
-  fixtureBtn.type = 'button';
+  const fixtureVertBtn = el('button', 'btn', t('hdr.fixtureVertical'));
+  fixtureVertBtn.type = 'button';
+  const fixtureHzBtn = el('button', 'btn', t('hdr.fixtureHorizontal'));
+  fixtureHzBtn.type = 'button';
   const renderAllBtn = el('button', 'btn btn-primary', t('hdr.renderAll'));
   renderAllBtn.type = 'button';
   // Editor controls first, then a separator, then the system (language) switch.
@@ -340,7 +356,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   headerSep.setAttribute('aria-hidden', 'true');
   headerActions.append(unitsGroup);
   // Fixtures are a dev-only helper: excluded from production builds.
-  if (import.meta.env.DEV) headerActions.appendChild(fixtureBtn);
+  if (import.meta.env.DEV) headerActions.append(fixtureVertBtn, fixtureHzBtn);
   headerActions.append(renderAllBtn, headerSep, localeGroup);
   const accountBox = el('span', 'account-box');
   const loginBtn = el('button', 'btn btn-small', t('auth.login'));
@@ -902,6 +918,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     widthOverrides.delete(template.id);
     addedWidgets.delete(template.id);
     defOverrides.delete(template.id);
+    removedWidgets.delete(template.id);
     selected = null;
     bumpRev();
   });
@@ -985,7 +1002,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
+    // Delayed: revoking synchronously can cancel the download before it starts.
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
   templateHead.append(resetWidgetsBtn, addOpenBtn);
   wrap.appendChild(addDialog);
@@ -1012,11 +1030,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
   };
   const thumbErr = t('tpl.errThumb');
-  /** Any session edit (move, hide, add, restyle, kind/metric, width). */
+  /** Any session edit (move, hide, add, delete, restyle, kind/metric, width). */
   const isEdited = (id: string): boolean =>
     [widgetOverrides, layoutOverrides, styleOverrides, widthOverrides, defOverrides].some(
       (m) => (m.get(id)?.size ?? 0) > 0,
-    ) || (addedWidgets.get(id)?.length ?? 0) > 0;
+    ) ||
+    (addedWidgets.get(id)?.length ?? 0) > 0 ||
+    (removedWidgets.get(id)?.size ?? 0) > 0;
   /** Builtins show export only once edited; customs always (export is their only save). */
   const syncExportBtns = (): void => {
     for (const th of thumbs) {
@@ -1434,39 +1454,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     binMetaSig = '';
   });
   clipPanel.appendChild(tzRow);
-  // Keyboard path to widget selection (the canvas itself is pointer-only).
-  const widgetPickRow = el('div', 'editor-row');
-  const widgetPickLabel = el('label', undefined, t('w.pickWidget'));
-  const widgetPick = el('select');
-  widgetPickLabel.appendChild(widgetPick);
-  widgetPickRow.appendChild(widgetPickLabel);
-  clipPanel.appendChild(widgetPickRow);
-  let widgetPickSig = '';
-  const syncWidgetPick = (): void => {
-    const tpl = selectedTemplate();
-    const widgets = tpl ? effectiveTemplate(tpl).widgets : [];
-    const sig = `${tpl?.id ?? ''}|${widgets.map((w) => w.id).join(',')}|${selected?.widgetId ?? ''}`;
-    if (sig === widgetPickSig) return;
-    widgetPickSig = sig;
-    widgetPick.replaceChildren();
-    const none = el('option', undefined, '—');
-    none.value = '';
-    widgetPick.appendChild(none);
-    for (const w of widgets) {
-      const opt = el(
-        'option',
-        undefined,
-        w.label || `${kindLabel(w.kind)} · ${metricLabel(w.metric)}`,
-      );
-      opt.value = w.id;
-      widgetPick.appendChild(opt);
-    }
-    widgetPick.value = selected?.templateId === tpl?.id ? (selected?.widgetId ?? '') : '';
-  };
-  widgetPick.addEventListener('change', () => {
-    const tpl = selectedTemplate();
-    selected = tpl && widgetPick.value ? { templateId: tpl.id, widgetId: widgetPick.value } : null;
-  });
   inspector.appendChild(clipPanel);
 
   // Widget panel: every option of the selected widget.
@@ -1513,6 +1500,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     TIME_FORMATS,
     'format-select',
   );
+  const unitRow = el('div', 'editor-row');
+  const unitCheck = mkField(unitRow, t('w.unit'), 'checkbox', 'unit-check');
 
   const posRow = el('div', 'editor-row');
   const xInput = mkField(posRow, 'X ', 'number', 'trim-input');
@@ -1634,10 +1623,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     kindRow,
     metricRow,
     fmtRow,
+    unitRow,
     posRow,
     sizeRow,
-    bgRow,
     shapeRow,
+    bgRow,
     alignRow,
     colorRow,
     widthRow,
@@ -1706,6 +1696,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     metric?: MetricId;
     kind?: WidgetKind;
     timeFormat?: TimeFormat;
+    showUnit?: boolean;
   }): void => {
     const sw = selectedWidget();
     if (!sw) return;
@@ -1728,6 +1719,30 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       widgetOverrides.set(template.id, perTemplate);
     }
     perTemplate.set(widgetId, false);
+    if (selected?.widgetId === widgetId) selected = null;
+    bumpRev();
+  };
+
+  /** True delete: added widgets drop from the list, builtins go to the removed set. */
+  const deleteWidget = (template: Template, widgetId: string): void => {
+    const added = addedWidgets.get(template.id);
+    const ai = added?.findIndex((w) => w.id === widgetId) ?? -1;
+    if (added && ai >= 0) {
+      added.splice(ai, 1);
+    } else {
+      let perTemplate = removedWidgets.get(template.id);
+      if (!perTemplate) {
+        perTemplate = new Set();
+        removedWidgets.set(template.id, perTemplate);
+      }
+      perTemplate.add(widgetId);
+    }
+    // Stale per-id overrides would leak onto a future widget reusing the id.
+    layoutOverrides.get(template.id)?.delete(widgetId);
+    styleOverrides.get(template.id)?.delete(widgetId);
+    widthOverrides.get(template.id)?.delete(widgetId);
+    defOverrides.get(template.id)?.delete(widgetId);
+    widgetOverrides.get(template.id)?.delete(widgetId);
     if (selected?.widgetId === widgetId) selected = null;
     bumpRev();
   };
@@ -1775,9 +1790,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   metricSel.addEventListener('change', () =>
     writeDefPatch({ metric: metricSel.value as MetricId }),
   );
+  unitCheck.addEventListener('change', () => writeDefPatch({ showUnit: unitCheck.checked }));
   widgetDeleteBtn.addEventListener('click', () => {
     const sw = selectedWidget();
-    if (sw) hideWidget(sw.template, sw.widget.id);
+    if (sw) deleteWidget(sw.template, sw.widget.id);
   });
   widthInput.addEventListener('input', () => {
     const sw = selectedWidget();
@@ -1813,6 +1829,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     setIfIdle(metricSel, sw.widget.metric);
     fmtRow.hidden = sw.widget.metric !== 'elapsedTime';
     setIfIdle(fmtSel, sw.widget.timeFormat ?? 'auto');
+    unitRow.hidden = !kindShowsUnit(sw.widget.kind);
+    unitCheck.checked = sw.widget.showUnit !== false;
     setIfIdle(xInput, box.x.toFixed(2));
     setIfIdle(yInput, box.y.toFixed(2));
     setIfIdle(wInput, box.w.toFixed(2));
@@ -1824,6 +1842,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     setIfIdle(opInput, String(op));
     opPct.textContent = `${op} %`;
     const shape = st.shape ?? 'rect';
+    // No panel painted: background + opacity would be dead controls.
+    bgRow.hidden = shape === 'none';
     for (const btn of shapeBtns) {
       const active = btn.dataset.shape === shape;
       btn.classList.toggle('active', active);
@@ -1873,7 +1893,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     widgetPanel.hidden = !showWidget;
     renderPanel.hidden = showWidget;
     if (showWidget) fillWidgetPanel();
-    else syncWidgetPick();
   };
   // Render lives in its own panel so the Widget panel can hide it.
   const renderPanel = el('div', 'render-panel');
@@ -1921,6 +1940,39 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   if (!activityCtx) throw new Error(t('act.errCanvas'));
   const activityLabel = el('p', 'muted', t('act.empty'));
   timelineBox.append(activityCanvas, activityLabel);
+  const gotoRow = el('div', 'editor-row');
+  const gotoInput = mkField(gotoRow, t('act.goto'), 'text', 'trim-input goto-input');
+  gotoInput.placeholder = '1:20:12';
+  gotoInput.setAttribute('aria-label', t('act.goto'));
+  gotoInput.addEventListener('focus', () => gotoInput.select());
+  const gotoBtn = el('button', 'btn btn-small', t('act.go'));
+  gotoBtn.type = 'button';
+  gotoRow.appendChild(gotoBtn);
+  const gotoApply = (): void => {
+    const clip = activeClip();
+    if (!clip || !activity || activity.durationSec <= 0) {
+      setStatus(!clip ? t('st.needVideo') : t('act.empty'));
+      return;
+    }
+    const target = parseGotoTime(gotoInput.value);
+    if (target === null) {
+      setStatus(t('act.gotoInvalid'));
+      return;
+    }
+    const vt = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+    const videoDur = clip.duration > 0 ? clip.duration : 0;
+    const maxStart = Math.max(0, activity.durationSec - videoDur);
+    clip.offsetSec = Math.min(
+      OFFSET_LIMIT,
+      Math.max(-OFFSET_LIMIT, Math.min(Math.max(target - vt, 0), maxStart)),
+    );
+    clip.offsetDirty = true;
+  };
+  gotoBtn.addEventListener('click', gotoApply);
+  gotoInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') gotoApply();
+  });
+  timelineBox.append(gotoRow);
   center.appendChild(timelineBox);
 
   const footer = el('p', 'muted');
@@ -2262,18 +2314,23 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   });
 
   if (import.meta.env.DEV) {
-    fixtureBtn.addEventListener('click', () => {
+    const loadFixtures = (which: 'vert' | 'hz'): void => {
       setStatus(t('st.loadingFixtures'));
       let fixtureId = -1;
       void import('./fixtures.js')
-        .then(({ FIXTURE_VIDEO_URL, FIXTURE_FIT_URL }) => fetch(FIXTURE_VIDEO_URL)
-          .then((res) => {
-            if (!res.ok) throw new Error(t('st.errFixtureVideo'));
-            return res.blob();
-          })
-          .then((blob) => {
-            fixtureId = addClip(blob, 'sample-720p.mp4');
-          })
+        .then(({ FIXTURE_VIDEO_VERT_URL, FIXTURE_VIDEO_HZ_URL, FIXTURE_FIT_URL }) => {
+          const [videoUrl, videoName] =
+            which === 'vert'
+              ? [FIXTURE_VIDEO_VERT_URL, 'sample-vertical.mp4']
+              : [FIXTURE_VIDEO_HZ_URL, 'sample-720p.mp4'];
+          return fetch(videoUrl)
+            .then((res) => {
+              if (!res.ok) throw new Error(t('st.errFixtureVideo'));
+              return res.blob();
+            })
+            .then((blob) => {
+              fixtureId = addClip(blob, videoName);
+            })
           .then(() => fetch(FIXTURE_FIT_URL))
           .then((res) => {
             if (!res.ok) throw new Error(t('st.errFixtureFit'));
@@ -2288,11 +2345,14 @@ export async function renderApp(root: HTMLElement): Promise<void> {
               clip.offsetDirty = true;
               binMetaSig = '';
             }
-          }))
+          });
+        })
         .catch((err: unknown) => {
           setStatus(err instanceof Error ? err.message : t('st.errFixtures'));
         });
-    });
+    };
+    fixtureVertBtn.addEventListener('click', () => loadFixtures('vert'));
+    fixtureHzBtn.addEventListener('click', () => loadFixtures('hz'));
   }
 
   // Sync buttons act on the selected clip.
@@ -2329,16 +2389,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     });
     offsetBtns.appendChild(btn);
   }
-  const zeroBtn = el('button', 'btn', '0.0 s');
-  zeroBtn.type = 'button';
-  zeroBtn.addEventListener('click', () => {
-    const clip = needClip();
-    if (!clip) return;
-    clip.offsetSec = 0;
-    clip.offsetDirty = true;
-  });
-  offsetBtns.appendChild(zeroBtn);
-
   // Activity overview: coarse clip positioning for long activities.
   type OverviewMetric = 'power' | 'speed' | 'heartRate';
   const OVERVIEW_LABELS: Record<OverviewMetric, string> = {

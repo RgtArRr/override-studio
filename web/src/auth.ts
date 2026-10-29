@@ -21,14 +21,47 @@ const KNOWN_CREDS_ERRORS: readonly string[] = ['email', 'weak', 'invalid'];
 const API_TIMEOUT_MS = 15_000;
 const RETRY_DELAY_MS = 800;
 
+/**
+ * Session token from login/register, first-party localStorage. iOS blocks
+ * the cross-site session cookie, so the token rides back as a bearer header
+ * instead (the cookie stays primary where the browser accepts it).
+ */
+const TOKEN_KEY = 'override-studio.session';
+const loadSessionToken = (): string | null => {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+};
+const saveSessionToken = (token: string): void => {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    /* private mode: cookie-only session */
+  }
+};
+const clearSessionToken = (): void => {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* noop */
+  }
+};
+
 /** Credentialed fetch with a timeout; idempotent GETs may retry once on 502/429/timeout. */
 async function apiFetch(path: string, init?: RequestInit, retries = 0): Promise<Response> {
-  const attempt = (): Promise<Response> =>
-    fetch(`${API_URL}${path}`, {
+  const attempt = (): Promise<Response> => {
+    const headers = new Headers(init?.headers);
+    const token = loadSessionToken();
+    if (token && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`);
+    return fetch(`${API_URL}${path}`, {
       ...init,
+      headers,
       credentials: 'include',
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     });
+  };
   try {
     const res = await attempt();
     if (retries > 0 && (res.status === 502 || res.status === 429)) {
@@ -73,6 +106,8 @@ async function creds(
       /* non-JSON: treated as net failure below */
     }
     if (res.ok && typeof data === 'object' && data !== null && 'user' in data) {
+      const token = (data as { token?: unknown }).token;
+      if (typeof token === 'string' && token) saveSessionToken(token);
       return { user: (data as { user: AccountUser }).user };
     }
     const err = (data as { error?: unknown } | null)?.error;
@@ -96,7 +131,8 @@ export const register = (email: string, password: string): Promise<{ user: Accou
 /** Current session user, or null when logged out or unreachable. */
 export async function fetchSession(): Promise<AccountUser | null> {
   try {
-    const res = await apiFetch('/api/auth/session', undefined, 1);
+    const res = await apiFetch('/api/me', undefined, 1);
+    if (res.status === 401) clearSessionToken();
     if (!res.ok) return null;
     const data: unknown = await res.json();
     if (typeof data !== 'object' || data === null) return null;
@@ -108,10 +144,11 @@ export async function fetchSession(): Promise<AccountUser | null> {
   }
 }
 
-/** Ends the API session (no CSRF token: the API skips the origin check for Auth.js signout). */
+/** Ends the API session (cookie and/or bearer) and forgets the local token. */
 export async function logout(): Promise<boolean> {
+  clearSessionToken();
   try {
-    const res = await apiFetch('/api/auth/signout', { method: 'POST' });
+    const res = await apiFetch('/api/logout', { method: 'POST' });
     return res.ok;
   } catch {
     return false;

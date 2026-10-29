@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { activityFromIntervalsStreams, activityFromTrackPoints, buildActivity, fillDerivedGrade, nextProfileWindow, parseFit, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
+import { activityFromIntervalsStreams, activityFromTrackPoints, buildActivity, fillDerivedGrade, nextProfileWindow, parseFit, parseGotoTime, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
 import { hashPassword, needsRehash, normalizeEmail, storedIterations, validatePassword, verifyPassword } from '../api/src/password.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
 import {
@@ -29,6 +29,7 @@ import {
   defaultMetricFor,
   makeWidgetDef,
   kindLabel,
+  kindShowsUnit,
   mapStrokeWidths,
   metricLabel,
   navProject,
@@ -205,6 +206,9 @@ for (const file of files) {
     if (w.style?.align) assert.ok(ALIGNS.has(w.style.align), `${file} ${w.id} align`);
     if (w.range) {
       assert.ok(Array.isArray(w.range) && w.range.length === 2 && w.range[0] < w.range[1], `${file} ${w.id} range`);
+    }
+    if (w.showUnit !== undefined) {
+      assert.equal(typeof w.showUnit, 'boolean', `${file} ${w.id} showUnit`);
     }
     if (w.strokeWidth !== undefined) {
       assert.ok(typeof w.strokeWidth === 'number' && w.strokeWidth > 0, `${file} ${w.id} strokeWidth`);
@@ -396,6 +400,14 @@ assert.equal(resolveVideoInstant(WALL, -6), WALL + 6 * 3600e3);
 assert.equal(resolveVideoInstant(WALL, 5.5), WALL - 5.5 * 3600e3);
 assert.equal(resolveVideoInstant(WALL, 0), WALL);
 
+// Unit toggle visibility per kind (mirrors the painters reading text.unit).
+for (const k of ['stat', 'number', 'gauge', 'speedo', 'ring', 'slope', 'spark', 'profile', 'profilenext', 'vam']) {
+  assert.equal(kindShowsUnit(k), true, `unit ${k}`);
+}
+for (const k of ['gears', 'map', 'navmap', 'compass']) {
+  assert.equal(kindShowsUnit(k), false, `unit ${k}`);
+}
+
 // profilenext window: dot ~0.5 km ahead of the rendered start, 5 min ahead at right.
 const winSamples = [];
 for (let tt = 0; tt <= 3600; tt++) {
@@ -415,6 +427,20 @@ assert.equal(pwin.xMin, 940);
 assert.equal(pwin.xMax, 1300);
 assert.equal(nextProfileWindow([], 0, 0, true), null);
 assert.equal(nextProfileWindow([{ t: 0, elevation: 5 }], 0, 0, true), null);
+
+// parseGotoTime: h:mm:ss, mm:ss or plain seconds.
+assert.equal(parseGotoTime('1:20:12'), 4812);
+assert.equal(parseGotoTime('20:12'), 1212);
+assert.equal(parseGotoTime('12'), 12);
+assert.equal(parseGotoTime('4812.5'), 4812.5);
+assert.equal(parseGotoTime('1:20:12.5'), 4812.5);
+assert.equal(parseGotoTime('90:00'), 5400);
+assert.equal(parseGotoTime('  7  '), 7);
+assert.equal(parseGotoTime('abc'), null);
+assert.equal(parseGotoTime(''), null);
+assert.equal(parseGotoTime('1:2:3:4'), null);
+assert.equal(parseGotoTime('-5'), null);
+assert.equal(parseGotoTime('1::2'), null);
 
 // i18n: stored preference wins, else navigator autodetect, else English.
 assert.equal(resolveLocale('en', ['es-ES']), 'en');

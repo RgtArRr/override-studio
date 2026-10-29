@@ -583,3 +583,23 @@ export function formatSpan(totalSec: number): string {
   const ss = String(s % 60).padStart(2, '0');
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
+
+/**
+ * Parses a "go to" time: h:mm:ss, mm:ss or plain seconds ("90:00" works,
+ * minutes may exceed 59). Returns null when the text is not a time.
+ */
+export function parseGotoTime(text: string): number | null {
+  const clean = text.trim();
+  if (!clean) return null;
+  if (/^\d+(\.\d+)?$/.test(clean)) {
+    const s = Number(clean);
+    return Number.isFinite(s) ? s : null;
+  }
+  const parts = clean.split(':');
+  if (parts.length < 2 || parts.length > 3) return null;
+  if (!parts.every((part) => /^\d+(\.\d+)?$/.test(part))) return null;
+  const nums = parts.map(Number);
+  if (nums.some((n) => !Number.isFinite(n))) return null;
+  const [h, m, s] = nums.length === 3 ? nums : [0, nums[0], nums[1]];
+  return h * 3600 + m * 60 + s;
+}

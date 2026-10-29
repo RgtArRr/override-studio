@@ -35,6 +35,7 @@ nothing more.
   "showUnit": true,        // optional, default true
   "range": [0, 12],        // optional gauge scale in raw SI units (default per metric)
   "timeFormat": "hmmss",   // optional elapsed-time display: auto|hmm|hmmss|h|hm (default auto)
+  "showUnit": false,      // optional, hides the metric unit (default shown)
   "strokeWidth": 6,        // optional trail width in px (map; auto when absent)
   "style": {               // optional per-widget overrides
     "shape": "pill",       // rect|pill|none (default rect)
@@ -121,7 +122,8 @@ so they never collide with the built-ins.
 
 Each card carries its own small export icon button (right of the name), which
 downloads that template with its current widget setup (visibility, layout,
-style, added widgets) as `{name}.json`. Built-ins show the button only after
+style, added/removed widgets) as `{name}.json`. Deleting a widget removes it
+from the export; "Restablecer widgets" brings session edits back. Built-ins show the button only after
 a session edit (move, hide, add, restyle…); custom templates always show it.
 The importer
 (`parseTemplateJson` in `shared/src/template.ts`) requires the shape above —

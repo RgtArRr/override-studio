@@ -7,6 +7,8 @@ import {
 import {
   SESSION_MAX_AGE,
   buildSessionCookie,
+  deleteSession,
+  expireSessionCookie,
   getSessionUser,
   handleAuth,
   webOrigins,
@@ -141,7 +143,7 @@ export default {
         new Response(null, {
           headers: {
             'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             'Access-Control-Max-Age': '86400',
           },
         }),
@@ -181,7 +183,7 @@ export default {
       }
     }
 
-    // Reserved: richer session probe for future API consumers. The web app uses /api/auth/session.
+    // Session probe for the web app (cookie or bearer) and future API consumers.
     if (url.pathname === '/api/me' && request.method === 'GET') {
       const user = await getSessionUser(request, env);
       if (!user) return send(json({ error: 'unauthorized' }, 401));
@@ -203,7 +205,7 @@ export default {
       user: { id: string; name: string | null; email: string | null; image: string | null },
     ): Promise<Response> => {
       const token = await startSession(user.id);
-      const res = json({ user });
+      const res = json({ user, token });
       res.headers.append('Set-Cookie', buildSessionCookie(env, token));
       return send(res);
     };
@@ -270,6 +272,15 @@ export default {
         email: (row['email'] as string | null) ?? null,
         image: (row['image'] as string | null) ?? null,
       });
+    }
+
+    /** Bearer-aware logout: deletes the session row, expires the cookie. */
+    if (url.pathname === '/api/logout' && request.method === 'POST') {
+      if (!assertOrigin(request, env)) return send(json({ error: 'origin' }, 403));
+      await deleteSession(request, env);
+      const res = json({ ok: true });
+      res.headers.append('Set-Cookie', expireSessionCookie(env));
+      return send(res);
     }
 
     if (url.pathname === '/api/intervals/status' && request.method === 'GET') {

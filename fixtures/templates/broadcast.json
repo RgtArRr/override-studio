@@ -14,15 +14,18 @@
     {
       "id": "heartRate",
       "metric": "heartRate",
-      "kind": "stat",
-      "label": "FC",
+      "kind": "number",
       "visible": true,
-      "showUnit": false,
-      "style": { "shape": "none", "valueScale": 1.5, "align": "left" },
+      "showUnit": true,
+      "style": {
+        "shape": "none",
+        "valueScale": 1.5,
+        "align": "left"
+      },
       "layout": {
         "horizontal": {
-          "x": 0.03,
-          "y": 0.12,
+          "x": 0.0261,
+          "y": 0.1214,
           "w": 0.2,
           "h": 0.2
         },
@@ -34,7 +37,7 @@
         },
         "vertical": {
           "x": 0,
-          "y": 0.1428,
+          "y": 0.1326,
           "w": 0.5,
           "h": 0.18
         }
@@ -45,7 +48,11 @@
       "metric": "speed",
       "kind": "number",
       "visible": true,
-      "style": { "shape": "none", "valueScale": 1.5, "align": "left" },
+      "style": {
+        "shape": "none",
+        "valueScale": 1.5,
+        "align": "left"
+      },
       "layout": {
         "horizontal": {
           "x": 0.03,
@@ -61,7 +68,7 @@
         },
         "vertical": {
           "x": 0,
-          "y": 0.3269,
+          "y": 0.3247,
           "w": 0.5,
           "h": 0.18
         }
@@ -72,7 +79,11 @@
       "metric": "power",
       "kind": "number",
       "visible": true,
-      "style": { "shape": "none", "valueScale": 1.5, "align": "left" },
+      "style": {
+        "shape": "none",
+        "valueScale": 1.5,
+        "align": "left"
+      },
       "layout": {
         "horizontal": {
           "x": 0.03,
@@ -99,11 +110,13 @@
       "metric": "elevation",
       "kind": "profilenext",
       "visible": true,
-      "style": { "shape": "none" },
+      "style": {
+        "shape": "none"
+      },
       "layout": {
         "horizontal": {
-          "x": 0.28,
-          "y": 0.62,
+          "x": 0.5356,
+          "y": 0.68,
           "w": 0.44,
           "h": 0.32
         },
@@ -116,8 +129,8 @@
         "vertical": {
           "x": 0,
           "y": 0.8212,
-          "w": 0.5438,
-          "h": 0.1347
+          "w": 0.5712,
+          "h": 0.1523
         }
       }
     },
@@ -127,13 +140,16 @@
       "kind": "stat",
       "label": "GRAD.",
       "visible": true,
-      "style": { "shape": "none", "valueScale": 1.6 },
+      "style": {
+        "shape": "none",
+        "valueScale": 1.6
+      },
       "layout": {
         "horizontal": {
-          "x": 0.3,
-          "y": 0.74,
-          "w": 0.14,
-          "h": 0.18
+          "x": 0.55,
+          "y": 0.7931,
+          "w": 0.0728,
+          "h": 0.1137
         },
         "square": {
           "x": 0.08,
@@ -143,7 +159,7 @@
         },
         "vertical": {
           "x": 0.7,
-          "y": 0.9175,
+          "y": 0.88,
           "w": 0.3,
           "h": 0.0825
         }

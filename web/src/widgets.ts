@@ -72,6 +72,21 @@ export function defaultAlignFor(kind: WidgetKind): TextAlign {
   return kind === 'number' ? 'center' : 'left';
 }
 
+/** Kinds whose painter renders the metric unit (they honor showUnit). */
+const UNIT_KINDS: ReadonlySet<WidgetKind> = new Set([
+  'stat',
+  'number',
+  'gauge',
+  'speedo',
+  'ring',
+  'slope',
+  'spark',
+  'profile',
+  'profilenext',
+  'vam',
+]);
+export const kindShowsUnit = (kind: WidgetKind): boolean => UNIT_KINDS.has(kind);
+
 /** Base (horizontal) size per kind, sized from the built-in fixtures. */
 const BASE_SIZE: Record<WidgetKind, { w: number; h: number }> = {
   stat: { w: 0.18, h: 0.13 },

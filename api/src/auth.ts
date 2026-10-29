@@ -34,6 +34,15 @@ export function buildSessionCookie(env: AuthEnv, token: string): string {
   );
 }
 
+/** Clears the session cookie (same attributes so it overwrites the login one). */
+export function expireSessionCookie(env: AuthEnv): string {
+  const secure = isSecureAuth(env);
+  return (
+    `${sessionCookieName(env)}=; Path=/; HttpOnly; ` +
+    `SameSite=${secure ? 'None' : 'Lax'}${secure ? '; Secure' : ''}; Max-Age=0`
+  );
+}
+
 export function authConfig(env: AuthEnv): AuthConfig {
   const secure = isSecureAuth(env);
   // No OAuth providers: classic credentials own the users table, and API-key
@@ -102,14 +111,35 @@ function getCookie(header: string | null, name: string): string | null {
 }
 
 /**
+ * Session token from the cookie first, else `Authorization: Bearer`. iOS
+ * (Safari and Chrome) blocks the cross-site cookie, so the SPA stores the
+ * token from login/register and sends it back as a bearer instead.
+ */
+export function getSessionToken(request: Request, env: AuthEnv): string | null {
+  const cookie = getCookie(request.headers.get('cookie'), sessionCookieName(env));
+  if (cookie) return cookie;
+  const auth = request.headers.get('authorization');
+  if (!auth) return null;
+  const match = /^Bearer ([A-Za-z0-9_-]{1,128})$/.exec(auth.trim());
+  return match ? match[1] : null;
+}
+
+/** Deletes the session row for the request token (cookie or bearer). */
+export async function deleteSession(request: Request, env: AuthEnv): Promise<void> {
+  const token = getSessionToken(request, env);
+  if (!token) return;
+  await env.DB.prepare('DELETE FROM sessions WHERE sessionToken = ?').bind(token).run();
+}
+
+/**
  * Session for our own endpoints, straight from the D1 adapter (no Auth.js
- * request cycle needed): reads the session cookie, returns the user or null.
+ * request cycle needed): reads the session token, returns the user or null.
  */
 export async function getSessionUser(
   request: Request,
   env: AuthEnv,
 ): Promise<SessionUser | null> {
-  const token = getCookie(request.headers.get('cookie'), sessionCookieName(env));
+  const token = getSessionToken(request, env);
   if (!token) return null;
   const adapter = D1Adapter(env.DB);
   if (!adapter.getSessionAndUser) return null;
