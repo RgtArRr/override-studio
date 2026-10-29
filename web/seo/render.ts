@@ -15,6 +15,8 @@ const CONTENT_CSS = `:root{--paper:#f4f4f4;--surface:#fff;--ink:#101010;--graphi
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--graphite);font:400 17px/1.65 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
 .wrap{max-width:760px;margin:0 auto;padding:0 24px 64px}
+.wrap.wide{max-width:1120px}
+.wrap.wide .lede{max-width:68ch}
 header.site{display:flex;align-items:center;gap:16px;padding:20px 0}
 .brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font:600 18px Poppins,Inter,sans-serif}
 .brand img{width:28px;height:28px}
@@ -38,12 +40,14 @@ details.faq p{margin:12px 0 4px}
 .guide-link span{color:var(--muted);font-size:15px}
 footer.site{margin-top:64px;border-top:1px solid var(--border);padding-top:20px;color:var(--muted);font-size:14px;display:flex;gap:16px;flex-wrap:wrap}
 footer.site a{color:var(--muted)}
-.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:8px}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:8px}
 .feature{background:var(--surface);border-radius:12px;box-shadow:rgba(34,42,53,.05) 0 4px 8px 0;padding:16px 20px}
 .feature strong{display:block;color:var(--ink);margin-bottom:4px}
 .feature p{margin:0;font-size:15px;color:var(--muted)}
 .example{margin:24px 0}
 .example img{display:block;width:100%;height:auto;border-radius:12px;box-shadow:rgba(34,42,53,.08) 0 8px 24px 0}
+.example.tall img{width:min(300px,72%);margin:0 auto}
+.example.tall figcaption{text-align:center}
 .example figcaption{color:var(--muted);font-size:14px;margin-top:8px}
 .donate{background:var(--surface);border-radius:12px;box-shadow:rgba(34,42,53,.05) 0 4px 8px 0;padding:8px 20px 20px;margin-top:8px}
 a{color:var(--accent-ink)}
@@ -164,10 +168,10 @@ export function renderHub(
   const examples = hub.examples
     .map(
       (e) =>
-        `          <figure class="example"><img src="${e.img}" alt="${escHtml(e.alt)}" loading="lazy" /><figcaption>${escHtml(e.caption)}</figcaption></figure>`,
+        `          <figure class="example${e.tall ? ' tall' : ''}"><img src="${e.img}" alt="${escHtml(e.alt)}" loading="lazy" /><figcaption>${escHtml(e.caption)}</figcaption></figure>`,
     )
     .join('\n');
-  return `    <div class="wrap">
+  return `    <div class="wrap wide">
       <header class="site">
         <a class="brand" href="/${locale}/"><img src="/icon.svg" alt="" />velohud</a>
         <nav class="site">

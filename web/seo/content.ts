@@ -31,6 +31,8 @@ export interface HubExample {
   img: string;
   alt: string;
   caption: string;
+  /** Portrait shots render narrower so a 9:16 still fits the viewport. */
+  tall?: boolean;
 }
 
 export interface HubCopy {
@@ -174,6 +176,7 @@ export const HUB: Record<Locale, HubCopy> = {
         img: '/examples/home-vt.jpg',
         alt: 'Video vertical con overlay de telemetría deportiva',
         caption: 'Plantilla Broadcast en vertical',
+        tall: true,
       },
     ],
     donateTitle: 'Sostén el proyecto',
@@ -298,6 +301,7 @@ export const HUB: Record<Locale, HubCopy> = {
         img: '/examples/home-vt.jpg',
         alt: 'Vertical video with sports telemetry overlay',
         caption: 'Broadcast template on vertical video',
+        tall: true,
       },
     ],
     donateTitle: 'Support the project',
