@@ -11,7 +11,7 @@ export const escHtml = (s: string): string => escXml(s).replace(/"/g, '&quot;');
 
 const OG_LOCALE: Record<Locale, string> = { es: 'es_ES', en: 'en_US' };
 
-const CONTENT_CSS = `:root{--paper:#f4f4f4;--surface:#fff;--ink:#101010;--graphite:#242424;--muted:#6b7280;--border:#e5e7eb;--accent:#0099ff;--accent-ink:#0077cc}
+const CONTENT_CSS = `:root{--paper:#f4f4f4;--surface:#fff;--ink:#101010;--graphite:#242424;--muted:#5b6472;--border:#e5e7eb;--accent:#0099ff;--accent-ink:#0077cc}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--graphite);font:400 17px/1.65 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
 .wrap{max-width:760px;margin:0 auto;padding:0 24px 64px}
@@ -74,7 +74,7 @@ export function contentHead(base: string, o: HeadOpts): string {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src https://static.cloudflareinsights.com; img-src 'self'; font-src 'self'; style-src 'unsafe-inline'; connect-src https://cloudflareinsights.com https://static.cloudflareinsights.com"
+      content="default-src 'self'; script-src https://static.cloudflareinsights.com; img-src 'self'; font-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com; object-src 'none'; base-uri 'none'"
     />
     <meta name="description" content="${escHtml(o.description)}" />
     <title>${escHtml(o.title)}</title>
@@ -167,8 +167,8 @@ export function renderHub(
     .join('\n');
   const examples = hub.examples
     .map(
-      (e) =>
-        `          <figure class="example${e.tall ? ' tall' : ''}"><img src="${e.img}" alt="${escHtml(e.alt)}" loading="lazy" /><figcaption>${escHtml(e.caption)}</figcaption></figure>`,
+      (e, i) =>
+        `          <figure class="example${e.tall ? ' tall' : ''}"><img src="${e.img}" alt="${escHtml(e.alt)}" width="${e.width}" height="${e.height}"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'} /><figcaption>${escHtml(e.caption)}</figcaption></figure>`,
     )
     .join('\n');
   return `    <div class="wrap wide">

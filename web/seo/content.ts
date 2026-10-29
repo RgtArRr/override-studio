@@ -33,6 +33,9 @@ export interface HubExample {
   caption: string;
   /** Portrait shots render narrower so a 9:16 still fits the viewport. */
   tall?: boolean;
+  /** Intrinsic pixels: reserves layout space (CLS) before the file loads. */
+  width: number;
+  height: number;
 }
 
 export interface HubCopy {
@@ -171,12 +174,16 @@ export const HUB: Record<Locale, HubCopy> = {
         img: '/examples/home-hz.jpg',
         alt: 'Video horizontal con overlay de potencia, FC y velocidad',
         caption: 'Plantilla Broadcast en video horizontal',
+        width: 1280,
+        height: 720,
       },
       {
         img: '/examples/home-vt.jpg',
         alt: 'Video vertical con overlay de telemetría deportiva',
         caption: 'Plantilla Broadcast en vertical',
         tall: true,
+        width: 720,
+        height: 1280,
       },
     ],
     donateTitle: 'Sostén el proyecto',
@@ -296,12 +303,16 @@ export const HUB: Record<Locale, HubCopy> = {
         img: '/examples/home-hz.jpg',
         alt: 'Horizontal video with power, HR and speed overlay',
         caption: 'Broadcast template on horizontal video',
+        width: 1280,
+        height: 720,
       },
       {
         img: '/examples/home-vt.jpg',
         alt: 'Vertical video with sports telemetry overlay',
         caption: 'Broadcast template on vertical video',
         tall: true,
+        width: 720,
+        height: 1280,
       },
     ],
     donateTitle: 'Support the project',
