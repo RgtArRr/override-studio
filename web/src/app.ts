@@ -124,6 +124,14 @@ const FIXED_TZS: number[] = [
 /** Host UTC offset in hours, preselected for every new clip. */
 const BROWSER_TZ: number = -new Date().getTimezoneOffset() / 60;
 
+/**
+ * iOS greys out picker files for extensions it cannot map (e.g. .fit), so
+ * there the accept filter is dropped and types validate after picking.
+ */
+const IS_IOS: boolean =
+  /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 /** A clip can sit anywhere inside a long activity, so the guard is generous. */
 const OFFSET_LIMIT = 86400;
 
@@ -505,7 +513,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   activityDrop.setAttribute('tabindex', '0');
   const activityInput = el('input');
   activityInput.type = 'file';
-  activityInput.accept = '.fit,.gpx,.tcx';
+  activityInput.accept = IS_IOS ? '' : '.fit,.gpx,.tcx';
   activityDrop.appendChild(activityInput);
   activityDrop.addEventListener('click', () => activityInput.click());
   activityDrop.addEventListener('keydown', (e) => {
@@ -716,29 +724,32 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     icuPrev.disabled = icuPage <= 1;
     icuNext.disabled = icuPage >= ICU_MAX_PAGE;
   };
+  /** Determinate loading state first, so no stale view flashes. */
+  const showIcuLoading = (): void => {
+    icuTitle.textContent = t('intervals.title');
+    icuKeyView.hidden = true;
+    icuListView.hidden = false;
+    icuDisconnect.hidden = true;
+    icuList.replaceChildren();
+    icuState.textContent = t('intervals.loading');
+    icuPrev.disabled = true;
+    icuNext.disabled = true;
+  };
   const refreshIcu = async (): Promise<void> => {
+    showIcuLoading();
     const status = await intervalsStatus();
     if (status === 'login') {
       icuLoginExpired();
       return;
     }
     if (status === 'net') {
-      icuTitle.textContent = t('intervals.title');
-      icuKeyView.hidden = true;
-      icuListView.hidden = false;
-      icuList.replaceChildren();
       icuState.textContent = t('intervals.error');
-      icuPrev.disabled = true;
-      icuNext.disabled = true;
       return;
     }
     if (status === 'disconnected') {
       showIcuKey('');
       return;
     }
-    icuTitle.textContent = t('intervals.title');
-    icuKeyView.hidden = true;
-    icuListView.hidden = false;
     icuDisconnect.hidden = false;
     void renderIcuPage();
   };
@@ -818,6 +829,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       return;
     }
     icuPage = 1;
+    showIcuLoading();
     showModal(icuDialog);
     void refreshIcu();
   });
@@ -1235,7 +1247,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   fileRow.append(el('span', 'muted', t('tpl.fileLabel')));
   const fileInput = el('input', 'name-input file-input');
   fileInput.type = 'file';
-  fileInput.accept = 'application/json,.json';
+  fileInput.accept = IS_IOS ? '' : 'application/json,.json';
   fileRow.appendChild(fileInput);
   const importErr = el('p', 'import-err', t('tpl.errImport'));
   importErr.hidden = true;
@@ -2382,9 +2394,19 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   };
 
   const loadActivityFile = (buffer: ArrayBuffer, name: string): void => {
+    // One file loader, three formats: XML tracks share the telemetry builder.
+    const ext = name.toLowerCase().split('.').pop();
+    if (ext !== 'fit' && ext !== 'gpx' && ext !== 'tcx') {
+      activity = null;
+      activityTz = null;
+      activityTzEditing = false;
+      activityPill.hidden = true;
+      renderActivityStats();
+      syncActivityTzRow();
+      setStatus(t('st.activityBadType'));
+      return;
+    }
     try {
-      // One file loader, three formats: XML tracks share the telemetry builder.
-      const ext = name.toLowerCase().split('.').pop();
       const act =
         ext === 'gpx' || ext === 'tcx'
           ? parseActivityXml(new TextDecoder().decode(buffer))
