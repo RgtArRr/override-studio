@@ -10,7 +10,7 @@
 export type Locale = 'es' | 'en';
 
 const ES: Record<string, string> = {
-  'meta.title': 'override.studio — telemetría deportiva en tus videos gratis, 100% local',
+  'meta.title': 'velohud — telemetría deportiva en tus videos gratis, 100% local',
   'meta.description':
     'Incrusta potencia, FC, velocidad y GPS de tu actividad (FIT, GPX o TCX) en tus clips MP4/MOV. Render 100% local en tu navegador: nada se sube y tu privacidad queda intacta. Gratis y sin instalar nada.',
   'hdr.badge': 'render 100% local',
@@ -264,7 +264,7 @@ const ES: Record<string, string> = {
   'metric.none': 'Ninguna',
   'unsup.title': 'Este navegador no puede procesar video aquí',
   'unsup.body':
-    'override.studio renderiza la telemetría dentro de tu navegador con WebCodecs. ' +
+    'velohud renderiza la telemetría dentro de tu navegador con WebCodecs. ' +
     'Tu navegador actual no lo soporta (esto incluye Safari y todos los navegadores en iPhone/iPad).',
   'unsup.missing': 'Falta en este navegador:',
   'unsup.cta1': 'Usa ',
@@ -273,7 +273,7 @@ const ES: Record<string, string> = {
 };
 
 const EN: Record<string, string> = {
-  'meta.title': 'override.studio — free sports telemetry on your videos, 100% local',
+  'meta.title': 'velohud — free sports telemetry on your videos, 100% local',
   'meta.description':
     'Overlay power, HR, speed and GPS from your activity (FIT, GPX or TCX) onto MP4/MOV clips. 100% local render in your browser: nothing is uploaded, your privacy stays intact. Free, no install.',
   'hdr.badge': '100% local render',
@@ -527,7 +527,7 @@ const EN: Record<string, string> = {
   'metric.none': 'None',
   'unsup.title': 'This browser cannot process video here',
   'unsup.body':
-    'override.studio renders telemetry inside your browser with WebCodecs. ' +
+    'velohud renders telemetry inside your browser with WebCodecs. ' +
     'Your current browser does not support it (this includes Safari and all browsers on iPhone/iPad).',
   'unsup.missing': 'Missing in this browser:',
   'unsup.cta1': 'Use ',

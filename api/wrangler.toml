@@ -4,7 +4,7 @@ compatibility_date = "2026-10-01"
 
 [vars]
 AUTH_URL = "https://override-studio-api.koga262.workers.dev"
-WEB_ORIGIN = "https://override-studio.pages.dev"
+WEB_ORIGIN = "https://velohud.pages.dev,https://override-studio.pages.dev"
 
 [[d1_databases]]
 binding = "DB"

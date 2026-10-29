@@ -69,7 +69,7 @@ ${hreflang}
     <link rel="alternate" type="text/markdown" href="${base + o.mdPath}" />
     <link rel="describedby" href="${base}/llms.txt" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="override.studio" />
+    <meta property="og:site_name" content="velohud" />
     <meta property="og:title" content="${escHtml(o.title)}" />
     <meta property="og:description" content="${escHtml(o.description)}" />
     <meta property="og:url" content="${url}" />
@@ -137,7 +137,7 @@ export function renderHub(
     .join('\n');
   return `    <div class="wrap">
       <header class="site">
-        <a class="brand" href="/"><img src="/icon.svg" alt="" />override.studio</a>
+        <a class="brand" href="/"><img src="/icon.svg" alt="" />velohud</a>
         <nav class="site">
           <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
           <a class="cta" href="/">${escHtml(hub.ctaApp)}</a>
@@ -173,7 +173,7 @@ ${faqs}
         </section>
       </main>
       <footer class="site">
-        <span>override.studio — ${escHtml(hub.badge)}</span>
+        <span>velohud — ${escHtml(hub.badge)}</span>
         <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
         <a href="/">${escHtml(hub.ctaApp)}</a>
         <a href="${legal.privacyPath}">${escHtml(legal.privacyLabel)}</a>
@@ -211,7 +211,7 @@ export function renderGuide(
     .join('\n');
   return `    <div class="wrap">
       <header class="site">
-        <a class="brand" href="/"><img src="/icon.svg" alt="" />override.studio</a>
+        <a class="brand" href="/"><img src="/icon.svg" alt="" />velohud</a>
         <nav class="site">
           <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
           <a class="cta" href="/">${escHtml(copy.ctaApp)}</a>
@@ -237,7 +237,7 @@ ${copy.tips.map((t) => `            <li>${escHtml(t)}</li>`).join('\n')}
         <p><a class="cta" href="/">${escHtml(copy.ctaApp)}</a></p>
       </main>
       <footer class="site">
-        <span>override.studio — ${escHtml(hub.badge)}</span>
+        <span>velohud — ${escHtml(hub.badge)}</span>
         <a href="${hubPathStr}">${escHtml(copy.backLabel)}</a>
         <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
         <a href="/">${escHtml(copy.ctaApp)}</a>
@@ -303,7 +303,7 @@ export function llmsTxt(
   guides: readonly { locale: Locale; mdUrl: string; h1: string; lede: string }[],
 ): string {
   const lines = [
-    '# override.studio',
+    '# velohud',
     '',
     '> Web editor that overlays sports telemetry from .FIT, .GPX or .TCX files (or Intervals.icu) onto MP4/MOV clips, with a 100% local, private in-browser render: nothing is uploaded. Content in English and Spanish; every page links its Markdown mirror.',
     '> Editor web que incrusta telemetría deportiva de archivos .FIT, .GPX o .TCX (o Intervals.icu) en clips MP4/MOV, con render 100% local y privado en el navegador: nada se sube.',
@@ -346,7 +346,7 @@ export function renderLegal(
     .join('\n');
   return `    <div class="wrap">
       <header class="site">
-        <a class="brand" href="/"><img src="/icon.svg" alt="" />override.studio</a>
+        <a class="brand" href="/"><img src="/icon.svg" alt="" />velohud</a>
         <nav class="site">
           <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
           <a class="cta" href="/">${escHtml(copy.ctaApp)}</a>
@@ -363,7 +363,7 @@ ${sections}
         </section>
       </main>
       <footer class="site">
-        <span>override.studio — ${escHtml(hub.badge)}</span>
+        <span>velohud — ${escHtml(hub.badge)}</span>
         <a href="${hubPathStr}">${escHtml(copy.backLabel)}</a>
         <a href="${otherPath}">${escHtml(hub.otherLocaleLabel)}</a>
         <a href="/">${escHtml(copy.ctaApp)}</a>

@@ -650,7 +650,7 @@ for (const g of GUIDES) {
 }
 // llms.txt: v2 shape (H1 first, summary, sections) linking every mirror.
 const llms = readFileSync(join(distDir, 'llms.txt'), 'utf8');
-assert.ok(llms.startsWith('# override.studio\n'), 'llms H1 first');
+assert.ok(llms.startsWith('# velohud\n'), 'llms H1 first');
 assert.ok(llms.includes('\n> '), 'llms summary blockquote');
 for (const locale of ['es', 'en']) {
   assert.ok(llms.includes(`${SEO_BASE_URL}/${locale}/index.md`), `llms links ${locale} hub mirror`);

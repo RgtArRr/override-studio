@@ -205,7 +205,7 @@ for (const e of LEGAL) {
   }
 }
 const llms = readFileSync(join(dist, 'llms.txt'), 'utf8');
-assert.ok(llms.startsWith('# override.studio\n'), 'llms H1 first');
+assert.ok(llms.startsWith('# velohud\n'), 'llms H1 first');
 for (const entry of [...llmsHubs, ...llmsGuides]) {
   assert.ok(llms.includes(entry.mdUrl), `llms links ${entry.mdUrl}`);
 }

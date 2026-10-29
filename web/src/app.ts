@@ -309,7 +309,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const logo = el('img', 'header-logo');
   logo.src = '/icon.svg';
   logo.alt = '';
-  header.append(logo, el('h1', undefined, 'override.studio'));
+  header.append(logo, el('h1', undefined, 'velohud'));
   header.append(el('span', 'local-badge', t('hdr.badge')));
   const headerSpacer = el('span', 'header-spacer');
   const headerActions = el('div', 'header-actions');

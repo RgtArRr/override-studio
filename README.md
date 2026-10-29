@@ -1,4 +1,4 @@
-# override.studio
+# velohud
 
 Editor web que incrusta telemetría deportiva en clips MP4/MOV (H.264). 100% client-side para el render (WebCodecs + Canvas + MediaBunny), backend full-JS en Cloudflare Workers + D1.
 

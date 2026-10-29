@@ -1,7 +1,7 @@
 # Cal.com — Design System
 
 > Fuente: [design.ricoui.com/brands/cal](https://design.ricoui.com/brands/cal) — archivo `cal-com-design-system-DESIGN.md`.
-> Sistema de referencia adoptado por override.studio. Tema: Light. Voz: Monochrome Utility, Human Touch.
+> Sistema de referencia adoptado por velohud. Tema: Light. Voz: Monochrome Utility, Human Touch.
 
 Cal is a scheduling product whose interface feels precise, quiet and useful.
 The visual system is predominantly black, white and graduated neutral gray.
@@ -108,7 +108,7 @@ Google colors are confined to the Google integration mark and are not promoted i
 Maintain visible keyboard focus, semantic controls, readable contrast, and reduced-motion behavior.
 Motion should be limited to a single calm product-surface entrance and disabled for `prefers-reduced-motion`.
 
-## Aplicación en override.studio
+## Aplicación en velohud
 
 Mapeo a `web/src/style.css`:
 

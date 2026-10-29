@@ -8,7 +8,7 @@ import type { Locale } from '../src/i18n.js';
 export type { Locale };
 
 /** Canonical origin for sitemap, canonicals and llms.txt. Custom-domain switch: change this one const. */
-export const SEO_BASE_URL = 'https://override-studio.pages.dev';
+export const SEO_BASE_URL = 'https://velohud.pages.dev';
 
 /** A page the sitemap must list. `builtBy` tells who emits the HTML. */
 export interface SitemapPage {
@@ -43,11 +43,11 @@ export interface HubCopy {
 
 export const HUB: Record<Locale, HubCopy> = {
   es: {
-    title: 'Telemetría deportiva en tus videos: potencia, FC, GPS | override.studio',
+    title: 'Telemetría deportiva en tus videos: potencia, FC, GPS | velohud',
     description:
       'Incrusta potencia, frecuencia cardíaca, velocidad y GPS de tu actividad (FIT, GPX o TCX) en tus clips MP4/MOV. Render 100% local en tu navegador: nada se sube y tu privacidad queda intacta. Gratis y sin instalar nada.',
     h1: 'Incrusta la telemetría de tu FIT en tus videos',
-    lede: 'override.studio sincroniza tu actividad con tus clips y dibuja potencia, FC, velocidad y mapa sobre el video. Todo se procesa en tu navegador: tus archivos nunca salen de tu equipo.',
+    lede: 'velohud sincroniza tu actividad con tus clips y dibuja potencia, FC, velocidad y mapa sobre el video. Todo se procesa en tu navegador: tus archivos nunca salen de tu equipo.',
     howTitle: 'Cómo funciona',
     how: [
       'Agrega tus clips MP4 o MOV y tu archivo .FIT, .GPX o .TCX (o elige una actividad de Intervals.icu).',
@@ -70,7 +70,7 @@ export const HUB: Record<Locale, HubCopy> = {
     faqTitle: 'Preguntas frecuentes',
     faqs: [
       {
-        q: '¿Qué es override.studio?',
+        q: '¿Qué es velohud?',
         a: 'Un editor web que incrusta telemetría deportiva (potencia, frecuencia cardíaca, velocidad, GPS) de tu archivo .FIT, .GPX o .TCX en tus clips MP4/MOV, con plantillas y widgets configurables.',
       },
       {
@@ -123,11 +123,11 @@ export const HUB: Record<Locale, HubCopy> = {
     otherLocaleLabel: 'English',
   },
   en: {
-    title: 'Sports telemetry on your videos: power, HR, GPS | override.studio',
+    title: 'Sports telemetry on your videos: power, HR, GPS | velohud',
     description:
       'Overlay power, heart rate, speed and GPS from your activity (FIT, GPX or TCX) onto MP4/MOV clips. 100% local render in your browser: nothing is uploaded, your privacy stays intact. Free, no install.',
     h1: 'Overlay your FIT telemetry on your videos',
-    lede: 'override.studio syncs your activity with your clips and draws power, HR, speed and map over the video. Everything renders in your browser: your files never leave your machine.',
+    lede: 'velohud syncs your activity with your clips and draws power, HR, speed and map over the video. Everything renders in your browser: your files never leave your machine.',
     howTitle: 'How it works',
     how: [
       'Add your MP4 or MOV clips and your .FIT, .GPX or .TCX file (or pick an activity from Intervals.icu).',
@@ -150,7 +150,7 @@ export const HUB: Record<Locale, HubCopy> = {
     faqTitle: 'Frequently asked questions',
     faqs: [
       {
-        q: 'What is override.studio?',
+        q: 'What is velohud?',
         a: 'A web editor that overlays sports telemetry (power, heart rate, speed, GPS) from your .FIT, .GPX or .TCX file onto MP4/MOV clips, with configurable templates and widgets.',
       },
       {
@@ -242,11 +242,11 @@ export const GUIDES: GuideEntry[] = [
     dir: { es: 'guias', en: 'guides' },
     copy: {
       es: {
-        title: 'Cómo sincronizar tu FIT con tu video (GoPro, iPhone) | override.studio',
+        title: 'Cómo sincronizar tu FIT con tu video (GoPro, iPhone) | velohud',
         description:
           'Sincroniza tu archivo .FIT, .GPX o .TCX con tus clips MP4/MOV: offset automático por fecha de grabación, zona horaria por clip y ajuste fino. Guía paso a paso.',
         h1: 'Sincroniza tu FIT con tu video',
-        lede: 'La sincronía es el corazón del overlay: cada frame debe mostrar el dato del segundo exacto. override.studio propone un offset automático y te deja afinarlo a mano.',
+        lede: 'La sincronía es el corazón del overlay: cada frame debe mostrar el dato del segundo exacto. velohud propone un offset automático y te deja afinarlo a mano.',
         sections: [
           {
             h2: 'Cómo funciona el offset',
@@ -300,11 +300,11 @@ export const GUIDES: GuideEntry[] = [
         ctaApp: 'Abrir la app',
       },
       en: {
-        title: 'How to sync your FIT with your video (GoPro, iPhone) | override.studio',
+        title: 'How to sync your FIT with your video (GoPro, iPhone) | velohud',
         description:
           'Sync your .FIT, .GPX or .TCX file with MP4/MOV clips: automatic offset from the recording date, per-clip time zone and fine nudging. Step-by-step guide.',
         h1: 'Sync your FIT with your video',
-        lede: 'Sync is the heart of the overlay: every frame must show the data of the exact second. override.studio proposes an automatic offset and lets you fine-tune it by hand.',
+        lede: 'Sync is the heart of the overlay: every frame must show the data of the exact second. velohud proposes an automatic offset and lets you fine-tune it by hand.',
         sections: [
           {
             h2: 'How the offset works',
@@ -364,7 +364,7 @@ export const GUIDES: GuideEntry[] = [
     dir: { es: 'guias', en: 'guides' },
     copy: {
       es: {
-        title: 'Overlay de potencia, FC, velocidad y GPS en tu video | override.studio',
+        title: 'Overlay de potencia, FC, velocidad y GPS en tu video | velohud',
         description:
           'Dibuja potencia, frecuencia cardíaca, velocidad y mapa GPS sobre tus clips: 18 plantillas, 14 tipos de widget y personalización total. Guía paso a paso.',
         h1: 'Pon potencia, FC, velocidad y GPS sobre tu video',
@@ -422,7 +422,7 @@ export const GUIDES: GuideEntry[] = [
         ctaApp: 'Abrir la app',
       },
       en: {
-        title: 'Power, HR, speed and GPS overlay on your video | override.studio',
+        title: 'Power, HR, speed and GPS overlay on your video | velohud',
         description:
           'Draw power, heart rate, speed and GPS map over your clips: 18 templates, 14 widget kinds, full styling. Step-by-step guide.',
         h1: 'Put power, HR, speed and GPS on your video',
@@ -486,7 +486,7 @@ export const GUIDES: GuideEntry[] = [
     dir: { es: 'guias', en: 'guides' },
     copy: {
       es: {
-        title: 'Cómo exportar tu video con telemetría (MP4) | override.studio',
+        title: 'Cómo exportar tu video con telemetría (MP4) | velohud',
         description:
           'Renderiza tus clips con el overlay de telemetría y guarda el MP4 directo en tu disco. Recorte, audio, render en memoria y consejos de calidad.',
         h1: 'Renderiza y exporta tu video con telemetría',
@@ -540,7 +540,7 @@ export const GUIDES: GuideEntry[] = [
         ctaApp: 'Abrir la app',
       },
       en: {
-        title: 'How to export your video with telemetry (MP4) | override.studio',
+        title: 'How to export your video with telemetry (MP4) | velohud',
         description:
           'Render clips with the telemetry overlay and save the MP4 straight to disk. Trimming, audio, in-memory render and quality tips.',
         h1: 'Render and export your video with telemetry',
@@ -600,7 +600,7 @@ export const GUIDES: GuideEntry[] = [
     dir: { es: 'guias', en: 'guides' },
     copy: {
       es: {
-        title: 'Usar Intervals.icu como fuente de telemetría | override.studio',
+        title: 'Usar Intervals.icu como fuente de telemetría | velohud',
         description:
           'Conecta Intervals.icu con tu clave API y elige actividades sin archivos: lista, ventanas de 30 días y streams por segundo.',
         h1: 'Trae tu telemetría desde Intervals.icu',
@@ -609,7 +609,7 @@ export const GUIDES: GuideEntry[] = [
           {
             h2: 'Cómo se conecta',
             paragraphs: [
-              'Necesitas cuenta en override.studio y tu clave API personal, que está al final de tu página de ajustes en Intervals.icu. La app la valida contra tu atleta antes de guardarla.',
+              'Necesitas cuenta en velohud y tu clave API personal, que está al final de tu página de ajustes en Intervals.icu. La app la valida contra tu atleta antes de guardarla.',
               'La clave se guarda cifrada ligada a tu cuenta y solo se usa para pedir tus actividades y sus streams. Puedes olvidarla cuando quieras con “Desconectar”.',
             ],
           },
@@ -654,7 +654,7 @@ export const GUIDES: GuideEntry[] = [
         ctaApp: 'Abrir la app',
       },
       en: {
-        title: 'Using Intervals.icu as a telemetry source | override.studio',
+        title: 'Using Intervals.icu as a telemetry source | velohud',
         description:
           'Connect Intervals.icu with your API key and pick activities without files: listing, 30-day windows and per-second streams.',
         h1: 'Pull your telemetry from Intervals.icu',
@@ -663,7 +663,7 @@ export const GUIDES: GuideEntry[] = [
           {
             h2: 'How it connects',
             paragraphs: [
-              'You need an override.studio account and your personal API key, at the bottom of your Intervals.icu settings page. The app validates it against your athlete before storing it.',
+              'You need an velohud account and your personal API key, at the bottom of your Intervals.icu settings page. The app validates it against your athlete before storing it.',
               'The key is stored encrypted on your account and only fetches your activities and their streams. You can forget it anytime with “Disconnect”.',
             ],
           },
@@ -714,9 +714,9 @@ export const GUIDES: GuideEntry[] = [
     dir: { es: 'guias', en: 'guides' },
     copy: {
       es: {
-        title: 'Alternativas a Dashware y VIRB Edit (gratis y de pago) | override.studio',
+        title: 'Alternativas a Dashware y VIRB Edit (gratis y de pago) | velohud',
         description:
-          'Dashware y VIRB Edit están descontinuados. Compara las alternativas activas: Telemetry Overlay, OVRLEY, RaceRender y override.studio, gratis y en tu navegador.',
+          'Dashware y VIRB Edit están descontinuados. Compara las alternativas activas: Telemetry Overlay, OVRLEY, RaceRender y velohud, gratis y en tu navegador.',
         h1: 'Alternativas a Dashware y VIRB Edit',
         lede: 'Los dos gigantes gratuitos del overlay de telemetría dejaron de desarrollarse. Esto es lo que queda en pie —de pago, gratis y open source— y para quién es cada opción.',
         sections: [
@@ -735,7 +735,7 @@ export const GUIDES: GuideEntry[] = [
             ],
           },
           {
-            h2: 'Dónde encaja override.studio',
+            h2: 'Dónde encaja velohud',
             paragraphs: [
               'Es la única opción que corre en el navegador: sin instalar, en cualquier sistema con Chrome o Edge. Gratis y open source (MIT), con FIT nativo, Intervals.icu, 18 plantillas y 14 tipos de widget.',
               'Sus límites, con honestidad: aún no lee GPX/TCX ni telemetría embebida en el MP4 (GPMF de GoPro, SRT de DJI), y exporta el MP4 final, no un overlay transparente para tu NLE. Si necesitas eso, Telemetry Overlay u OVRLEY te sirven mejor.',
@@ -775,9 +775,9 @@ export const GUIDES: GuideEntry[] = [
         ctaApp: 'Abrir la app',
       },
       en: {
-        title: 'Dashware & VIRB Edit alternatives (free and paid) | override.studio',
+        title: 'Dashware & VIRB Edit alternatives (free and paid) | velohud',
         description:
-          'Dashware and VIRB Edit are discontinued. Compare the active alternatives: Telemetry Overlay, OVRLEY, RaceRender and override.studio, free in your browser.',
+          'Dashware and VIRB Edit are discontinued. Compare the active alternatives: Telemetry Overlay, OVRLEY, RaceRender and velohud, free in your browser.',
         h1: 'Dashware & VIRB Edit alternatives',
         lede: 'The two free giants of telemetry overlay stopped development. Here is what is left standing —paid, free and open source— and who each option fits.',
         sections: [
@@ -796,7 +796,7 @@ export const GUIDES: GuideEntry[] = [
             ],
           },
           {
-            h2: 'Where override.studio fits',
+            h2: 'Where velohud fits',
             paragraphs: [
               'It is the only option running in the browser: no install, on any system with Chrome or Edge. Free and open source (MIT), with native FIT, Intervals.icu, 18 templates and 14 widget kinds.',
               'Its limits, honestly: it does not read GPX/TCX yet, nor telemetry embedded in the MP4 (GoPro GPMF, DJI SRT), and it exports the final MP4, not a transparent overlay for your NLE. If you need that, Telemetry Overlay or OVRLEY serve you better.',
@@ -865,7 +865,7 @@ export interface LegalEntry {
 }
 
 /** Contact channel for data requests and questions (public repo issues). */
-export const LEGAL_CONTACT = 'https://github.com/RgtArRr/override-studio/issues';
+export const LEGAL_CONTACT = 'https://github.com/RgtArRr/velohud/issues';
 
 /** One-time donations (Ko-fi, no account needed to donate). */
 export const DONATE_URL = 'https://ko-fi.com/rgtarrr';
@@ -875,16 +875,16 @@ export const LEGAL: LegalEntry[] = [
     slug: { es: 'privacidad', en: 'privacy' },
     copy: {
       es: {
-        title: 'Política de privacidad | override.studio',
+        title: 'Política de privacidad | velohud',
         description:
-          'Qué datos guarda override.studio (cuenta, plantillas, clave de Intervals.icu) y qué nunca sale de tu navegador. Sin cookies de rastreo.',
+          'Qué datos guarda velohud (cuenta, plantillas, clave de Intervals.icu) y qué nunca sale de tu navegador. Sin cookies de rastreo.',
         h1: 'Política de privacidad',
         lede: 'Vigente desde el 28 de octubre de 2026. En resumen: tus videos y tus archivos de actividad (.FIT, .GPX o .TCX) nunca salen de tu navegador; solo guardamos datos si creas una cuenta, y puedes pedir su borrado.',
         sections: [
           {
             h2: 'Responsable',
             paragraphs: [
-              'override.studio es un proyecto personal. Para cualquier solicitud sobre tus datos (acceso, rectificación, borrado), abre un issue en el repositorio del proyecto.',
+              'velohud es un proyecto personal. Para cualquier solicitud sobre tus datos (acceso, rectificación, borrado), abre un issue en el repositorio del proyecto.',
             ],
           },
           {
@@ -932,16 +932,16 @@ export const LEGAL: LegalEntry[] = [
         contactLabel: 'Abrir un issue en GitHub',
       },
       en: {
-        title: 'Privacy policy | override.studio',
+        title: 'Privacy policy | velohud',
         description:
-          'What data override.studio stores (account, templates, Intervals.icu key) and what never leaves your browser. No tracking cookies.',
+          'What data velohud stores (account, templates, Intervals.icu key) and what never leaves your browser. No tracking cookies.',
         h1: 'Privacy policy',
         lede: 'Effective October 28, 2026. In short: your videos and activity files (.FIT, .GPX or .TCX) never leave your browser; we only store data if you create an account, and you can request its deletion.',
         sections: [
           {
             h2: 'Controller',
             paragraphs: [
-              'override.studio is a personal project. For any request about your data (access, rectification, erasure), open an issue in the project repository.',
+              'velohud is a personal project. For any request about your data (access, rectification, erasure), open an issue in the project repository.',
             ],
           },
           {
@@ -994,16 +994,16 @@ export const LEGAL: LegalEntry[] = [
     slug: { es: 'terminos', en: 'terms' },
     copy: {
       es: {
-        title: 'Términos del servicio | override.studio',
+        title: 'Términos del servicio | velohud',
         description:
-          'Condiciones de uso de override.studio: servicio tal cual, uso aceptable, tu contenido y el código abierto MIT.',
+          'Condiciones de uso de velohud: servicio tal cual, uso aceptable, tu contenido y el código abierto MIT.',
         h1: 'Términos del servicio',
-        lede: 'Vigentes desde el 28 de octubre de 2026. Al usar override.studio aceptas estas condiciones.',
+        lede: 'Vigentes desde el 28 de octubre de 2026. Al usar velohud aceptas estas condiciones.',
         sections: [
           {
             h2: 'El servicio',
             paragraphs: [
-              'override.studio es un editor web gratuito que incrusta telemetría en tus videos, con render 100% local en tu navegador. La cuenta es opcional y sirve para sincronizar plantillas y conectar Intervals.icu.',
+              'velohud es un editor web gratuito que incrusta telemetría en tus videos, con render 100% local en tu navegador. La cuenta es opcional y sirve para sincronizar plantillas y conectar Intervals.icu.',
             ],
           },
           {
@@ -1055,16 +1055,16 @@ export const LEGAL: LegalEntry[] = [
         contactLabel: 'Abrir un issue en GitHub',
       },
       en: {
-        title: 'Terms of service | override.studio',
+        title: 'Terms of service | velohud',
         description:
-          'override.studio terms of use: as-is service, acceptable use, your content and the MIT open-source code.',
+          'velohud terms of use: as-is service, acceptable use, your content and the MIT open-source code.',
         h1: 'Terms of service',
-        lede: 'Effective October 28, 2026. By using override.studio you accept these terms.',
+        lede: 'Effective October 28, 2026. By using velohud you accept these terms.',
         sections: [
           {
             h2: 'The service',
             paragraphs: [
-              'override.studio is a free web editor that overlays telemetry on your videos, with a 100% local render in your browser. An account is optional and serves to sync templates and connect Intervals.icu.',
+              'velohud is a free web editor that overlays telemetry on your videos, with a 100% local render in your browser. An account is optional and serves to sync templates and connect Intervals.icu.',
             ],
           },
           {
