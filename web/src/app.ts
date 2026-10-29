@@ -14,11 +14,10 @@ import {
 } from '@override-studio/shared';
 import {
   activityFromIntervalsStreams,
+  activityStartFromOffset,
   formatFixedZone,
-  formatInZone,
-  parseActivityStart,
   parseActivityXml,
-  zoneOffsetName,
+  zoneOffsetHours,
   parseFit,
   parseGotoTime,
   sampleAt,
@@ -168,8 +167,8 @@ interface Clip {
 
 export async function renderApp(root: HTMLElement): Promise<void> {
   let activity: Activity | null = null;
-  /** Re-anchor data for intervals activities (files carry absolute UTC): wall + current zone. */
-  let activityTz: { wall: string; timeZone: string } | null = null;
+  /** Re-anchor data for intervals activities (files carry absolute UTC): wall + fixed offset. */
+  let activityTz: { wall: string; offsetHours: number } | null = null;
   let activityTzEditing = false;
   const clips: Clip[] = [];
   let selectedClipId: number | null = null;
@@ -543,10 +542,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const intervalsPickBtn = el('button', 'btn btn-small act-btn', t('intervals.pick'));
   intervalsPickBtn.type = 'button';
   activityBlock.append(activityDrop, intervalsPickBtn, activityPill, activityStats);
-  // Activity zone, intervals-only: files carry absolute UTC, provider walls need a zone.
-  const ianaZones: string[] = (
-    Intl as unknown as { supportedValuesOf?: (k: string) => string[] }
-  ).supportedValuesOf?.('timeZone') ?? [];
+  // Activity zone, intervals-only: files carry absolute UTC, provider walls
+  // need a zone. Same fixed-offset selector as clips.
   const activityTzRow = el('div', 'editor-row');
   activityTzRow.append(el('span', 'muted', t('activity.tz')));
   const activityTzSelect = el('select', 'font-select tz-select activity-tz-select');
@@ -555,38 +552,39 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   activityTzRow.hidden = true;
   activityBlock.appendChild(activityTzRow);
   const syncActivityTzRow = (): void => {
-    const show = activityTz !== null && activityTzEditing && ianaZones.length > 0;
+    const show = activityTz !== null && activityTzEditing;
     activityTzRow.hidden = !show;
     if (!show || !activityTz) return;
     if (activityTzSelect.options.length === 0) {
-      for (const z of ianaZones) {
-        const opt = el('option', undefined, z);
-        opt.value = z;
+      for (const h of FIXED_TZS) {
+        const opt = el('option', undefined, tzName(h));
+        opt.value = String(h);
         activityTzSelect.appendChild(opt);
       }
     }
-    if (!ianaZones.includes(activityTz.timeZone)) {
-      const opt = el('option', undefined, activityTz.timeZone);
-      opt.value = activityTz.timeZone;
+    if (!FIXED_TZS.includes(activityTz.offsetHours)) {
+      const opt = el('option', undefined, tzName(activityTz.offsetHours));
+      opt.value = String(activityTz.offsetHours);
       activityTzSelect.appendChild(opt);
     }
-    activityTzSelect.value = activityTz.timeZone;
+    activityTzSelect.value = String(activityTz.offsetHours);
   };
   activityTzSelect.addEventListener('change', () => {
     if (!activity || !activityTz) return;
-    const next = parseActivityStart(activityTz.wall, activityTzSelect.value);
+    const offsetHours = Number(activityTzSelect.value);
+    const next = activityStartFromOffset(activityTz.wall, offsetHours);
     if (!next) {
       setStatus(t('activity.tzInvalid'));
-      activityTzSelect.value = activityTz.timeZone;
+      activityTzSelect.value = String(activityTz.offsetHours);
       return;
     }
-    activityTz.timeZone = activityTzSelect.value;
+    activityTz.offsetHours = offsetHours;
     activity.startTime = next;
     renderActivityStats();
     for (const clip of clips) {
       if (!clip.offsetDirty) applyAutoOffset(clip);
     }
-    setStatus(t('activity.tzApplied', { tz: activityTz.timeZone }));
+    setStatus(t('activity.tzApplied', { tz: tzName(activityTz.offsetHours) }));
     activityTzEditing = false;
     syncActivityTzRow();
     binMetaSig = '';
@@ -798,7 +796,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         icuDialog.close();
         loadActivity(act, t('intervals.source', { name: a.name || a.id }), {
           wall: a.start_date_local,
-          timeZone: a.timezone ?? 'UTC',
+          offsetHours: zoneOffsetHours(act.startTime, a.timezone ?? 'UTC') ?? 0,
         });
       } catch (err) {
         activity = null;
@@ -833,15 +831,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
     const s = summarize(activity);
     const dist = formatMetric('distance', s.distanceM, units);
-    const localZone =
-      activityTz?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const endDate = new Date(activity.startTime.getTime() + s.durationSec * 1000);
     const mkStampRow = (label: string, date: Date, editable: boolean): void => {
       const row = el('div', 'activity-stat');
       const value = el('span', 'activity-stat-v', formatUtc(date));
-      const local = formatInZone(date, localZone);
-      const off = zoneOffsetName(date, localZone);
-      if (local && off) value.title = t('activity.localTip', { time: local, off });
+      if (Number.isFinite(date.getTime())) {
+        const offH = activityTz?.offsetHours ?? -date.getTimezoneOffset() / 60;
+        value.title = t('activity.localTip', {
+          time: formatFixedZone(date, offH),
+          off: tzName(offH),
+        });
+      }
       if (editable) {
         const editBtn = el('button', 'icon-btn');
         editBtn.type = 'button';
@@ -2341,7 +2341,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const loadActivity = (
     act: Activity,
     name: string,
-    tzMeta?: { wall: string; timeZone: string } | null,
+    tzMeta?: { wall: string; offsetHours: number } | null,
   ): void => {
     activity = act;
     activityTz = tzMeta ?? null;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { activityFromIntervalsStreams, activityFromTrackPoints, buildActivity, fillDerivedGrade, formatFixedZone, formatInZone, formatUtc, parseActivityStart, zoneOffsetName, nextProfileWindow, parseFit, parseGotoTime, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
+import { activityFromIntervalsStreams, activityFromTrackPoints, buildActivity, activityStartFromOffset, fillDerivedGrade, formatFixedZone, formatInZone, formatUtc, parseActivityStart, zoneOffsetHours, zoneOffsetName, nextProfileWindow, parseFit, parseGotoTime, sampleAt, summarize, widgetValue, zonedTimeToUtc } from '../web/src/telemetry.ts';
 import { hashPassword, needsRehash, normalizeEmail, storedIterations, validatePassword, verifyPassword } from '../api/src/password.ts';
 import { STRINGS, resolveLocale, setLocale, t } from '../web/src/i18n.ts';
 import {
@@ -469,6 +469,23 @@ assert.equal(zoneOffsetName(new Date('2026-10-23T23:29:27.000Z'), 'America/Lima'
 assert.equal(zoneOffsetName(new Date('2026-10-23T23:29:27.000Z'), 'Pacific/Auckland'), 'UTC+13');
 assert.equal(zoneOffsetName(new Date('2026-10-23T23:29:27.000Z'), 'Asia/Kathmandu'), 'UTC+5:45');
 assert.equal(zoneOffsetName(new Date('2026-10-23T23:29:27.000Z'), 'Nope/Nowhere'), null);
+
+// activityStartFromOffset: re-anchor math behind the activity zone selector.
+assert.equal(
+  activityStartFromOffset('2026-10-23T18:29:27', -5)?.toISOString(),
+  '2026-10-23T23:29:27.000Z',
+);
+assert.equal(
+  activityStartFromOffset('2026-10-23T18:29:27', 5.75)?.toISOString(),
+  '2026-10-23T12:44:27.000Z',
+);
+assert.equal(activityStartFromOffset('not-a-date', -5), null);
+assert.equal(activityStartFromOffset('2026-10-23T18:29:27', NaN), null);
+
+// zoneOffsetHours: fixed offset of a zone at an instant (selector preselect).
+assert.equal(zoneOffsetHours(new Date('2026-10-23T23:29:27.000Z'), 'America/Lima'), -5);
+assert.equal(zoneOffsetHours(new Date('2026-10-23T23:29:27.000Z'), 'Pacific/Auckland'), 13);
+assert.equal(zoneOffsetHours(new Date('2026-10-23T23:29:27.000Z'), 'Nope/Nowhere'), null);
 
 // formatFixedZone: clip tooltip wall under the selected fixed offset.
 assert.equal(formatFixedZone(new Date('2026-10-29T01:56:08.000Z'), -5), '2026-10-28 20:56:08');

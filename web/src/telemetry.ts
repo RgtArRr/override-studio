@@ -678,3 +678,32 @@ export function formatFixedZone(date: Date, tzHours: number): string {
     `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())}`
   );
 }
+
+/**
+ * Activity start from a provider wall reading ('YYYY-MM-DDTHH:mm:ss') under a
+ * fixed UTC offset in hours. Null on bad input.
+ */
+export function activityStartFromOffset(wall: string, offsetHours: number): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(wall);
+  if (!m || !Number.isFinite(offsetHours)) return null;
+  const ms =
+    Date.UTC(
+      Number(m[1]),
+      Number(m[2]) - 1,
+      Number(m[3]),
+      Number(m[4]),
+      Number(m[5]),
+      Number(m[6] ?? '0'),
+    ) - offsetHours * 3600e3;
+  return Number.isNaN(ms) ? null : new Date(ms);
+}
+
+/**
+ * UTC offset in hours of an IANA zone at an instant (fractional zones kept).
+ * Null on bad input or unknown zone.
+ */
+export function zoneOffsetHours(date: Date, timeZone: string): number | null {
+  const w = zonedWall(date, timeZone);
+  if (!w) return null;
+  return Math.round((w.wallMs - date.getTime()) / 60000) / 60;
+}
