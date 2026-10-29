@@ -207,7 +207,7 @@ ${hub.priv.map((p) => `          <p>${escHtml(p)}</p>`).join('\n')}
         </section>
 ${
   guides.length > 0
-    ? `        <section class="block">\n          <h2>${escHtml(hub.guidesTitle)}</h2>\n${guideLinks}\n        </section>\n`
+    ? `        <section class="block" id="guides">\n          <h2>${escHtml(hub.guidesTitle)}</h2>\n${guideLinks}\n        </section>\n`
     : ''
 }        <section class="block">
           <h2>${escHtml(hub.faqTitle)}</h2>

@@ -2086,7 +2086,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const siteFooter = el('p', 'site-footer');
   const footerLocale = getLocale();
   const footerLinks: [string, string, boolean][] = [
-    [t('ftr.guides'), footerLocale === 'es' ? '/es/' : '/en/', false],
+    [t('ftr.home'), footerLocale === 'es' ? '/es/' : '/en/', false],
     [t('ftr.privacy'), footerLocale === 'es' ? '/es/privacidad/' : '/en/privacy/', false],
     [t('ftr.terms'), footerLocale === 'es' ? '/es/terminos/' : '/en/terms/', false],
     [t('ftr.donate'), DONATE_URL, true],
