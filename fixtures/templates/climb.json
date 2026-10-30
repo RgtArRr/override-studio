@@ -1,10 +1,9 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "climb",
   "name": "Escalada",
   "description": "Altitud, pendiente, potencia y FC para puertos de montaña.",
   "theme": {
-    "fontFamily": "system-ui, sans-serif",
     "text": "#ffffff",
     "accent": "#ff5d5d",
     "panel": "#140b0b",
@@ -17,24 +16,12 @@
       "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": {
-          "x": 0.03,
-          "y": 0.78,
-          "w": 0.21,
-          "h": 0.16
-        },
-        "square": {
-          "x": 0.04,
-          "y": 0.62,
-          "w": 0.44,
-          "h": 0.15
-        },
-        "vertical": {
-          "x": 0.06,
-          "y": 0.04,
-          "w": 0.88,
-          "h": 0.09
-        }
+        "ax": "center",
+        "ay": "top",
+        "px": 6,
+        "py": 7.111,
+        "w": "stretch",
+        "h": 16
       }
     },
     {
@@ -43,24 +30,12 @@
       "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": {
-          "x": 0.26,
-          "y": 0.78,
-          "w": 0.21,
-          "h": 0.16
-        },
-        "square": {
-          "x": 0.52,
-          "y": 0.62,
-          "w": 0.44,
-          "h": 0.15
-        },
-        "vertical": {
-          "x": 0.06,
-          "y": 0.15,
-          "w": 0.88,
-          "h": 0.09
-        }
+        "ax": "center",
+        "ay": "top",
+        "px": 6,
+        "py": 26.667,
+        "w": "stretch",
+        "h": 16
       }
     },
     {
@@ -69,24 +44,12 @@
       "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": {
-          "x": 0.51,
-          "y": 0.78,
-          "w": 0.21,
-          "h": 0.16
-        },
-        "square": {
-          "x": 0.04,
-          "y": 0.79,
-          "w": 0.44,
-          "h": 0.15
-        },
-        "vertical": {
-          "x": 0.06,
-          "y": 0.26,
-          "w": 0.88,
-          "h": 0.09
-        }
+        "ax": "center",
+        "ay": "top",
+        "px": 6,
+        "py": 46.222,
+        "w": "stretch",
+        "h": 16
       }
     },
     {
@@ -95,24 +58,12 @@
       "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": {
-          "x": 0.76,
-          "y": 0.78,
-          "w": 0.21,
-          "h": 0.16
-        },
-        "square": {
-          "x": 0.52,
-          "y": 0.79,
-          "w": 0.44,
-          "h": 0.15
-        },
-        "vertical": {
-          "x": 0.06,
-          "y": 0.37,
-          "w": 0.88,
-          "h": 0.09
-        }
+        "ax": "center",
+        "ay": "top",
+        "px": 6,
+        "py": 65.778,
+        "w": "stretch",
+        "h": 16
       }
     }
   ]

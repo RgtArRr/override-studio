@@ -18,6 +18,9 @@ export interface TelemetrySample {
   /** Gear teeth, forward-filled from shift events. Never interpolated. */
   frontGear?: number;
   rearGear?: number;
+  /** Cog indexes (1 = innermost), same fill rules as teeth. */
+  frontGearNum?: number;
+  rearGearNum?: number;
 }
 
 export interface Activity {
@@ -384,11 +387,14 @@ export function parseFit(buffer: ArrayBuffer): Activity {
   let lastRear: number | undefined;
   const samples: TelemetrySample[] = records.map((r) => {
     const s: TelemetrySample = { t: ((r.timestamp as Date).getTime() - t0) / 1000 };
+    // Newer Edge firmware logs only the high-res enhanced* variants (same units).
     if (typeof r.speed === 'number') s.speed = r.speed;
+    else if (typeof r.enhancedSpeed === 'number') s.speed = r.enhancedSpeed;
     if (typeof r.heartRate === 'number') s.heartRate = r.heartRate;
     if (typeof r.power === 'number') s.power = r.power;
     if (typeof r.cadence === 'number') s.cadence = r.cadence;
     if (typeof r.altitude === 'number') s.elevation = r.altitude;
+    else if (typeof r.enhancedAltitude === 'number') s.elevation = r.enhancedAltitude;
     if (typeof r.distance === 'number') s.distance = r.distance;
     if (typeof r.grade === 'number') s.grade = r.grade;
     if (typeof r.positionLat === 'number') s.lat = r.positionLat * SEMI_TO_DEG;
@@ -400,6 +406,45 @@ export function parseFit(buffer: ArrayBuffer): Activity {
     if (lastRear !== undefined) s.rearGear = lastRear;
     return s;
   });
+
+  // Edge + AXS/Di2 log shifts as event markers carrying teeth, not record
+  // fields. Merge them by timestamp; events win over record fields on overlap.
+  const shifts = (
+    ((messages as Record<string, unknown>).eventMesgs as
+      | {
+          timestamp?: unknown;
+          event?: unknown;
+          frontGear?: unknown;
+          rearGear?: unknown;
+          frontGearNum?: unknown;
+          rearGearNum?: unknown;
+        }[]
+      | undefined) ?? []
+  )
+    .filter(
+      (e) =>
+        e.timestamp instanceof Date && (e.event === 'rearGearChange' || e.event === 'frontGearChange'),
+    )
+    .sort((a, b) => (a.timestamp as Date).getTime() - (b.timestamp as Date).getTime());
+  let si = 0;
+  let evFront: number | undefined;
+  let evRear: number | undefined;
+  let evFrontNum: number | undefined;
+  let evRearNum: number | undefined;
+  for (const s of samples) {
+    const tMs = t0 + s.t * 1000;
+    while (si < shifts.length && (shifts[si].timestamp as Date).getTime() <= tMs) {
+      const e = shifts[si++];
+      if (typeof e.frontGear === 'number') evFront = e.frontGear;
+      if (typeof e.rearGear === 'number') evRear = e.rearGear;
+      if (typeof e.frontGearNum === 'number') evFrontNum = e.frontGearNum;
+      if (typeof e.rearGearNum === 'number') evRearNum = e.rearGearNum;
+    }
+    if (evFront !== undefined) s.frontGear = evFront;
+    if (evRear !== undefined) s.rearGear = evRear;
+    if (evFrontNum !== undefined) s.frontGearNum = evFrontNum;
+    if (evRearNum !== undefined) s.rearGearNum = evRearNum;
+  }
 
   return buildActivity(records[0].timestamp as Date, samples);
 }
@@ -442,7 +487,7 @@ const NUMERIC_KEYS = [
 ] as const;
 
 /** Discrete fields: step-held from the left sample, never interpolated. */
-const STEP_KEYS = ['frontGear', 'rearGear'] as const;
+const STEP_KEYS = ['frontGear', 'rearGear', 'frontGearNum', 'rearGearNum'] as const;
 
 /** Interpolated sample at time t (clamped to the activity range). */
 export function sampleAt(activity: Activity, t: number): TelemetrySample {

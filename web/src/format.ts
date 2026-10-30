@@ -24,6 +24,8 @@ export function formatElapsed(totalSec: number, format: TimeFormat = 'auto'): st
       return `${h}h`;
     case 'hm':
       return `${h}h ${mm}m`;
+    default:
+      return formatSpan(totalSec);
   }
 }
 

@@ -1,9 +1,4 @@
-import {
-  METRIC_IDS,
-  TEMPLATE_SCHEMA_VERSION,
-  WIDGET_KINDS,
-  parseTemplateJson,
-} from '@velohud/shared';
+import { TEMPLATE_SCHEMA_VERSION, parseTemplateJson } from '@velohud/shared';
 import {
   SESSION_MAX_AGE,
   buildSessionCookie,
@@ -124,14 +119,6 @@ const icuFailure = (res: { auth: boolean; status: number; retryAfter: string | n
   }
   return json({ error: 'intervals' }, 502);
 };
-
-/** Server-side mirror of the client's import check: no unknown kind/metric reaches the cloud. */
-const validDefinition = (definition: { widgets: { kind: string; metric: string }[] }): boolean =>
-  definition.widgets.every(
-    (w) =>
-      (WIDGET_KINDS as readonly string[]).includes(w.kind) &&
-      (METRIC_IDS as readonly string[]).includes(w.metric),
-  );
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -343,6 +330,8 @@ export default {
         .all<Record<string, unknown>>();
       const templates = [];
       for (const row of results ?? []) {
+        // Pre-v3 rows are ignored, never migrated: the new layout replaces the old.
+        if (row['schema_version'] !== TEMPLATE_SCHEMA_VERSION) continue;
         try {
           templates.push({
             id: row['id'],
@@ -367,7 +356,6 @@ export default {
       let definition: string;
       try {
         const parsed = parseTemplateJson(JSON.stringify(body?.['definition']));
-        if (!validDefinition(parsed)) return send(json({ error: 'invalid template' }, 400));
         definition = JSON.stringify(parsed);
       } catch {
         return send(json({ error: 'invalid template' }, 400));
@@ -381,18 +369,30 @@ export default {
       if (existing && existing['user_id'] !== user.id) {
         return send(json({ error: 'id taken' }, 409));
       }
-      if (existing) {
-        await env.DB.prepare(
-          `UPDATE user_templates SET name = ?, definition = ?, updated_at = ${NOW} WHERE id = ?`,
+      const updateRow = (): Promise<unknown> =>
+        env.DB.prepare(
+          `UPDATE user_templates SET name = ?, definition = ?, schema_version = ${TEMPLATE_SCHEMA_VERSION}, updated_at = ${NOW} WHERE id = ?`,
         )
           .bind(name, definition, id)
           .run();
+      if (existing) {
+        await updateRow();
       } else {
-        await env.DB.prepare(
-          `INSERT INTO user_templates (id, user_id, name, definition, schema_version) VALUES (?, ?, ?, ?, ${TEMPLATE_SCHEMA_VERSION})`,
-        )
-          .bind(id, user.id, name, definition)
-          .run();
+        try {
+          await env.DB.prepare(
+            `INSERT INTO user_templates (id, user_id, name, definition, schema_version) VALUES (?, ?, ?, ?, ${TEMPLATE_SCHEMA_VERSION})`,
+          )
+            .bind(id, user.id, name, definition)
+            .run();
+        } catch {
+          // Lost a same-id race (two tabs): adopt the winner's lane instead of 500ing.
+          const raced = await env.DB.prepare('SELECT user_id FROM user_templates WHERE id = ?')
+            .bind(id)
+            .first<Record<string, unknown>>();
+          if (!raced) throw new Error('insert failed');
+          if (raced['user_id'] !== user.id) return send(json({ error: 'id taken' }, 409));
+          await updateRow();
+        }
       }
       return send(json({ id }));
     }
@@ -426,9 +426,9 @@ export default {
       if (body?.['definition'] !== undefined) {
         try {
           const parsed = parseTemplateJson(JSON.stringify(body['definition']));
-          if (!validDefinition(parsed)) return send(json({ error: 'invalid template' }, 400));
           sets.push('definition = ?');
           binds.push(JSON.stringify(parsed));
+          sets.push(`schema_version = ${TEMPLATE_SCHEMA_VERSION}`);
         } catch {
           return send(json({ error: 'invalid template' }, 400));
         }

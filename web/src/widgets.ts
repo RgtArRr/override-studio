@@ -1,5 +1,4 @@
 import type {
-  AspectClass,
   MetricId,
   TextAlign,
   WidgetDef,
@@ -43,6 +42,9 @@ export const METRIC_IDS: MetricId[] = [
 
 export const kindLabel = (kind: WidgetKind): string => t(`kind.${kind}`);
 
+/** Widget font when the style sets none: the first entry of the inspector font list. */
+export const DEFAULT_WIDGET_FONT = 'Inter, sans-serif';
+
 export const metricLabel = (metric: MetricId): string => t(`metric.${metric}`);
 
 /** Canonical metric per kind, mirroring the built-in fixtures. */
@@ -73,65 +75,74 @@ export function defaultAlignFor(kind: WidgetKind): TextAlign {
 }
 
 /** Kinds whose painter renders the metric unit (they honor showUnit). */
-const UNIT_KINDS: ReadonlySet<WidgetKind> = new Set([
-  'stat',
-  'number',
-  'gauge',
-  'speedo',
-  'ring',
-  'slope',
-  'spark',
-  'profile',
-  'profilenext',
-  'vam',
-]);
-export const kindShowsUnit = (kind: WidgetKind): boolean => UNIT_KINDS.has(kind);
+/**
+ * Per-kind capabilities driving inspector visibility. One row per kind;
+ * `Record` fails compilation when a new kind lacks one.
+ */
+export interface KindCaps {
+  /** Paints a unit (Unidad checkbox). */
+  unit: boolean;
+  /** Label can be toggled (Etiqueta checkbox). */
+  labelToggle: boolean;
+  /** Paints a GPS trail with configurable width (Grosor slider). */
+  trailWidth: boolean;
+  /** Paints label/value text in normal render (maps only show a fallback title). */
+  text: boolean;
+  /** Shows the teeth/index display mode selector (gears only). */
+  gearsMode: boolean;
+}
 
-/** Base (horizontal) size per kind, sized from the built-in fixtures. */
-const BASE_SIZE: Record<WidgetKind, { w: number; h: number }> = {
-  stat: { w: 0.18, h: 0.13 },
-  number: { w: 0.16, h: 0.18 },
-  gauge: { w: 0.22, h: 0.3 },
-  speedo: { w: 0.26, h: 0.26 },
-  ring: { w: 0.2, h: 0.3 },
-  slope: { w: 0.26, h: 0.16 },
-  gears: { w: 0.2, h: 0.18 },
-  spark: { w: 0.32, h: 0.18 },
-  profile: { w: 0.34, h: 0.2 },
-  profilenext: { w: 0.34, h: 0.2 },
-  vam: { w: 0.2, h: 0.2 },
-  map: { w: 0.26, h: 0.34 },
-  navmap: { w: 0.26, h: 0.34 },
-  compass: { w: 0.16, h: 0.26 },
+const KIND_CAPS: Record<WidgetKind, KindCaps> = {
+  stat: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: false },
+  number: { unit: true, labelToggle: false, trailWidth: false, text: true, gearsMode: false },
+  gauge: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: false },
+  speedo: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: false },
+  ring: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: false },
+  slope: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: false },
+  gears: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: true },
+  spark: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: false },
+  profile: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: false },
+  profilenext: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: false },
+  vam: { unit: true, labelToggle: true, trailWidth: false, text: true, gearsMode: false },
+  map: { unit: false, labelToggle: false, trailWidth: true, text: false, gearsMode: false },
+  navmap: { unit: false, labelToggle: false, trailWidth: true, text: false, gearsMode: false },
+  compass: { unit: false, labelToggle: false, trailWidth: false, text: true, gearsMode: false },
 };
 
-const clamp = (v: number, lo: number, hi: number): number =>
-  Math.min(Math.max(v, lo), hi);
+export const capsFor = (kind: WidgetKind): KindCaps => KIND_CAPS[kind];
+export const kindShowsUnit = (kind: WidgetKind): boolean => capsFor(kind).unit;
+
+/** Default size per kind in vmin %, converted from the v2 horizontal bases. */
+const BASE_SIZE: Record<WidgetKind, { w: number; h: number }> = {
+  stat: { w: 32, h: 13 },
+  number: { w: 28, h: 18 },
+  gauge: { w: 39, h: 30 },
+  speedo: { w: 46, h: 26 },
+  ring: { w: 36, h: 30 },
+  slope: { w: 46, h: 16 },
+  gears: { w: 36, h: 18 },
+  spark: { w: 57, h: 18 },
+  profile: { w: 60, h: 20 },
+  profilenext: { w: 60, h: 20 },
+  vam: { w: 36, h: 20 },
+  map: { w: 46, h: 34 },
+  navmap: { w: 46, h: 34 },
+  compass: { w: 28, h: 26 },
+};
 
 /**
- * Default box: centered, then stepped down-right per slot so consecutive adds
- * don't stack exactly. Always clamped inside the frame.
+ * Default layout: centered, stepped down-right per slot so consecutive adds
+ * don't stack exactly. Capped offsets keep every kind inside any frame.
  */
-export function defaultLayout(
-  kind: WidgetKind,
-  aspect: AspectClass,
-  slot = 0,
-): WidgetLayout {
+export function defaultLayout(kind: WidgetKind, slot = 0): WidgetLayout {
   const base = BASE_SIZE[kind];
-  const scale =
-    aspect === 'square'
-      ? { w: 1.35, h: 1 }
-      : aspect === 'vertical'
-        ? { w: 1.9, h: 0.8 }
-        : { w: 1, h: 1 };
-  const w = Math.min(base.w * scale.w, 0.9);
-  const h = Math.min(base.h * scale.h, 0.9);
-  const r3 = (v: number): number => Math.round(v * 1000) / 1000;
   return {
-    x: r3(clamp((1 - w) / 2 + 0.05 * slot, 0, 1 - w)),
-    y: r3(clamp((1 - h) / 2 + 0.04 * slot, 0, 1 - h)),
-    w: r3(w),
-    h: r3(h),
+    ax: 'center',
+    ay: 'center',
+    px: Math.min(slot * 5, 10),
+    py: Math.min(slot * 4, 10),
+    w: base.w,
+    h: base.h,
   };
 }
 
@@ -226,10 +237,6 @@ export function makeWidgetDef(
     metric,
     kind,
     visible: true,
-    layout: {
-      horizontal: defaultLayout(kind, 'horizontal', slot),
-      square: defaultLayout(kind, 'square', slot),
-      vertical: defaultLayout(kind, 'vertical', slot),
-    },
+    layout: defaultLayout(kind, slot),
   };
 }

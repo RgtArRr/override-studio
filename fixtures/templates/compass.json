@@ -1,10 +1,9 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "compass",
   "name": "Brújula",
   "description": "Rumbo GPS con rosa orientada al curso.",
   "theme": {
-    "fontFamily": "system-ui, sans-serif",
     "text": "#ffffff",
     "accent": "#ff453a",
     "panel": "#0b0e11",
@@ -16,11 +15,13 @@
       "metric": "none",
       "kind": "compass",
       "visible": true,
-      "label": "RUMBO",
       "layout": {
-        "horizontal": { "x": 0.8, "y": 0.04, "w": 0.17, "h": 0.28 },
-        "square": { "x": 0.72, "y": 0.05, "w": 0.24, "h": 0.24 },
-        "vertical": { "x": 0.68, "y": 0.05, "w": 0.28, "h": 0.16 }
+        "ax": "right",
+        "ay": "top",
+        "px": 4,
+        "py": 8.889,
+        "w": 28,
+        "h": 28.444
       }
     },
     {
@@ -29,9 +30,12 @@
       "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.78, "y": 0.86, "w": 0.19, "h": 0.11 },
-        "square": { "x": 0.68, "y": 0.88, "w": 0.28, "h": 0.09 },
-        "vertical": { "x": 0.62, "y": 0.9, "w": 0.34, "h": 0.08 }
+        "ax": "right",
+        "ay": "bottom",
+        "px": 4,
+        "py": 3.556,
+        "w": 34,
+        "h": 14.222
       }
     }
   ]

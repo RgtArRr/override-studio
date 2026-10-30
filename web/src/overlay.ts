@@ -1,5 +1,5 @@
 import {
-  classifyAspect,
+  resolveLayout,
   type MetricId,
   type PanelShape,
   type Template,
@@ -14,10 +14,28 @@ import {
   type TelemetrySample,
 } from './telemetry.js';
 import { formatMetric, type Units } from './format.js';
-import { defaultAlignFor, mapStrokeWidths, navProject, navWindow } from './widgets.js';
-import { t } from './i18n.js';
+import {
+  DEFAULT_WIDGET_FONT,
+  defaultAlignFor,
+  mapStrokeWidths,
+  navProject,
+  navWindow,
+} from './widgets.js';
 
-const labelFor = (metric: MetricId): string => t(`ovl.${metric}`);
+/** Overlay labels are hardcoded English content: templates (incl. AI output) cannot rename them. */
+const LABEL: Record<MetricId, string> = {
+  speed: 'SPD',
+  heartRate: 'HR',
+  power: 'PWR',
+  cadence: 'CAD',
+  elevation: 'ELEV',
+  distance: 'DIST',
+  elapsedTime: 'TIME',
+  grade: 'GRADE',
+  vam: 'VAM',
+  gears: 'GEARS',
+  none: '',
+};
 
 /** Fallback gauge scales in raw SI units, used when the widget sets no range. */
 const GAUGE_DEFAULTS: Record<MetricId, [number, number]> = {
@@ -63,9 +81,9 @@ function resolveStyle(template: Template, widget: WidgetDef): ResolvedStyle {
     backgroundOpacity: s.backgroundOpacity ?? template.theme.panelOpacity,
     accent: s.accent ?? template.theme.accent,
     text: s.text ?? template.theme.text,
-    labelFont: s.labelFont ?? template.theme.fontFamily,
+    labelFont: s.labelFont ?? DEFAULT_WIDGET_FONT,
     labelScale: s.labelScale ?? 1,
-    valueFont: s.valueFont ?? template.theme.fontFamily,
+    valueFont: s.valueFont ?? DEFAULT_WIDGET_FONT,
     valueScale: s.valueScale ?? 1,
     align: s.align ?? defaultAlignFor(widget.kind),
   };
@@ -112,7 +130,7 @@ function widgetText(
       ? { value: '—', unit: '' }
       : formatMetric(widget.metric, raw, units, widget.timeFormat);
   return {
-    label: widget.label ?? labelFor(widget.metric),
+    label: LABEL[widget.metric],
     value: formatted.value,
     unit: widget.showUnit === false ? '' : formatted.unit,
   };
@@ -134,23 +152,31 @@ function drawStat(
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
 
   const pad = Math.min(w, h) * 0.14;
-  const valueSize = h * 0.44;
+  const showLabel = widget.showLabel !== false;
+  const valueSize = showLabel ? h * 0.44 : h * 0.5;
   const labelSize = Math.max(9, h * 0.2);
   const tx =
     style.align === 'center' ? x + w / 2 : style.align === 'right' ? x + w - pad : x + pad;
 
   ctx.save();
   ctx.textAlign = style.align;
-  ctx.fillStyle = style.accent;
-  ctx.font = `600 ${labelSize * style.labelScale}px ${style.labelFont}`;
-  ctx.textBaseline = 'top';
-  ctx.fillText(text.label, tx, y + pad * 0.7, w - pad * 2);
+  if (showLabel) {
+    ctx.fillStyle = style.accent;
+    ctx.font = `600 ${labelSize * style.labelScale}px ${style.labelFont}`;
+    ctx.textBaseline = 'top';
+    ctx.fillText(text.label, tx, y + pad * 0.7, w - pad * 2);
+  }
 
   ctx.fillStyle = style.text;
   ctx.font = `700 ${valueSize * style.valueScale}px ${style.valueFont}`;
-  ctx.textBaseline = 'alphabetic';
   const line = text.unit ? `${text.value} ${text.unit}` : text.value;
-  ctx.fillText(line, tx, y + h - pad * 0.8, w - pad * 2);
+  if (showLabel) {
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(line, tx, y + h - pad * 0.8, w - pad * 2);
+  } else {
+    ctx.textBaseline = 'middle';
+    ctx.fillText(line, tx, y + h * 0.52, w - pad * 2);
+  }
   ctx.restore();
 }
 
@@ -203,6 +229,23 @@ function windowStart(samples: { t: number }[], fromT: number): number {
 const fracOf = (raw: number, min: number, max: number): number =>
   max - min < 1e-9 ? 0 : Math.min(1, Math.max(0, (raw - min) / (max - min)));
 
+/** Validated gauge scale: a malformed range falls back instead of throwing. */
+const gaugeRange = (widget: WidgetDef): [number, number] => {
+  const r: unknown = widget.range;
+  if (Array.isArray(r) && r.length === 2) {
+    const [min, max] = r;
+    if (
+      typeof min === 'number' &&
+      Number.isFinite(min) &&
+      typeof max === 'number' &&
+      Number.isFinite(max)
+    ) {
+      return [min, max];
+    }
+  }
+  return GAUGE_DEFAULTS[widget.metric];
+};
+
 function drawGauge(
   ctx: Ctx,
   widget: WidgetDef,
@@ -218,7 +261,7 @@ function drawGauge(
   const text = widgetText(widget, sample, units);
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
 
-  const [min, max] = widget.range ?? GAUGE_DEFAULTS[widget.metric];
+  const [min, max] = gaugeRange(widget);
   const raw = widgetValue(widget.metric, sample);
   const frac = raw === undefined ? 0 : fracOf(raw, min, max);
 
@@ -249,10 +292,12 @@ function drawGauge(
   // Nudged below the arc center: optical middle sits lower than cy.
   ctx.fillText(line, cx, cy + h * 0.05, w * 0.9);
 
-  ctx.fillStyle = style.accent;
-  ctx.font = `600 ${Math.max(8, h * 0.09) * style.labelScale}px ${style.labelFont}`;
-  ctx.textBaseline = 'top';
-  ctx.fillText(text.label, cx, y + h * 0.06, w * 0.9);
+  if (widget.showLabel !== false) {
+    ctx.fillStyle = style.accent;
+    ctx.font = `600 ${Math.max(8, h * 0.09) * style.labelScale}px ${style.labelFont}`;
+    ctx.textBaseline = 'top';
+    ctx.fillText(text.label, cx, y + h * 0.06, w * 0.9);
+  }
   ctx.restore();
 }
 
@@ -309,13 +354,13 @@ function drawSpeedo(
   const style = resolveStyle(template, widget);
   const text = widgetText(widget, sample, units);
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
-  drawLabelTop(ctx, style, text.label, x, y, w, h);
+  if (widget.showLabel !== false) drawLabelTop(ctx, style, text.label, x, y, w, h);
   const raw = widgetValue(widget.metric, sample);
   if (raw === undefined) {
     drawMissing(ctx, style, x, y, w, h);
     return;
   }
-  const [min, max] = widget.range ?? GAUGE_DEFAULTS[widget.metric];
+  const [min, max] = gaugeRange(widget);
   const frac = fracOf(raw, min, max);
   const cx = x + w / 2;
   const cy = y + h * 0.74;
@@ -372,13 +417,13 @@ function drawRing(
   const style = resolveStyle(template, widget);
   const text = widgetText(widget, sample, units);
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
-  drawLabelTop(ctx, style, text.label, x, y, w, h);
+  if (widget.showLabel !== false) drawLabelTop(ctx, style, text.label, x, y, w, h);
   const raw = widgetValue(widget.metric, sample);
   if (raw === undefined) {
     drawMissing(ctx, style, x, y, w, h);
     return;
   }
-  const [min, max] = widget.range ?? GAUGE_DEFAULTS[widget.metric];
+  const [min, max] = gaugeRange(widget);
   const frac = fracOf(raw, min, max);
   const cx = x + w / 2;
   const cy = y + h * 0.56;
@@ -403,8 +448,13 @@ function drawRing(
   ctx.restore();
 }
 
-/** Horizontal HR zone bar with position marker. */
-/** Grade inclinometer: bubble on a centered track. */
+/** Display angle for a grade percent: true atan ×2, capped at ±45°. Exported for tests. */
+export const gradeAngle = (gradePct: number): number => {
+  const doubled = Math.atan(gradePct / 100) * 2;
+  return Math.max(-Math.PI / 4, Math.min(Math.PI / 4, doubled));
+};
+
+/** Grade inclinometer: the line itself tilts (uphill rises to the right). */
 function drawSlope(
   ctx: Ctx,
   widget: WidgetDef,
@@ -419,33 +469,30 @@ function drawSlope(
   const style = resolveStyle(template, widget);
   const text = widgetText(widget, sample, units);
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
-  drawLabelTop(ctx, style, text.label, x, y, w, h);
+  if (widget.showLabel !== false) drawLabelTop(ctx, style, text.label, x, y, w, h);
   const raw = widgetValue(widget.metric, sample);
   if (raw === undefined) {
     drawMissing(ctx, style, x, y, w, h);
     return;
   }
-  const [min, max] = widget.range ?? GAUGE_DEFAULTS[widget.metric];
-  const frac = fracOf(raw, min, max);
-  const pad = w * 0.08;
-  const ty = y + h * 0.66;
+  const angle = gradeAngle(raw);
+  const cx = x + w / 2;
+  const cy = y + h * 0.66;
+  // Short enough to stay inside the panel at any angle.
+  const half = Math.min(w / 2 - w * 0.08, h * 0.3);
+  const dx = Math.cos(angle) * half;
+  const dy = Math.sin(angle) * half;
   ctx.save();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-  ctx.lineWidth = Math.max(3, h * 0.03);
   ctx.lineCap = 'round';
+  ctx.strokeStyle = style.accent;
+  ctx.lineWidth = Math.max(3, h * 0.03);
   ctx.beginPath();
-  ctx.moveTo(x + pad, ty);
-  ctx.lineTo(x + w - pad, ty);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x + w / 2, ty - h * 0.05);
-  ctx.lineTo(x + w / 2, ty + h * 0.05);
+  ctx.moveTo(cx - dx, cy + dy);
+  ctx.lineTo(cx + dx, cy - dy);
   ctx.stroke();
   ctx.fillStyle = style.accent;
   ctx.beginPath();
-  ctx.arc(x + pad + frac * (w - pad * 2), ty, Math.max(5, h * 0.055), 0, 2 * Math.PI);
+  ctx.arc(cx, cy, Math.max(3, h * 0.028), 0, 2 * Math.PI);
   ctx.fill();
   ctx.fillStyle = style.text;
   ctx.font = `700 ${h * 0.3 * style.valueScale}px ${style.valueFont}`;
@@ -469,10 +516,18 @@ function drawGears(
   units: Units,
 ): void {
   const style = resolveStyle(template, widget);
-  const text = widgetText(widget, sample, units);
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
-  drawLabelTop(ctx, style, text.label, x, y, w, h);
-  if (typeof sample.frontGear !== 'number' || typeof sample.rearGear !== 'number') {
+  // Index mode falls back to teeth when the file carries no gear numbers.
+  const useNum =
+    widget.gearsMode === 'index' &&
+    typeof sample.frontGearNum === 'number' &&
+    typeof sample.rearGearNum === 'number';
+  const front = useNum ? sample.frontGearNum : sample.frontGear;
+  const rear = useNum ? sample.rearGearNum : sample.rearGear;
+  const side = widget.gearsSide ?? 'both';
+  const needFront = side !== 'rear';
+  const needRear = side !== 'front';
+  if ((needFront && typeof front !== 'number') || (needRear && typeof rear !== 'number')) {
     drawMissing(ctx, style, x, y, w, h);
     return;
   }
@@ -481,10 +536,18 @@ function drawGears(
   ctx.textBaseline = 'middle';
   ctx.fillStyle = style.text;
   ctx.font = `700 ${h * 0.34 * style.valueScale}px ${style.valueFont}`;
-  ctx.fillText(`${sample.frontGear}×${sample.rearGear}`, x + w / 2, y + h * 0.52, w * 0.92);
-  ctx.fillStyle = style.accent;
-  ctx.font = `600 ${Math.max(8, h * 0.1) * style.labelScale}px ${style.labelFont}`;
-  ctx.fillText(t('ovl.gearsSub'), x + w / 2, y + h * 0.78, w * 0.9);
+  const combo = side === 'front' ? `${front}` : side === 'rear' ? `${rear}` : `${front}×${rear}`;
+  // Both mode shows no unit; single sides suffix T (teeth) or G (index).
+  const suffix = widget.gearsMode === 'index' ? 'G' : 'T';
+  const line = side === 'both' || widget.showUnit === false ? combo : `${combo} ${suffix}`;
+  ctx.fillText(line, x + w / 2, y + h * 0.44, w * 0.92);
+  // Subtitle stays English by product decision (overlay content language).
+  if (widget.showLabel !== false) {
+    ctx.fillStyle = style.accent;
+    ctx.font = `600 ${Math.max(8, h * 0.1) * style.labelScale}px ${style.labelFont}`;
+    const sub = side === 'front' ? 'FRONT' : side === 'rear' ? 'REAR' : 'FRONT · REAR';
+    ctx.fillText(sub, x + w / 2, y + h * 0.7, w * 0.9);
+  }
   ctx.restore();
 }
 
@@ -515,11 +578,13 @@ function drawSpark(
     }
   }
   ctx.save();
-  ctx.fillStyle = style.accent;
-  ctx.font = `600 ${Math.max(8, h * 0.11) * style.labelScale}px ${style.labelFont}`;
-  ctx.textBaseline = 'top';
-  ctx.textAlign = 'left';
-  ctx.fillText(text.label, x + w * 0.05, y + h * 0.06, w * 0.4);
+  if (widget.showLabel !== false) {
+    ctx.fillStyle = style.accent;
+    ctx.font = `600 ${Math.max(8, h * 0.11) * style.labelScale}px ${style.labelFont}`;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillText(text.label, x + w * 0.05, y + h * 0.06, w * 0.4);
+  }
   ctx.fillStyle = style.text;
   ctx.font = `700 ${h * 0.16 * style.valueScale}px ${style.valueFont}`;
   ctx.textAlign = 'right';
@@ -639,11 +704,13 @@ function drawProfile(
     }
   }
   ctx.save();
-  ctx.fillStyle = style.accent;
-  ctx.font = `600 ${Math.max(8, h * 0.11) * style.labelScale}px ${style.labelFont}`;
-  ctx.textBaseline = 'top';
-  ctx.textAlign = 'left';
-  ctx.fillText(text.label, x + w * 0.05, y + h * 0.06, w * 0.4);
+  if (widget.showLabel !== false) {
+    ctx.fillStyle = style.accent;
+    ctx.font = `600 ${Math.max(8, h * 0.11) * style.labelScale}px ${style.labelFont}`;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillText(text.label, x + w * 0.05, y + h * 0.06, w * 0.4);
+  }
   ctx.fillStyle = style.text;
   ctx.font = `700 ${h * 0.16 * style.valueScale}px ${style.valueFont}`;
   ctx.textAlign = 'right';
@@ -719,8 +786,8 @@ function drawVam(
 ): void {
   const style = resolveStyle(template, widget);
   paintPanel(ctx, x, y, w, h, style.shape, style.background, style.backgroundOpacity);
-  const label = widget.label ?? labelFor(widget.metric);
-  drawLabelTop(ctx, style, label, x, y, w, h);
+  const label = LABEL[widget.metric];
+  if (widget.showLabel !== false) drawLabelTop(ctx, style, label, x, y, w, h);
   const e1 = hist ? sampleAt(hist.activity, hist.t).elevation : sample.elevation;
   const e0 = hist ? sampleAt(hist.activity, hist.t - 60).elevation : undefined;
   if (typeof e1 !== 'number' || typeof e0 !== 'number') {
@@ -776,7 +843,7 @@ function drawMap(
     }
   }
   if (pts.length < 2 || !hist) {
-    drawLabelTop(ctx, style, widget.label ?? t('ovl.map'), x, y, w, h);
+    drawLabelTop(ctx, style, 'MAP', x, y, w, h);
     drawMissing(ctx, style, x, y + h * 0.15, w, h * 0.85);
     return;
   }
@@ -873,7 +940,7 @@ function drawNavMap(
     }
   }
   const missing = (): void => {
-    drawLabelTop(ctx, style, widget.label ?? t('ovl.nav'), x, y, w, h);
+    drawLabelTop(ctx, style, 'NAV', x, y, w, h);
     drawMissing(ctx, style, x, y + h * 0.15, w, h * 0.85);
   };
   if (pts.length < 2 || !hist) {
@@ -1019,7 +1086,7 @@ function drawCompass(
     }
   }
   if (course === undefined) {
-    drawLabelTop(ctx, style, widget.label ?? t('ovl.compass'), x, y, w, h);
+    drawLabelTop(ctx, style, 'HDG', x, y, w, h);
     drawMissing(ctx, style, x, y + h * 0.15, w, h * 0.85);
     return;
   }
@@ -1038,7 +1105,7 @@ function drawCompass(
     ['N', 0],
     ['E', 90],
     ['S', 180],
-    [t('ovl.west'), 270],
+    ['W', 270],
   ];
   for (const [glyph, deg] of cards) {
     const a = ((deg - course) * Math.PI) / 180 - Math.PI / 2;
@@ -1069,14 +1136,13 @@ export function drawOverlay(
   units: Units,
   hist?: OverlayHistory,
 ): void {
-  const aspect = classifyAspect(frameW, frameH);
   for (const widget of template.widgets) {
     if (!widget.visible) continue;
-    const box = widget.layout[aspect];
-    const x = box.x * frameW;
-    const y = box.y * frameH;
-    const w = box.w * frameW;
-    const h = box.h * frameH;
+    const box = resolveLayout(widget.layout, frameW, frameH);
+    const x = box.x;
+    const y = box.y;
+    const w = box.w;
+    const h = box.h;
     if (w < 24 || h < 16) continue;
     switch (widget.kind) {
       case 'gauge':

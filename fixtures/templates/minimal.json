@@ -1,10 +1,9 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "minimal",
   "name": "Minimal",
   "description": "Dos datos pequeños arriba, sin estorbar la imagen.",
   "theme": {
-    "fontFamily": "system-ui, sans-serif",
     "text": "#ffffff",
     "accent": "#7dd3fc",
     "panel": "#0b0e11",
@@ -17,24 +16,12 @@
       "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": {
-          "x": 0.03,
-          "y": 0.05,
-          "w": 0.16,
-          "h": 0.12
-        },
-        "square": {
-          "x": 0.04,
-          "y": 0.04,
-          "w": 0.24,
-          "h": 0.11
-        },
-        "vertical": {
-          "x": 0.06,
-          "y": 0.04,
-          "w": 0.4,
-          "h": 0.07
-        }
+        "ax": "left",
+        "ay": "top",
+        "px": 6,
+        "py": 7.111,
+        "w": 40,
+        "h": 12.444
       }
     },
     {
@@ -43,24 +30,12 @@
       "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": {
-          "x": 0.81,
-          "y": 0.05,
-          "w": 0.16,
-          "h": 0.12
-        },
-        "square": {
-          "x": 0.72,
-          "y": 0.04,
-          "w": 0.24,
-          "h": 0.11
-        },
-        "vertical": {
-          "x": 0.54,
-          "y": 0.04,
-          "w": 0.4,
-          "h": 0.07
-        }
+        "ax": "right",
+        "ay": "top",
+        "px": 6,
+        "py": 7.111,
+        "w": 40,
+        "h": 12.444
       }
     }
   ]

@@ -1,10 +1,9 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "speedo",
   "name": "Velocímetro",
   "description": "Semicírculo clásico con aguja y lectura digital.",
   "theme": {
-    "fontFamily": "system-ui, sans-serif",
     "text": "#ffffff",
     "accent": "#ff9f0a",
     "panel": "#0b0e11",
@@ -16,11 +15,17 @@
       "metric": "speed",
       "kind": "speedo",
       "visible": true,
-      "range": [0, 20],
+      "range": [
+        0,
+        20
+      ],
       "layout": {
-        "horizontal": { "x": 0.03, "y": 0.68, "w": 0.6, "h": 0.27 },
-        "square": { "x": 0.06, "y": 0.6, "w": 0.88, "h": 0.2 },
-        "vertical": { "x": 0.08, "y": 0.55, "w": 0.84, "h": 0.2 }
+        "ax": "center",
+        "ay": "bottom",
+        "px": 0,
+        "py": 44.444,
+        "w": 84,
+        "h": 35.556
       }
     },
     {
@@ -29,9 +34,12 @@
       "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.78, "y": 0.86, "w": 0.19, "h": 0.11 },
-        "square": { "x": 0.68, "y": 0.88, "w": 0.28, "h": 0.09 },
-        "vertical": { "x": 0.62, "y": 0.9, "w": 0.34, "h": 0.08 }
+        "ax": "right",
+        "ay": "bottom",
+        "px": 4,
+        "py": 3.556,
+        "w": 34,
+        "h": 14.222
       }
     }
   ]

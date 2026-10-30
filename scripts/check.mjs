@@ -16,7 +16,7 @@ import {
   footerNav,
   legalPath,
 } from '../web/seo/content.ts';
-import { classifyAspect, parseTemplateJson } from '../shared/src/template.ts';
+import { classifyAspect, inferLayout, parseTemplateJson, resolveLayout } from '../shared/src/template.ts';
 import { formatElapsed, formatMetric } from '../web/src/format.ts';
 import {
   getCreationDate,
@@ -26,6 +26,7 @@ import {
 import {
   METRIC_IDS,
   WIDGET_KINDS,
+  capsFor,
   defaultMetricFor,
   makeWidgetDef,
   kindLabel,
@@ -36,6 +37,7 @@ import {
   navWindow,
   nextWidgetId,
 } from '../web/src/widgets.ts';
+import { gradeAngle } from '../web/src/overlay.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const fitBytes = readFileSync(join(root, 'fixtures/activity/sample.fit'));
@@ -48,6 +50,29 @@ assert.equal(act.durationSec, 119);
 assert.equal(act.samples[0].t, 0);
 assert.ok(typeof act.samples[0].lat === 'number');
 assert.throws(() => parseFit(new ArrayBuffer(32)), /FIT/);
+
+// Shift events merge into samples as forward-filled teeth (Edge + AXS/Di2).
+assert.equal(act.samples[5].rearGear, undefined);
+assert.equal(act.samples[15].frontGear, 34);
+assert.equal(act.samples[15].rearGear, 28);
+assert.equal(act.samples[65].frontGear, 34);
+assert.equal(act.samples[65].rearGear, 24);
+assert.equal(act.samples[5].rearGearNum, undefined);
+assert.equal(act.samples[15].frontGearNum, 1);
+assert.equal(act.samples[15].rearGearNum, 5);
+assert.equal(act.samples[65].rearGearNum, 6);
+assert.equal(sampleAt(act, 119).rearGear, 24);
+
+// Newer Edge firmware: enhanced-only altitude/speed, no native grade.
+const enhBytes = readFileSync(join(root, 'fixtures/activity/sample-enhanced.fit'));
+const enhBuf = enhBytes.buffer.slice(enhBytes.byteOffset, enhBytes.byteOffset + enhBytes.byteLength);
+const enh = parseFit(enhBuf);
+assert.equal(enh.samples.length, 120);
+assert.equal(enh.samples[0].elevation, 500);
+assert.ok(typeof enh.samples[0].speed === 'number');
+assert.ok(typeof enh.samples[60].grade === 'number', 'grade derived from elevation+distance');
+assert.ok(typeof sampleAt(enh, 60).elevation === 'number', 'vam window head');
+assert.ok(typeof sampleAt(enh, 0).elevation === 'number', 'vam window tail');
 
 // Derived grade fills only when native grade is fully absent.
 const gs = [
@@ -191,15 +216,11 @@ const KINDS = new Set([
   'navmap',
   'compass',
 ]);
-const OVERLAP_OK = new Set([
-  // grade va superpuesto al perfil en la plantilla Broadcast (diseño intencional).
-  'broadcast.json|grade|profile',
-]);
 const SHAPES = new Set(['rect', 'pill', 'none']);
 const ALIGNS = new Set(['left', 'center', 'right']);
 for (const file of files) {
   const t = JSON.parse(readFileSync(join(root, 'fixtures/templates', file), 'utf8'));
-  assert.equal(t.schemaVersion, 2, file);
+  assert.equal(t.schemaVersion, 3, file);
   for (const w of t.widgets) {
     assert.ok(KINDS.has(w.kind), `${file} ${w.id} kind`);
     if (w.style?.shape) assert.ok(SHAPES.has(w.style.shape), `${file} ${w.id} shape`);
@@ -217,20 +238,22 @@ for (const file of files) {
   for (const [aspect, [W, H]] of Object.entries(dims)) {
     const boxes = t.widgets.map((w) => {
       assert.ok(METRICS.has(w.metric), `${file} ${w.id}`);
-      return { id: w.id, ...w.layout[aspect] };
+      const b = resolveLayout(w.layout, W, H);
+      assert.ok(
+        b.x >= -0.001 && b.y >= -0.001 && b.x + b.w <= W + 0.001 && b.y + b.h <= H + 0.001,
+        `${file} ${w.id}@${aspect} frame`,
+      );
+      assert.ok(b.w >= 24 && b.h >= 16, `${file} ${w.id}@${aspect} size`);
+      const th = resolveLayout(w.layout, 512, 288);
+      assert.ok(th.w >= 24 && th.h >= 16, `${file} ${w.id}@${aspect} thumb`);
+      return { id: w.id, ...b };
     });
-    for (const b of boxes) {
-      assert.ok(b.x + b.w <= 1.001 && b.y + b.h <= 1.001, `${file}@${aspect} frame`);
-      assert.ok(b.w * W >= 24 && b.h * H >= 16, `${file}@${aspect} size`);
-      assert.ok(b.w * 512 >= 24 && b.h * 288 >= 16, `${file}@${aspect} thumb`);
-    }
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i];
         const b = boxes[j];
         const hit = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-        const pair = [file, ...[a.id, b.id].sort()].join('|');
-        assert.ok(!hit || OVERLAP_OK.has(pair), `${file}@${aspect} overlap`);
+        assert.ok(!hit, `${file}@${aspect} overlap ${a.id} x ${b.id}`);
       }
     }
   }
@@ -294,10 +317,9 @@ for (const kind of kindValues) {
   assert.equal(def.visible, true);
   assert.equal(def.kind, kind);
   for (const [aspect, [W, H]] of Object.entries(dims)) {
-    const b = def.layout[aspect];
-    assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= 1.001 && b.y + b.h <= 1.001, `${kind}@${aspect} frame`);
-    assert.ok(b.w * W >= 24 && b.h * H >= 16, `${kind}@${aspect} size`);
-    assert.ok(b.w * 512 >= 24 && b.h * 288 >= 16, `${kind}@${aspect} thumb`);
+    const b = resolveLayout(def.layout, W, H);
+    assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= W + 0.001 && b.y + b.h <= H + 0.001, `${kind}@${aspect} frame`);
+    assert.ok(b.w >= 24 && b.h >= 16, `${kind}@${aspect} size`);
   }
 }
 // Ids stay unique and cascaded copies stay inside the frame.
@@ -305,9 +327,9 @@ assert.equal(nextWidgetId(new Set(['gauge', 'gauge-2']), 'gauge'), 'gauge-3');
 assert.equal(nextWidgetId(new Set(['gauge']), 'stat'), 'stat');
 for (let slot = 0; slot < 8; slot++) {
   const def = makeWidgetDef('map', 'none', `m${slot}`, slot);
-  for (const aspect of Object.keys(dims)) {
-    const b = def.layout[aspect];
-    assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= 1.001 && b.y + b.h <= 1.001, `cascade@${aspect}#${slot}`);
+  for (const [aspect, [W, H]] of Object.entries(dims)) {
+    const b = resolveLayout(def.layout, W, H);
+    assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= W + 0.001 && b.y + b.h <= H + 0.001, `cascade@${aspect}#${slot}`);
   }
 }
 
@@ -401,11 +423,19 @@ assert.equal(resolveVideoInstant(WALL, 5.5), WALL - 5.5 * 3600e3);
 assert.equal(resolveVideoInstant(WALL, 0), WALL);
 
 // Unit toggle visibility per kind (mirrors the painters reading text.unit).
-for (const k of ['stat', 'number', 'gauge', 'speedo', 'ring', 'slope', 'spark', 'profile', 'profilenext', 'vam']) {
+for (const k of ['stat', 'number', 'gauge', 'speedo', 'ring', 'slope', 'gears', 'spark', 'profile', 'profilenext', 'vam']) {
   assert.equal(kindShowsUnit(k), true, `unit ${k}`);
 }
-for (const k of ['gears', 'map', 'navmap', 'compass']) {
+for (const k of ['map', 'navmap', 'compass']) {
   assert.equal(kindShowsUnit(k), false, `unit ${k}`);
+}
+// Capability table per kind (drives inspector visibility).
+const LABEL_TOGGLE = ['stat', 'gauge', 'speedo', 'slope', 'spark', 'profile', 'profilenext', 'vam', 'ring', 'gears'];
+for (const k of WIDGET_KINDS) {
+  assert.equal(capsFor(k).labelToggle, LABEL_TOGGLE.includes(k), `caps labelToggle ${k}`);
+  assert.equal(capsFor(k).trailWidth, k === 'map' || k === 'navmap', `caps trailWidth ${k}`);
+  assert.equal(capsFor(k).text, k !== 'map' && k !== 'navmap', `caps text ${k}`);
+  assert.equal(capsFor(k).gearsMode, k === 'gears', `caps gearsMode ${k}`);
 }
 
 // profilenext window: dot ~0.5 km ahead of the rendered start, 5 min ahead at right.
@@ -520,7 +550,7 @@ assert.throws(() => parseFit(new Uint8Array(8).buffer), /no es un FIT/);
 // Template export/import roundtrip: every fixture parses, and bad shapes throw.
 for (const f of files) {
   const tpl = parseTemplateJson(readFileSync(join(root, 'fixtures/templates', f), 'utf8'));
-  assert.equal(tpl.schemaVersion, 2);
+  assert.equal(tpl.schemaVersion, 3);
   assert.ok(tpl.name.length > 0);
   assert.ok(Array.isArray(tpl.widgets));
   assert.equal(parseTemplateJson(JSON.stringify(tpl)).widgets.length, tpl.widgets.length);
@@ -547,16 +577,117 @@ assert.equal(formatElapsed(5025, 'h'), '1h');
 assert.equal(formatElapsed(5025, 'hm'), '1h 23m');
 assert.equal(formatMetric('elapsedTime', 5025, 'metric', 'h').value, '1h');
 assert.equal(formatMetric('elapsedTime', 90, 'metric').value, '01:30');
-const box = { x: 0, y: 0, w: 1, h: 1 };
 const withFmt = parseTemplateJson(
   JSON.stringify({
     name: 't',
     widgets: [
-      { id: 'a', kind: 'stat', metric: 'elapsedTime', timeFormat: 'hm', layout: { vertical: box, square: box, horizontal: box } },
+      { id: 'a', kind: 'stat', metric: 'elapsedTime', timeFormat: 'hm', layout: { ax: 'left', ay: 'top', px: 0, py: 0, w: 50, h: 20 } },
     ],
   }),
 );
 assert.equal(withFmt.widgets[0].timeFormat, 'hm');
+
+// v3 layouts: unknown kinds/metrics rejected, legacy v2 exports recognized.
+const badKind = JSON.stringify({
+  name: 't',
+  widgets: [{ id: 'a', kind: 'nope', metric: 'speed', layout: { ax: 'left', ay: 'top', px: 0, py: 0, w: 10, h: 10 } }],
+});
+assert.throws(() => parseTemplateJson(badKind), /not a template/);
+const badMetric = JSON.stringify({
+  name: 't',
+  widgets: [{ id: 'a', kind: 'stat', metric: 'nope', layout: { ax: 'left', ay: 'top', px: 0, py: 0, w: 10, h: 10 } }],
+});
+assert.throws(() => parseTemplateJson(badMetric), /not a template/);
+const legacy = JSON.stringify({
+  name: 't',
+  widgets: [{ id: 'a', kind: 'stat', metric: 'speed', layout: { vertical: { x: 0, y: 0, w: 1, h: 1 } } }],
+});
+assert.throws(() => parseTemplateJson(legacy), /legacy template/);
+
+// Custom labels are stripped: overlay text is hardcoded English.
+const stripped = parseTemplateJson(
+  JSON.stringify({
+    name: 't',
+    widgets: [
+      { id: 'a', kind: 'stat', metric: 'speed', label: 'XXX', layout: { ax: 'left', ay: 'top', px: 0, py: 0, w: 50, h: 20 } },
+    ],
+  }),
+);
+assert.equal('label' in stripped.widgets[0], false);
+
+// Fail-open optionals: invalid values drop to defaults instead of rejecting.
+const dirtyLayout = { ax: 'left', ay: 'top', px: 0, py: 0, w: 50, h: 20 };
+const dirty = parseTemplateJson(
+  JSON.stringify({
+    name: 't',
+    theme: { panelOpacity: 'opaque', fontFamily: 'Comic Sans' },
+    widgets: [
+      {
+        id: 'a', kind: 'gauge', metric: 'speed', visible: 'yes', showUnit: 1, showLabel: 0,
+        range: 'bogus', strokeWidth: 'big', timeFormat: 'bogus', gearsMode: 'bogus',
+        gearsSide: 'bogus', style: 'bogus', title: 'zzz', layout: dirtyLayout,
+      },
+      { id: 'a', kind: 'stat', metric: 'speed', layout: dirtyLayout },
+      { id: '', kind: 'stat', metric: 'speed', layout: dirtyLayout },
+      { kind: 'stat', metric: 'speed', layout: dirtyLayout },
+      {
+        id: 'ok', kind: 'stat', metric: 'elapsedTime', visible: false, showUnit: false,
+        showLabel: false, range: [0, 100], strokeWidth: 3, timeFormat: 'hm',
+        gearsMode: 'index', gearsSide: 'rear',
+        style: { shape: 'pill', background: '#fff', backgroundOpacity: 0.5, align: 'bogus' },
+        layout: dirtyLayout,
+      },
+    ],
+  }),
+);
+const [d0, , , , d4] = dirty.widgets;
+assert.equal(d0.visible, true);
+for (const key of ['showUnit', 'showLabel', 'range', 'strokeWidth', 'timeFormat', 'gearsMode', 'gearsSide', 'style', 'title']) {
+  assert.equal(key in d0, false, `${key} dropped`);
+}
+assert.deepEqual(
+  dirty.widgets.map((w) => w.id),
+  ['a', 'a-2', 'widget-2', 'widget-3', 'ok'],
+);
+assert.equal(d4.visible, false);
+assert.equal(d4.showUnit, false);
+assert.equal(d4.showLabel, false);
+assert.deepEqual(d4.range, [0, 100]);
+assert.equal(d4.strokeWidth, 3);
+assert.equal(d4.timeFormat, 'hm');
+assert.equal(d4.gearsMode, 'index');
+assert.equal(d4.gearsSide, 'rear');
+assert.deepEqual(d4.style, { shape: 'pill', background: '#fff', backgroundOpacity: 0.5 });
+assert.equal(dirty.theme.panelOpacity, 0.45);
+assert.equal('fontFamily' in dirty.theme, false, 'theme font removed: widgets fall back to Inter');
+
+// Unknown time formats fall back to auto instead of printing undefined.
+assert.equal(formatElapsed(90, 'bogus'), '01:30');
+
+// Inclinometer: true atan ×2, capped at ±45°.
+assert.equal(gradeAngle(0), 0);
+assert.ok(Math.abs(gradeAngle(20) - Math.atan(0.2) * 2) < 1e-12);
+assert.equal(gradeAngle(100), Math.PI / 4);
+assert.equal(gradeAngle(-200), -Math.PI / 4);
+assert.ok(gradeAngle(-50) < 0 && gradeAngle(50) > 0);
+
+// resolve: same vmin numbers render identical pixels on both orientations.
+const sq = { ax: 'left', ay: 'top', px: 0, py: 0, w: 25, h: 25 };
+assert.deepEqual(resolveLayout(sq, 1000, 800), { x: 0, y: 0, w: 200, h: 200 });
+assert.deepEqual(resolveLayout(sq, 800, 1000), { x: 0, y: 0, w: 200, h: 200 });
+assert.deepEqual(
+  resolveLayout({ ax: 'right', ay: 'bottom', px: 5, py: 5, w: 25, h: 25 }, 1000, 800),
+  { x: 760, y: 560, w: 200, h: 200 },
+);
+// stretch spans the frame minus margins; infer round-trips resolve.
+const bar = { ax: 'center', ay: 'bottom', px: 5, py: 5, w: 'stretch', h: 25 };
+assert.deepEqual(resolveLayout(bar, 1000, 800), { x: 40, y: 560, w: 920, h: 200 });
+assert.deepEqual(inferLayout({ x: 0, y: 0, w: 200, h: 200 }, 1000, 800), {
+  ax: 'left', ay: 'top', px: 0, py: 0, w: 25, h: 25,
+});
+assert.deepEqual(resolveLayout(inferLayout({ x: 40, y: 560, w: 920, h: 200 }, 1000, 800), 1000, 800), {
+  x: 40, y: 560, w: 920, h: 200,
+});
 
 // SEO: generated dist must carry crawler head + machine files matching the manifest.
 const distDir = join(root, 'web', 'dist');

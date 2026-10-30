@@ -1,10 +1,9 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "pulse",
   "name": "Pulso",
   "description": "Gauge de FC, velocidad sin fondo y potencia.",
   "theme": {
-    "fontFamily": "system-ui, sans-serif",
     "text": "#ffffff",
     "accent": "#ff9f1c",
     "panel": "#140f0b",
@@ -17,9 +16,12 @@
       "kind": "gauge",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.03, "y": 0.4, "w": 0.32, "h": 0.55 },
-        "square": { "x": 0.06, "y": 0.36, "w": 0.56, "h": 0.4 },
-        "vertical": { "x": 0.08, "y": 0.32, "w": 0.84, "h": 0.3 }
+        "ax": "center",
+        "ay": "bottom",
+        "px": 0,
+        "py": 52,
+        "w": 67,
+        "h": 42.6
       }
     },
     {
@@ -28,11 +30,16 @@
       "kind": "number",
       "visible": true,
       "showUnit": false,
-      "style": { "shape": "none" },
+      "style": {
+        "shape": "none"
+      },
       "layout": {
-        "horizontal": { "x": 0.38, "y": 0.5, "w": 0.3, "h": 0.45 },
-        "square": { "x": 0.06, "y": 0.78, "w": 0.42, "h": 0.18 },
-        "vertical": { "x": 0.08, "y": 0.64, "w": 0.84, "h": 0.14 }
+        "ax": "center",
+        "ay": "bottom",
+        "px": 8,
+        "py": 29,
+        "w": "stretch",
+        "h": 20
       }
     },
     {
@@ -41,9 +48,12 @@
       "kind": "stat",
       "visible": true,
       "layout": {
-        "horizontal": { "x": 0.71, "y": 0.62, "w": 0.25, "h": 0.32 },
-        "square": { "x": 0.52, "y": 0.78, "w": 0.42, "h": 0.18 },
-        "vertical": { "x": 0.08, "y": 0.8, "w": 0.84, "h": 0.14 }
+        "ax": "center",
+        "ay": "bottom",
+        "px": 8,
+        "py": 6,
+        "w": "stretch",
+        "h": 20
       }
     }
   ]

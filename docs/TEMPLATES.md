@@ -1,4 +1,4 @@
-# Template schema v2
+# Template schema v3
 
 Templates are JSON data validated against this spec (see `shared/src/template.ts`
 for the types). The renderer (`web/src/overlay.ts`) implements exactly what follows —
@@ -8,12 +8,11 @@ nothing more.
 
 ```jsonc
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "apex",            // unique, lowercase
   "name": "Apex",          // display name
   "description": "…",      // optional
   "theme": {
-    "fontFamily": "system-ui, sans-serif",
     "text": "#ffffff",     // value + label text
     "accent": "#00e5ff",   // labels, gauge arc, unit
     "panel": "#0b0e11",    // widget background
@@ -31,11 +30,12 @@ nothing more.
   "metric": "speed",       // speed|heartRate|power|cadence|elevation|distance|elapsedTime|grade|vam|gears|none
   "kind": "gauge",         // stat|number|gauge|speedo|ring|slope|gears|spark|profile|vam|map|navmap|compass (required)
   "visible": true,
-  "label": "VEL",          // optional custom label (stat + gauge; number ignores it)
   "showUnit": true,        // optional, default true
+  "showLabel": true,       // optional, default true
+  "gearsMode": "teeth",      // optional (gears only): teeth|index
+  "gearsSide": "both",        // optional (gears only): both|front|rear
   "range": [0, 12],        // optional gauge scale in raw SI units (default per metric)
   "timeFormat": "hmmss",   // optional elapsed-time display: auto|hmm|hmmss|h|hm (default auto)
-  "showUnit": false,      // optional, hides the metric unit (default shown)
   "strokeWidth": 6,        // optional trail width in px (map; auto when absent)
   "style": {               // optional per-widget overrides
     "shape": "pill",       // rect|pill|none (default rect)
@@ -44,15 +44,18 @@ nothing more.
     "backgroundOpacity": 0.5,
     "accent": "#ffffff",
     "text": "#ffffff",
-    "labelFont": "Poppins, sans-serif",  // optional, theme font when absent
-    "labelScale": 1,                     // optional label size multiplier
-    "valueFont": "Poppins, sans-serif",  // optional, theme font when absent
+    "labelFont": "Oswald, sans-serif",   // optional, Inter when absent
+    "labelScale": 1,                      // optional label size multiplier
+    "valueFont": "Oswald, sans-serif",   // optional, Inter when absent
     "valueScale": 1.2                    // optional value (number) size multiplier
   },
-  "layout": {              // required: one box per aspect, normalized 0..1
-    "horizontal": { "x": 0.03, "y": 0.4, "w": 0.32, "h": 0.55 },
-    "square": { … },
-    "vertical": { … }
+  "layout": {              // required: aspect-independent anchor layout
+    "ax": "right",         // left|center|right (nearest horizontal edge)
+    "ay": "bottom",        // top|center|bottom (nearest vertical edge)
+    "px": 4,               // padding from the anchor edge, % of min(W,H)
+    "py": 3.5,             // (signed offset when centered)
+    "w": 34,               // width, % of min(W,H), or "stretch"
+    "h": 14.2              // height, % of min(W,H), or "stretch"
   }
 }
 ```
@@ -60,21 +63,30 @@ nothing more.
 ### Kinds
 
 - `stat`: label (accent, top-left) + value + unit (bottom-left). The default workhorse.
+  `showLabel: false` hides the label and centers a larger value.
   Honors `align` (default left).
 - `number`: big centered value, unit small beneath. No label. Set `shape: 'none'`
   and `showUnit: false` for a pure floating number. Honors `align` (default center).
 - `gauge`: 270° arc with background track + accent value arc, value centered,
-  label on top. Scale from `range`, else the built-in default.
-- `speedo`: 180° speedometer with ticks, needle and digital readout.
-- `ring`: full progress ring for any metric + `range`, value centered.
-- `slope`: grade inclinometer, bubble on a centered track.
-- `gears`: front × rear teeth from shift events (`gears` metric). `—` without Di2/AXS.
-- `spark`: last-30 s area sparkline of any metric + current value. Needs history.
-- `profile`: full-ride elevation profile, ridden part shaded + you-are-here dot.
-  Needs history.
+  label on top (`showLabel: false` hides it). Scale from `range`, else the built-in default.
+- `speedo`: 180° speedometer with ticks, needle and digital readout, label on top
+  (`showLabel: false` hides it).
+- `ring`: full progress ring for any metric + `range`, value centered, label on top
+  (`showLabel: false` hides it).
+- `slope`: grade inclinometer, the line tilts at 2× the true angle (capped ±45°), label on top
+  (`showLabel: false` hides it).
+- `gears`: front × rear teeth from shift events (`gears` metric). English subtitle
+  per side (`showLabel: false` hides it). `gearsMode: 'index'` shows cog indexes
+  (`1×6`); `gearsSide` picks both/front/rear. Single sides suffix `T` (teeth)
+  or `G` (index); both mode shows no unit. `—` without Di2/AXS.
+- `spark`: last-30 s area sparkline of any metric + current value, label on top-left
+  (`showLabel: false` hides it). Needs history.
+- `profile`: full-ride elevation profile, ridden part shaded + you-are-here dot,
+  label on top-left (`showLabel: false` hides it). Needs history.
 - `profilenext`: 5-min lookahead elevation window, dot ~0.5 km ahead of the
-  rendered start. Needs history.
-- `vam`: 60 s climb rate (`vam` metric) with trend arrow. Needs history.
+  rendered start, label on top-left (`showLabel: false` hides it). Needs history.
+- `vam`: 60 s climb rate (`vam` metric) with trend arrow, label on top
+  (`showLabel: false` hides it). Needs history.
 - `map`: GPS track, faint full route + accent ridden trail + current dot.
   Metric `none`. Needs history with lat/lon. Trail width from `strokeWidth`,
   else auto-sized from the box.
@@ -98,12 +110,60 @@ allowed, but a distance gauge rarely makes sense.
 
 ## Layout rules
 
-- One box per aspect (`vertical` | `square` | `horizontal`); all three required.
-- Boxes must fit inside the frame (`x + w ≤ 1`, `y + h ≤ 1`).
-- Boxes of visible widgets must not overlap.
+One layout per widget, resolved to pixels for the concrete frame by
+`resolveLayout` (`shared/src/template.ts`). Every number is a % of the frame's
+smaller side ("vmin %"), so identical values render at identical pixel sizes on
+any aspect: a 30×30 box is square to the eye everywhere, and a widget pinned to
+an edge stays pinned in vertical and horizontal alike.
+
+- `ax`/`ay` pin the widget to the nearest edge (or `center`); `px`/`py` are the
+  padding from that edge in vmin % (a signed offset when centered).
+- `w`/`h` are sizes in vmin % — the `w:h` ratio is preserved on every aspect.
+  `"stretch"` spans the frame on that axis minus the padding on both sides
+  (full-bleed bars); use it for panel rows, not for geometric kinds.
+- Resolved boxes must fit inside the frame at 1280×720, 720×720 and 720×1280.
+- Resolved boxes of visible widgets must not overlap at any of those frames.
 - Keep every box ≥ 24×16 px at 720p and at 512×288 (thumbnail size), or the
   renderer skips it.
-- Gauges need squarish boxes; numbers need wide boxes.
+- Gauges need squarish boxes (`w` ≈ `h`); numbers need wide boxes.
+- Same size + narrower frame can still collide: dense stacks that fit vertical
+  may not fit horizontal. Spread widgets across edges/corners instead of
+  stacking full-width rows.
+
+## AI authoring
+
+Internal widget layout is fixed and proportional: label, graphics and value sit
+at fixed fractions of the widget box (e.g. speedo label at 6%, dial center at
+74%, readout at 98%). There are no JSON fields for internal offsets, and any
+invented ones are stripped on import.
+
+Map every spatial request to the widget-level `layout` (move/resize the box):
+
+- "SPD higher up" → move the speedo widget up (`ay`/`py`), not the label.
+- "text further from the gauge" → a taller box (`h`); a short box crowds
+  label, graphics and value by design, and resizing is the intended fix.
+- Never add fields like `labelOffset`/`paddingTop`: unknown keys are stripped.
+
+## Fonts
+
+Widget fonts (`style.labelFont`/`style.valueFont`) come from a fixed list —
+copy the stacks verbatim (`"Baloo 2"` needs its quotes). Absent → Inter.
+Weight is fixed (labels 600, values 700): "bolder"/"lighter" requests map to
+a different family, never to a weight.
+
+- `Inter, sans-serif` (default): neutral grotesque, the safe choice.
+- `Barlow Condensed, sans-serif`: narrow, technical condensed.
+- `Oswald, sans-serif`: tall condensed, sporty headers.
+- `Rajdhani, sans-serif`: squared, techy, semi-condensed.
+- `Orbitron, sans-serif`: futuristic, squared sci-fi digits.
+- `"Baloo 2", sans-serif`: rounded, chubby, friendly.
+- `Bungee Outline, sans-serif`: hollow outline display, maximum contrast.
+- `Bungee, sans-serif`: solid chunky display; pairs with the Outline.
+- `ui-monospace, monospace`: system mono, tabular digits.
+
+Request mapping: bolder → Bungee; curvier/friendlier → Baloo 2; hollow →
+Bungee Outline; futuristic → Orbitron; condensed → Oswald/Barlow Condensed;
+neutral → Inter.
 
 ## Values and units
 
@@ -127,9 +187,12 @@ from the export; "Restablecer widgets" brings session edits back. Built-ins show
 a session edit (move, hide, add, restyle…); custom templates always show it.
 The importer
 (`parseTemplateJson` in `shared/src/template.ts`) requires the shape above —
-name string, widgets array, one box per aspect per widget — fills a neutral
-theme when fields are missing, defaults `visible` to true, and rejects
-unknown widget kinds/metrics. Covered by `npm run check` (section `tpljson`).
+name string, widgets array, one anchor layout per widget — fills a neutral
+theme when fields are missing, and rejects unknown widget kinds/metrics.
+Widget optionals are fail-open: invalid values drop to defaults, unknown keys
+are stripped, and ids default/dedupe. Pre-v3 exports (one box per aspect) are
+rejected with a `legacy template` error and a dedicated message in the import
+dialog; old cloud rows are skipped on read. Covered by `npm run check`.
 
 ## Built-ins
 
@@ -139,5 +202,5 @@ routemap · navmap · compass.
 
 New metrics: `vam` (m/h, computed over 60 s), `gears` (shift teeth, never
 interpolated), `none` (map/compass placeholders).
-`apex` and `pulse` exercise gauges, numbers, pill/transparent panels, custom
-labels and explicit ranges — use them as the reference for new kinds.
+`apex` and `pulse` exercise gauges, numbers, pill/transparent panels, label
+toggles and explicit ranges — use them as the reference for new kinds.

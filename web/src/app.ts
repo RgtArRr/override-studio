@@ -2,8 +2,12 @@ import {
   DEFAULT_TEMPLATE_THEME,
   TEMPLATE_SCHEMA_VERSION,
   classifyAspect,
+  inferLayout,
   parseTemplateJson,
+  resolveLayout,
   type AspectClass,
+  type GearsMode,
+  type GearsSide,
   type MetricId,
   type Template,
   type TimeFormat,
@@ -41,10 +45,11 @@ import { BUILTIN_TEMPLATES } from './templates.js';
 import {
   METRIC_IDS,
   WIDGET_KINDS,
+  capsFor,
+  DEFAULT_WIDGET_FONT,
   defaultAlignFor,
   defaultMetricFor,
   kindLabel,
-  kindShowsUnit,
   makeWidgetDef,
   metricLabel,
   nextWidgetId,
@@ -147,13 +152,8 @@ const DEMO_SAMPLE: TelemetrySample = {
   grade: 4.5,
 };
 
-interface LayoutOverride {
-  aspect: AspectClass;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+/** Session layout edits replace the whole anchor layout (no per-aspect data). */
+type LayoutOverride = WidgetLayout;
 
 /** One video of the ride. Sync/trim/audio are per clip; template + units are global. */
 interface Clip {
@@ -191,7 +191,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const addedWidgets = new Map<string, WidgetDef[]>();
   const defOverrides = new Map<
     string,
-    Map<string, { metric?: MetricId; kind?: WidgetKind; timeFormat?: TimeFormat; showUnit?: boolean }>
+    Map<string, { metric?: MetricId; kind?: WidgetKind; timeFormat?: TimeFormat; showUnit?: boolean; showLabel?: boolean; gearsMode?: GearsMode; gearsSide?: GearsSide }>
   >();
   /** Session-removed widget ids per template ("Restablecer widgets" brings them back). */
   const removedWidgets = new Map<string, Set<string>>();
@@ -201,8 +201,30 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   let selected: { templateId: string; widgetId: string } | null = null;
   /** Resize handles: squares at the widget's four corners, hit slop in CSS px. */
   const HANDLE_PX = 14;
-  /** Min normalized size: overlay skips boxes under 24×16 px, 0.04 stays above that at 720p+. */
-  const MIN_NORM = 0.04;
+  /** Min widget size in px: the overlay skips smaller boxes. */
+  const MIN_PX_W = 24;
+  const MIN_PX_H = 16;
+  /** Resolve a widget to a normalized 0..1 box on a W×H canvas. */
+  const resolveNorm = (
+    widget: WidgetDef,
+    W: number,
+    H: number,
+  ): { x: number; y: number; w: number; h: number } => {
+    const b = resolveLayout(widget.layout, W, H);
+    return { x: b.x / W, y: b.y / H, w: b.w / W, h: b.h / H };
+  };
+  /** Normalized box back to an anchor layout: clamp to frame + min size, then infer. */
+  const normToLayout = (
+    box: { x: number; y: number; w: number; h: number },
+    W: number,
+    H: number,
+  ): WidgetLayout => {
+    const w = Math.min(Math.max(box.w * W, MIN_PX_W), W);
+    const h = Math.min(Math.max(box.h * H, MIN_PX_H), H);
+    const x = Math.min(Math.max(box.x * W, 0), W - w);
+    const y = Math.min(Math.max(box.y * H, 0), H - h);
+    return inferLayout({ x, y, w, h }, W, H);
+  };
   const bumpRev = (): void => {
     overrideRev += 1;
     syncExportBtns();
@@ -250,7 +272,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   let customSeq = 0;
   const freshTemplateId = (): string => {
     customSeq += 1;
-    return `custom-${Date.now().toString(36)}-${customSeq}`;
+    // Random tail: two accounts creating a custom in the same millisecond must not collide (409).
+    return `custom-${Date.now().toString(36)}-${customSeq}-${Math.random().toString(36).slice(2, 8)}`;
   };
 
   const selectedTemplate = (): Template | undefined =>
@@ -275,21 +298,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         kind: patch?.kind ?? w.kind,
         timeFormat: patch?.timeFormat ?? w.timeFormat,
         showUnit: patch?.showUnit ?? w.showUnit,
+        showLabel: patch?.showLabel ?? w.showLabel,
+        gearsMode: patch?.gearsMode ?? w.gearsMode,
+        gearsSide: patch?.gearsSide ?? w.gearsSide,
         visible: vis?.get(w.id) ?? w.visible,
         strokeWidth: wid?.get(w.id) ?? w.strokeWidth,
         style: style ? { ...w.style, ...style } : w.style,
-        layout: pos
-          ? {
-              ...w.layout,
-              [pos.aspect]: {
-                ...w.layout[pos.aspect],
-                x: pos.x,
-                y: pos.y,
-                w: pos.w,
-                h: pos.h,
-              },
-            }
-          : w.layout,
+        layout: pos ?? w.layout,
       };
     };
     return {
@@ -1282,6 +1297,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   });
   /** Drops a session custom (card + model) so cloud restores can replace it. */
   const removeCustom = (id: string): void => {
+    widgetOverrides.delete(id);
+    layoutOverrides.delete(id);
+    styleOverrides.delete(id);
+    widthOverrides.delete(id);
+    defOverrides.delete(id);
+    addedWidgets.delete(id);
+    removedWidgets.delete(id);
     const ti = thumbs.findIndex((th) => th.custom && th.template.id === id);
     if (ti >= 0) {
       thumbs[ti].card.remove();
@@ -1350,16 +1372,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         let tpl: Template;
         try {
           tpl = parseTemplateJson(text);
-        } catch {
-          importErr.hidden = false;
-          return;
-        }
-        const known = tpl.widgets.every(
-          (w) =>
-            (WIDGET_KINDS as readonly string[]).includes(w.kind) &&
-            (METRIC_IDS as readonly string[]).includes(w.metric),
-        );
-        if (!known) {
+        } catch (err) {
+          importErr.textContent =
+            err instanceof Error && err.message === 'legacy template'
+              ? t('tpl.errLegacy')
+              : t('tpl.errImport');
           importErr.hidden = false;
           return;
         }
@@ -1377,6 +1394,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   newCard.addEventListener('click', () => {
     nameInput.value = '';
     fileInput.value = '';
+    importErr.textContent = t('tpl.errImport');
     importErr.hidden = true;
     showModal(newDialog);
   });
@@ -1577,8 +1595,10 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     labelText: string,
     type: string,
     className: string,
+    title?: string,
   ): HTMLInputElement => {
     const group = el('label', 'trim-group', labelText);
+    if (title) group.title = title;
     const input = el('input', className);
     input.type = type;
     group.appendChild(input);
@@ -1610,6 +1630,43 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   );
   const unitRow = el('div', 'editor-row');
   const unitCheck = mkField(unitRow, t('w.unit'), 'checkbox', 'unit-check');
+  const labelRow = el('div', 'editor-row');
+  const labelCheck = mkField(labelRow, t('w.label'), 'checkbox', 'unit-check');
+  const gearsModeRow = el('div', 'editor-row');
+  gearsModeRow.append(el('span', 'muted', t('w.gearsMode')));
+  const gearsModeSeg = el('div', 'seg-switch fill');
+  gearsModeSeg.setAttribute('role', 'group');
+  gearsModeSeg.setAttribute('aria-label', t('w.gearsMode'));
+  const gearsModeBtns: HTMLButtonElement[] = [];
+  for (const [value, text] of [
+    ['teeth', t('w.gearsTeeth')],
+    ['index', t('w.gearsIndex')],
+  ]) {
+    const btn = el('button', 'seg-opt', text);
+    btn.type = 'button';
+    btn.dataset.gearsMode = value;
+    gearsModeSeg.appendChild(btn);
+    gearsModeBtns.push(btn);
+  }
+  gearsModeRow.appendChild(gearsModeSeg);
+  const gearsSideRow = el('div', 'editor-row');
+  gearsSideRow.append(el('span', 'muted', t('w.gearsSide')));
+  const gearsSideSeg = el('div', 'seg-switch fill');
+  gearsSideSeg.setAttribute('role', 'group');
+  gearsSideSeg.setAttribute('aria-label', t('w.gearsSide'));
+  const gearsSideBtns: HTMLButtonElement[] = [];
+  for (const [value, text] of [
+    ['both', t('w.gearsBoth')],
+    ['front', t('w.gearsFront')],
+    ['rear', t('w.gearsRear')],
+  ]) {
+    const btn = el('button', 'seg-opt', text);
+    btn.type = 'button';
+    btn.dataset.gearsSide = value;
+    gearsSideSeg.appendChild(btn);
+    gearsSideBtns.push(btn);
+  }
+  gearsSideRow.appendChild(gearsSideSeg);
 
   const posRow = el('div', 'editor-row');
   const xInput = mkField(posRow, 'X ', 'number', 'trim-input');
@@ -1674,9 +1731,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     alignBtns.push(btn);
   }
   alignRow.appendChild(alignSeg);
-  const colorRow = el('div', 'editor-row');
-  const accentInput = mkField(colorRow, t('w.accent'), 'color', 'color-input');
-  const textInput = mkField(colorRow, t('w.text'), 'color', 'color-input');
   const widthRow = el('div', 'editor-row');
   const widthGroup = el('label', 'op-group', t('w.width'));
   const widthInput = el('input', 'range-input');
@@ -1693,25 +1747,110 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       Number(widthInput.value) <= 0 ? t('w.auto') : `${widthInput.value} px`;
   };
   const FONT_OPTIONS: [string, string][] = [
-    [t('w.themeFont'), ''],
     ['Inter', 'Inter, sans-serif'],
-    ['Poppins', 'Poppins, sans-serif'],
     ['Barlow Condensed', 'Barlow Condensed, sans-serif'],
     ['Oswald', 'Oswald, sans-serif'],
     ['Rajdhani', 'Rajdhani, sans-serif'],
+    ['Orbitron', 'Orbitron, sans-serif'],
+    ['Baloo 2', '"Baloo 2", sans-serif'],
+    ['Bungee Outline', 'Bungee Outline, sans-serif'],
+    ['Bungee', 'Bungee, sans-serif'],
     ['Mono', 'ui-monospace, monospace'],
   ];
-  const mkFontRow = (
-    labelText: string,
-  ): [HTMLElement, HTMLSelectElement, HTMLInputElement, HTMLSpanElement] => {
-    const row = el('div', 'editor-row');
-    row.append(el('span', 'muted', labelText));
-    const select = el('select', 'font-select');
-    for (const [text, value] of FONT_OPTIONS) {
-      const opt = el('option', undefined, text);
-      opt.value = value;
-      select.appendChild(opt);
+  /** Minimal custom select for fonts: each option previews ABC/123 in its typeface. */
+  interface FontPicker {
+    readonly root: HTMLElement;
+    value: string;
+  }
+  let openFontPicker: { root: HTMLElement; close: () => void } | null = null;
+  document.addEventListener('pointerdown', (e) => {
+    if (openFontPicker && e.target instanceof Node && !openFontPicker.root.contains(e.target)) {
+      openFontPicker.close();
     }
+  });
+  const mkFontPicker = (onPick: (value: string) => void): FontPicker => {
+    const root = el('div', 'font-picker');
+    const btn = el('button', 'font-select font-picker-btn');
+    btn.type = 'button';
+    btn.setAttribute('aria-haspopup', 'listbox');
+    btn.setAttribute('aria-expanded', 'false');
+    const nameSpan = el('span', 'font-picker-name', '');
+    const caret = el('span', 'font-picker-caret', '▾');
+    caret.setAttribute('aria-hidden', 'true');
+    btn.append(nameSpan, caret);
+    const list = el('div', 'font-picker-list');
+    list.setAttribute('role', 'listbox');
+    list.hidden = true;
+    root.append(btn, list);
+    let value = FONT_OPTIONS[0][1];
+    const options: HTMLButtonElement[] = [];
+    const syncBtn = (): void => {
+      const found = FONT_OPTIONS.find(([, v]) => v === value);
+      nameSpan.textContent = found ? found[0] : value;
+      nameSpan.style.fontFamily = value;
+      btn.title = nameSpan.textContent ?? '';
+      options.forEach((opt, i) =>
+        opt.setAttribute('aria-selected', String(FONT_OPTIONS[i][1] === value)),
+      );
+    };
+    const close = (): void => {
+      if (list.hidden) return;
+      list.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      if (openFontPicker?.close === close) openFontPicker = null;
+    };
+    const open = (): void => {
+      openFontPicker?.close();
+      list.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      openFontPicker = { root, close };
+    };
+    btn.addEventListener('click', () => (list.hidden ? open() : close()));
+    btn.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') close();
+      else if (e.key === 'ArrowDown' && list.hidden) open();
+    });
+    for (const [label, stack] of FONT_OPTIONS) {
+      const opt = el('button', 'font-picker-opt');
+      opt.type = 'button';
+      opt.setAttribute('role', 'option');
+      const name = el('span', 'font-picker-opt-name', label);
+      const abc = el('span', 'font-picker-opt-preview', 'AaGgQqRr');
+      abc.style.fontFamily = stack;
+      const nums = el('span', 'font-picker-opt-preview font-picker-opt-digits', '0123456789');
+      nums.style.fontFamily = stack;
+      opt.append(name, abc, nums);
+      opt.addEventListener('click', () => {
+        value = stack;
+        syncBtn();
+        close();
+        btn.focus();
+        onPick(stack);
+      });
+      options.push(opt);
+      list.appendChild(opt);
+    }
+    syncBtn();
+    return {
+      root,
+      get value() {
+        return value;
+      },
+      set value(v: string) {
+        if (v === value) return;
+        value = v;
+        syncBtn();
+      },
+    };
+  };
+  const mkFontRow = (
+    colorLabel: string,
+    colorTitle: string | undefined,
+    onPick: (value: string) => void,
+  ): [HTMLElement, HTMLInputElement, FontPicker, HTMLInputElement, HTMLSpanElement, HTMLElement] => {
+    const row = el('div', 'editor-row');
+    const color = mkField(row, colorLabel, 'color', 'color-input', colorTitle);
+    const picker = mkFontPicker(onPick);
     const scale = el('input', 'range-input');
     scale.type = 'range';
     scale.min = '50';
@@ -1720,11 +1859,13 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const pct = el('span', 'pct', '');
     const scaleGroup = el('span', 'op-group');
     scaleGroup.append(scale, pct);
-    row.append(select, scaleGroup);
-    return [row, select, scale, pct];
+    row.append(picker.root, scaleGroup);
+    return [row, color, picker, scale, pct, scaleGroup];
   };
-  const [labelFontRow, labelFontSel, labelScaleInput, labelPct] = mkFontRow(t('w.labelFont'));
-  const [valueFontRow, valueFontSel, valueScaleInput, valuePct] = mkFontRow(t('w.valueFont'));
+  const [labelFontRow, accentInput, labelFontPicker, labelScaleInput, labelPct, labelScaleGroup] =
+    mkFontRow(t('w.accent'), t('w.accentTitle'), (v) => writeStylePatch({ labelFont: v }));
+  const [valueFontRow, textInput, valueFontPicker, valueScaleInput, valuePct, valueScaleGroup] =
+    mkFontRow(t('w.text'), undefined, (v) => writeStylePatch({ valueFont: v }));
   const widgetDeleteBtn = el('button', 'btn btn-danger', t('w.delete'));
   widgetDeleteBtn.type = 'button';
   widgetPanel.append(
@@ -1732,12 +1873,14 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     metricRow,
     fmtRow,
     unitRow,
+    labelRow,
+    gearsModeRow,
+    gearsSideRow,
     posRow,
     sizeRow,
     shapeRow,
     bgRow,
     alignRow,
-    colorRow,
     widthRow,
     labelFontRow,
     valueFontRow,
@@ -1767,21 +1910,22 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     return ov;
   };
 
-  const writeLayoutPatch = (patch: Partial<WidgetLayout>): void => {
+  const writeLayoutPatch = (patch: Partial<{ x: number; y: number; w: number; h: number }>): void => {
     const sw = selectedWidget();
     if (!sw) return;
-    const aspect = classifyAspect(canvas.width, canvas.height);
-    const box = sw.widget.layout[aspect];
+    const W = canvas.width;
+    const H = canvas.height;
+    const box = resolveNorm(sw.widget, W, H);
     const x = Math.min(Math.max(patch.x ?? box.x, 0), 1);
     const y = Math.min(Math.max(patch.y ?? box.y, 0), 1);
-    const w = Math.min(Math.max(patch.w ?? box.w, MIN_NORM), 1 - x);
-    const h = Math.min(Math.max(patch.h ?? box.h, MIN_NORM), 1 - y);
+    const w = Math.min(Math.max(patch.w ?? box.w, MIN_PX_W / W), 1 - x);
+    const h = Math.min(Math.max(patch.h ?? box.h, MIN_PX_H / H), 1 - y);
     let per = layoutOverrides.get(sw.template.id);
     if (!per) {
       per = new Map();
       layoutOverrides.set(sw.template.id, per);
     }
-    per.set(sw.widget.id, { aspect, x, y, w, h });
+    per.set(sw.widget.id, normToLayout({ x, y, w, h }, W, H));
     bumpRev();
   };
 
@@ -1792,19 +1936,14 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     bumpRev();
   };
 
-  const clearStyleKey = (key: keyof WidgetStyle): void => {
-    const sw = selectedWidget();
-    if (!sw) return;
-    const ov = styleOv(sw.template.id, sw.widget.id);
-    delete ov[key];
-    bumpRev();
-  };
-
   const writeDefPatch = (patch: {
     metric?: MetricId;
     kind?: WidgetKind;
     timeFormat?: TimeFormat;
     showUnit?: boolean;
+    showLabel?: boolean;
+    gearsMode?: GearsMode;
+    gearsSide?: GearsSide;
   }): void => {
     const sw = selectedWidget();
     if (!sw) return;
@@ -1875,14 +2014,6 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   }
   accentInput.addEventListener('input', () => writeStylePatch({ accent: accentInput.value }));
   textInput.addEventListener('input', () => writeStylePatch({ text: textInput.value }));
-  labelFontSel.addEventListener('change', () => {
-    if (labelFontSel.value) writeStylePatch({ labelFont: labelFontSel.value });
-    else clearStyleKey('labelFont');
-  });
-  valueFontSel.addEventListener('change', () => {
-    if (valueFontSel.value) writeStylePatch({ valueFont: valueFontSel.value });
-    else clearStyleKey('valueFont');
-  });
   labelScaleInput.addEventListener('input', () =>
     writeStylePatch({ labelScale: Number(labelScaleInput.value) / 100 }),
   );
@@ -1899,6 +2030,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     writeDefPatch({ metric: metricSel.value as MetricId }),
   );
   unitCheck.addEventListener('change', () => writeDefPatch({ showUnit: unitCheck.checked }));
+  labelCheck.addEventListener('change', () => writeDefPatch({ showLabel: labelCheck.checked }));
+  for (const btn of gearsModeBtns) {
+    btn.addEventListener('click', () => {
+      writeDefPatch({ gearsMode: btn.dataset.gearsMode as GearsMode });
+    });
+  }
+  for (const btn of gearsSideBtns) {
+    btn.addEventListener('click', () => {
+      writeDefPatch({ gearsSide: btn.dataset.gearsSide as GearsSide });
+    });
+  }
   widgetDeleteBtn.addEventListener('click', () => {
     const sw = selectedWidget();
     if (sw) deleteWidget(sw.template, sw.widget.id);
@@ -1928,17 +2070,32 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const fillWidgetPanel = (): void => {
     const sw = selectedWidget();
     if (!sw) return;
-    const aspect = classifyAspect(canvas.width, canvas.height);
-    const box = sw.widget.layout[aspect];
+    const box = resolveNorm(sw.widget, canvas.width, canvas.height);
     const st = sw.widget.style ?? {};
-    widgetTitle.textContent = sw.widget.label ?? sw.widget.id;
-    widgetSub.textContent = `${sw.widget.kind} · ${sw.widget.metric} · ${aspect}`;
+    widgetTitle.textContent = sw.widget.id;
+    widgetSub.textContent = `${sw.widget.kind} · ${sw.widget.metric} · ${sw.widget.layout.ax}/${sw.widget.layout.ay}`;
     setIfIdle(kindSel, sw.widget.kind);
     setIfIdle(metricSel, sw.widget.metric);
     fmtRow.hidden = sw.widget.metric !== 'elapsedTime';
     setIfIdle(fmtSel, sw.widget.timeFormat ?? 'auto');
-    unitRow.hidden = !kindShowsUnit(sw.widget.kind);
+    const caps = capsFor(sw.widget.kind);
+    // Gears in both mode shows no unit, so there is nothing to toggle.
+    unitRow.hidden = !caps.unit || (sw.widget.kind === 'gears' && (sw.widget.gearsSide ?? 'both') === 'both');
     unitCheck.checked = sw.widget.showUnit !== false;
+    labelRow.hidden = !caps.labelToggle;
+    labelCheck.checked = sw.widget.showLabel !== false;
+    gearsModeRow.hidden = !caps.gearsMode;
+    for (const btn of gearsModeBtns) {
+      const active = btn.dataset.gearsMode === (sw.widget.gearsMode ?? 'teeth');
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    }
+    gearsSideRow.hidden = !caps.gearsMode;
+    for (const btn of gearsSideBtns) {
+      const active = btn.dataset.gearsSide === (sw.widget.gearsSide ?? 'both');
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    }
     setIfIdle(xInput, box.x.toFixed(2));
     setIfIdle(yInput, box.y.toFixed(2));
     setIfIdle(wInput, box.w.toFixed(2));
@@ -1972,20 +2129,30 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (document.activeElement !== textInput) {
       textInput.value = toHex(st.text ?? sw.template.theme.text, '#ffffff');
     }
-    const isMap = sw.widget.kind === 'map' || sw.widget.kind === 'navmap';
-    widthRow.hidden = !isMap;
-    if (isMap) {
+    widthRow.hidden = !caps.trailWidth;
+    if (caps.trailWidth) {
       setIfIdle(widthInput, String(sw.widget.strokeWidth ?? 0));
       syncWidthPct();
     }
-    // Map kinds render no label/value text: the font rows would be dead controls.
-    labelFontRow.hidden = isMap;
-    valueFontRow.hidden = isMap;
-    setIfIdle(labelFontSel, st.labelFont ?? '');
+    // Kinds without text (maps) keep only the trail/dot color: their label
+    // font styles a fallback title, and the whole value row paints nothing.
+    // Label font also hides when the kind's label is toggled off (its color
+    // may still paint graphics, e.g. the gauge arc, so the row stays).
+    const labelOff = caps.labelToggle && sw.widget.showLabel === false;
+    labelFontPicker.root.hidden = !caps.text || labelOff;
+    labelScaleGroup.hidden = !caps.text || labelOff;
+    valueFontRow.hidden = !caps.text;
+    // The highlight row is dead when it paints nothing: `stat`/`gears` with
+    // their label off (their only accent use), `number` with its unit off.
+    labelFontRow.hidden =
+      (sw.widget.kind === 'stat' && sw.widget.showLabel === false) ||
+      (sw.widget.kind === 'gears' && sw.widget.showLabel === false) ||
+      (sw.widget.kind === 'number' && sw.widget.showUnit === false);
+    labelFontPicker.value = st.labelFont ?? DEFAULT_WIDGET_FONT;
     const ls = Math.round((st.labelScale ?? 1) * 100);
     setIfIdle(labelScaleInput, String(ls));
     labelPct.textContent = `${ls} %`;
-    setIfIdle(valueFontSel, st.valueFont ?? '');
+    valueFontPicker.value = st.valueFont ?? DEFAULT_WIDGET_FONT;
     const vs = Math.round((st.valueScale ?? 1) * 100);
     setIfIdle(valueScaleInput, String(vs));
     valuePct.textContent = `${vs} %`;
@@ -2701,12 +2868,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const hitWidget = (nx: number, ny: number): string | undefined => {
     const template = selectedTemplate();
     if (!template || !activity) return undefined;
-    const aspect = classifyAspect(canvas.width, canvas.height);
     const widgets = effectiveTemplate(template).widgets;
     for (let i = widgets.length - 1; i >= 0; i--) {
       const w = widgets[i];
       if (!w.visible) continue;
-      const b = w.layout[aspect];
+      const b = resolveNorm(w, canvas.width, canvas.height);
       if (nx >= b.x && nx <= b.x + b.w && ny >= b.y && ny <= b.y + b.h) return w.id;
     }
     return undefined;
@@ -2716,11 +2882,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const template = selectedTemplate();
     const sel = selected;
     if (!template || !sel || sel.templateId !== template.id || !activity) return null;
-    const aspect = classifyAspect(canvas.width, canvas.height);
-    return (
-      effectiveTemplate(template).widgets.find((w) => w.id === sel.widgetId)?.layout[aspect] ??
-      null
-    );
+    const found = effectiveTemplate(template).widgets.find((w) => w.id === sel.widgetId);
+    return found ? resolveNorm(found, canvas.width, canvas.height) : null;
   };
 
   const onCorner = (e: {
@@ -2755,9 +2918,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const hit = hitWidget(nx, ny);
     if (!hit) return;
     selected = { templateId: template.id, widgetId: hit };
-    const aspect = classifyAspect(canvas.width, canvas.height);
-    const box = effectiveTemplate(template).widgets.find((w) => w.id === hit)?.layout[aspect];
-    if (!box) return;
+    const found = effectiveTemplate(template).widgets.find((w) => w.id === hit);
+    if (!found) return;
+    const box = resolveNorm(found, canvas.width, canvas.height);
     const corner = onCorner(e);
     drag =
       corner === null
@@ -2790,11 +2953,14 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       ) {
         drag.moved = true;
       }
-      const aspect = classifyAspect(canvas.width, canvas.height);
+      const W = canvas.width;
+      const H = canvas.height;
+      const minW = MIN_PX_W / W;
+      const minH = MIN_PX_H / H;
       const widgetId = drag.widgetId;
-      const box = effectiveTemplate(template).widgets.find((w) => w.id === widgetId)
-        ?.layout[aspect];
-      if (!box) return;
+      const found = effectiveTemplate(template).widgets.find((w) => w.id === widgetId);
+      if (!found) return;
+      const box = resolveNorm(found, W, H);
       const { nx, ny } = toNorm(e);
       let perTemplate = layoutOverrides.get(template.id);
       if (!perTemplate) {
@@ -2806,19 +2972,25 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         const y1 = box.y + box.h;
         const west = drag.corner === 'nw' || drag.corner === 'sw';
         const north = drag.corner === 'nw' || drag.corner === 'ne';
-        const x = west ? Math.min(Math.max(nx - drag.dx, 0), x1 - MIN_NORM) : box.x;
-        const y = north ? Math.min(Math.max(ny - drag.dy, 0), y1 - MIN_NORM) : box.y;
-        const w = west ? x1 - x : Math.min(Math.max(nx + drag.dx - x, MIN_NORM), 1 - x);
-        const h = north ? y1 - y : Math.min(Math.max(ny + drag.dy - y, MIN_NORM), 1 - y);
-        perTemplate.set(drag.widgetId, { aspect, x, y, w, h });
+        const x = west ? Math.min(Math.max(nx - drag.dx, 0), x1 - minW) : box.x;
+        const y = north ? Math.min(Math.max(ny - drag.dy, 0), y1 - minH) : box.y;
+        const w = west ? x1 - x : Math.min(Math.max(nx + drag.dx - x, minW), 1 - x);
+        const h = north ? y1 - y : Math.min(Math.max(ny + drag.dy - y, minH), 1 - y);
+        perTemplate.set(drag.widgetId, normToLayout({ x, y, w, h }, W, H));
       } else {
-        perTemplate.set(drag.widgetId, {
-          aspect,
-          x: Math.min(Math.max(nx - drag.dx, 0), 1 - box.w),
-          y: Math.min(Math.max(ny - drag.dy, 0), 1 - box.h),
-          w: box.w,
-          h: box.h,
-        });
+        perTemplate.set(
+          drag.widgetId,
+          normToLayout(
+            {
+              x: Math.min(Math.max(nx - drag.dx, 0), 1 - box.w),
+              y: Math.min(Math.max(ny - drag.dy, 0), 1 - box.h),
+              w: box.w,
+              h: box.h,
+            },
+            W,
+            H,
+          ),
+        );
       }
       bumpRev();
     } else if (e.pointerType === 'mouse' && downPos === null) {
